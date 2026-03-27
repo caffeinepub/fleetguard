@@ -1,0 +1,84 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+    /* Background: #F5F7FA */
+    --background: 0.975 0.006 250;
+    --foreground: 0.2 0.02 255;
+    /* Card: white */
+    --card: 1 0 0;
+    --card-foreground: 0.2 0.02 255;
+    --popover: 1 0 0;
+    --popover-foreground: 0.2 0.02 255;
+    /* Primary: #1F5EFF */
+    --primary: 0.5 0.23 264;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.94 0.01 250;
+    --secondary-foreground: 0.3 0.04 255;
+    --muted: 0.94 0.008 250;
+    --muted-foreground: 0.52 0.02 255;
+    --accent: 0.94 0.01 250;
+    --accent-foreground: 0.3 0.04 255;
+    /* Destructive: #E54B4B */
+    --destructive: 0.58 0.18 22;
+    --destructive-foreground: 1 0 0;
+    --border: 0.91 0.008 250;
+    --input: 0.91 0.008 250;
+    --ring: 0.5 0.23 264;
+    /* Success green #2FBF71 */
+    --success: 0.68 0.14 148;
+    --success-foreground: 1 0 0;
+    /* Warning amber #F2C94C */
+    --warning: 0.82 0.15 85;
+    --warning-foreground: 0.2 0.02 0;
+    --chart-1: 0.5 0.23 264;
+    --chart-2: 0.68 0.14 148;
+    --chart-3: 0.82 0.15 85;
+    --chart-4: 0.58 0.18 22;
+    --chart-5: 0.65 0.12 210;
+    /* Sidebar navy: #0B2F5F → #0D4B8F gradient done via CSS */
+    --sidebar: 0.24 0.09 255;
+    --sidebar-foreground: 0.95 0.01 250;
+    --sidebar-primary: 0.5 0.23 264;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.33 0.09 255;
+    --sidebar-accent-foreground: 1 0 0;
+    --sidebar-border: 0.35 0.07 255;
+    --sidebar-ring: 0.5 0.23 264;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+}
+
+/* Sidebar gradient */
+.sidebar-gradient {
+  background: linear-gradient(
+    180deg,
+    oklch(0.24 0.09 255) 0%,
+    oklch(0.33 0.11 255) 100%
+  );
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: oklch(0.94 0.008 250);
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.01 250);
+  border-radius: 3px;
+}
