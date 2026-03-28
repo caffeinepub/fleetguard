@@ -48,7 +48,12 @@ const defaultForm = {
   quantityInStock: "",
   minStockLevel: "",
   location: "",
+  price: "",
 };
+
+function getPartPrice(p: { price?: number | null }): number {
+  return p.price != null ? Number(p.price) : 0;
+}
 
 export function PartsPage() {
   const { data: parts, isLoading } = useAllParts();
@@ -71,6 +76,10 @@ export function PartsPage() {
       );
     }) ?? [];
 
+  const totalInventoryValue = (parts ?? []).reduce((sum: number, p: Part) => {
+    return sum + getPartPrice(p) * Number(p.quantityInStock);
+  }, 0);
+
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const openAdd = () => {
@@ -87,6 +96,7 @@ export function PartsPage() {
       quantityInStock: p.quantityInStock.toString(),
       minStockLevel: p.minStockLevel.toString(),
       location: p.location,
+      price: getPartPrice(p) > 0 ? getPartPrice(p).toString() : "",
     });
     setModalOpen(true);
   };
@@ -97,9 +107,15 @@ export function PartsPage() {
       !form.partNumber ||
       !form.quantityInStock ||
       !form.minStockLevel ||
-      !form.location
+      !form.location ||
+      !form.price
     ) {
-      toast.error("Please fill in all required fields");
+      toast.error("Please fill in all required fields including price");
+      return;
+    }
+    const priceVal = Number.parseFloat(form.price);
+    if (Number.isNaN(priceVal) || priceVal < 0) {
+      toast.error("Please enter a valid price");
       return;
     }
     const data: Part = {
@@ -109,6 +125,7 @@ export function PartsPage() {
       quantityInStock: BigInt(form.quantityInStock),
       minStockLevel: BigInt(form.minStockLevel),
       location: form.location,
+      price: priceVal,
       createdAt: editPart?.createdAt ?? nowNs(),
     };
     try {
@@ -138,6 +155,7 @@ export function PartsPage() {
     const headers = [
       "Part Name",
       "Part Number",
+      "Unit Price",
       "Qty In Stock",
       "Min Stock",
       "Location",
@@ -146,6 +164,7 @@ export function PartsPage() {
     const rows = (parts ?? []).map((p: Part) => [
       p.name,
       p.partNumber,
+      `$${getPartPrice(p).toFixed(2)}`,
       p.quantityInStock.toString(),
       p.minStockLevel.toString(),
       p.location,
@@ -158,6 +177,7 @@ export function PartsPage() {
     const headers = [
       "Part Name",
       "Part Number",
+      "Unit Price",
       "Qty In Stock",
       "Min Stock",
       "Location",
@@ -166,6 +186,7 @@ export function PartsPage() {
     const rows = (parts ?? []).map((p: Part) => [
       p.name,
       p.partNumber,
+      `$${getPartPrice(p).toFixed(2)}`,
       p.quantityInStock.toString(),
       p.minStockLevel.toString(),
       p.location,
@@ -181,9 +202,19 @@ export function PartsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Parts Inventory</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {parts?.length ?? 0} parts tracked
-          </p>
+          <div className="flex items-center gap-4 mt-0.5">
+            <p className="text-muted-foreground text-sm">
+              {parts?.length ?? 0} parts tracked
+            </p>
+            <span className="text-muted-foreground text-sm">•</span>
+            <p className="text-sm font-semibold text-primary">
+              Total Inventory Value: $
+              {totalInventoryValue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -251,6 +282,7 @@ export function PartsPage() {
                   {[
                     "Part Name",
                     "Part Number",
+                    "Unit Price",
                     "Quantity",
                     "Min Stock",
                     "Location",
@@ -269,6 +301,7 @@ export function PartsPage() {
               <tbody className="divide-y divide-border/50">
                 {filtered.map((p: Part, i: number) => {
                   const isLow = p.quantityInStock <= p.minStockLevel;
+                  const price = getPartPrice(p);
                   return (
                     <tr
                       key={p.id.toString()}
@@ -280,6 +313,15 @@ export function PartsPage() {
                         <code className="bg-muted px-2 py-0.5 rounded text-xs font-mono">
                           {p.partNumber}
                         </code>
+                      </td>
+                      <td className="px-5 py-4 font-medium">
+                        {price > 0 ? (
+                          `$${price.toFixed(2)}`
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            —
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4 font-semibold">
                         {p.quantityInStock.toString()}
@@ -412,6 +454,18 @@ export function PartsPage() {
                   value={form.minStockLevel}
                   onChange={(e) => set("minStockLevel", e.target.value)}
                   placeholder="10"
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="p-price">Unit Price ($) *</Label>
+                <Input
+                  id="p-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.price}
+                  onChange={(e) => set("price", e.target.value)}
+                  placeholder="29.99"
                 />
               </div>
               <div className="col-span-2 space-y-1.5">

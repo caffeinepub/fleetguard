@@ -51,6 +51,11 @@ export function MaintenancePage() {
           : Number(a.date - b.date),
       ) ?? [];
 
+  const totalRepairCost = (records ?? []).reduce(
+    (sum: number, r: MaintenanceRecordFull) => sum + Number(r.cost),
+    0,
+  );
+
   const openAdd = () => {
     setEditRecord(null);
     setModalOpen(true);
@@ -115,9 +120,15 @@ export function MaintenancePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Maintenance Records</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {records?.length ?? 0} total records
-          </p>
+          <div className="flex items-center gap-4 mt-0.5">
+            <p className="text-muted-foreground text-sm">
+              {records?.length ?? 0} total records
+            </p>
+            <span className="text-muted-foreground text-sm">•</span>
+            <p className="text-sm font-semibold text-primary">
+              Total Repair Cost: {formatCurrency(totalRepairCost)}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button

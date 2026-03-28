@@ -89,7 +89,7 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface Part {
+export interface PartFull {
     id: bigint;
     partNumber: string;
     quantityInStock: bigint;
@@ -97,7 +97,10 @@ export interface Part {
     createdAt: Time;
     minStockLevel: bigint;
     location: string;
+    price?: number | null;
 }
+// Alias for backward compat
+export type Part = PartFull;
 export interface _CaffeineStorageRefillResult {
     success?: boolean;
     topped_up_amount?: bigint;

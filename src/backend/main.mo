@@ -34,12 +34,10 @@ actor {
 
   var fleetRoles = Map.empty<Principal, FleetRole>();
 
-  // Internal function to set fleet role - only used during invite redemption
   func setFleetRoleInternal(user : Principal, role : FleetRole) {
     fleetRoles.add(user, role);
   };
 
-  // Admin-only function to manually set a user's fleet role
   public shared ({ caller }) func setUserFleetRole(user : Principal, role : FleetRole) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can set user fleet roles");
@@ -61,7 +59,6 @@ actor {
     fleetRoles.get(user);
   };
 
-  // Invite Token System
   public type InviteToken = {
     token : Text;
     role : FleetRole;
@@ -77,7 +74,6 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Admin access required to create invite tokens");
     };
-
     let token = "INV-" # nextInviteTokenId.toText();
     let invite : InviteToken = {
       token;
@@ -92,33 +88,21 @@ actor {
   };
 
   public shared ({ caller }) func redeemInviteToken(token : Text) : async FleetRole {
-    // Allow any authenticated principal (not anonymous) to redeem
     if (caller.isAnonymous()) {
       Runtime.trap("Unauthorized: Authentication required to redeem invite tokens");
     };
-
     let existing = switch (inviteTokens.get(token)) {
       case (null) { Runtime.trap("Token does not exist, please try again") };
       case (?invite) { invite };
     };
-
     switch (existing.usedBy) {
       case (?_) { Runtime.trap("Token already used by another principal") };
       case (null) {};
     };
-
-    let updatedToken = {
-      existing with
-      usedBy = ?caller;
-    };
+    let updatedToken = { existing with usedBy = ?caller };
     inviteTokens.add(token, updatedToken);
-
-    // Assign the fleet role
     setFleetRoleInternal(caller, existing.role);
-    
-    // Also assign #user ACL permission so they can use the system
     AccessControl.assignRole(accessControlState, caller, caller, #user);
-    
     existing.role;
   };
 
@@ -129,11 +113,7 @@ actor {
     inviteTokens.values().toArray();
   };
 
-  // User Profile Management (existing)
-  public type UserProfile = {
-    name : Text;
-  };
-
+  public type UserProfile = { name : Text };
   var userProfiles = Map.empty<Principal, UserProfile>();
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -159,15 +139,9 @@ actor {
 
   module Vehicle {
     public type VehicleType = {
-      #Truck;
-      #Trailer;
-      #Bus;
-      #Van;
-      #Other;
+      #Truck; #Trailer; #Bus; #Van; #Other;
     };
-
     public type Status = { #Active; #Inactive };
-
     public type Vehicle = {
       id : Nat;
       name : Text;
@@ -180,26 +154,16 @@ actor {
       notes : Text;
       createdAt : Time.Time;
     };
-
     public func compare(v1 : Vehicle, v2 : Vehicle) : Order.Order {
       Nat.compare(v1.id, v2.id);
     };
   };
 
-  // Internal stable type -- does NOT include partsUsed to preserve upgrade compatibility
   module MaintenanceRecord {
     public type MaintenanceType = {
-      #OilChange;
-      #TireRotation;
-      #BrakeService;
-      #EngineCheck;
-      #Transmission;
-      #Electrical;
-      #Bodywork;
-      #Inspection;
-      #Other;
+      #OilChange; #TireRotation; #BrakeService; #EngineCheck;
+      #Transmission; #Electrical; #Bodywork; #Inspection; #Other;
     };
-
     public type MaintenanceRecord = {
       id : Nat;
       vehicleId : Nat;
@@ -212,7 +176,6 @@ actor {
       nextServiceDate : ?Time.Time;
       createdAt : Time.Time;
     };
-
     public func compare(m1 : MaintenanceRecord, m2 : MaintenanceRecord) : Order.Order {
       switch (m1.nextServiceDate, m2.nextServiceDate) {
         case (null, null) { #equal };
@@ -223,7 +186,6 @@ actor {
     };
   };
 
-  // Public API type that includes partsUsed -- not stored in stable vars directly
   public type MaintenanceRecordFull = {
     id : Nat;
     vehicleId : Nat;
@@ -238,6 +200,7 @@ actor {
     createdAt : Time.Time;
   };
 
+  // Internal Part type -- UNCHANGED from original to preserve stable variable compatibility
   module Part {
     public type Part = {
       id : Nat;
@@ -248,10 +211,21 @@ actor {
       location : Text;
       createdAt : Time.Time;
     };
-
     public func compare(p1 : Part, p2 : Part) : Order.Order {
       Nat.compare(p1.id, p2.id);
     };
+  };
+
+  // Public API type that includes price -- not stored in partStore directly
+  public type PartFull = {
+    id : Nat;
+    name : Text;
+    partNumber : Text;
+    quantityInStock : Nat;
+    minStockLevel : Nat;
+    location : Text;
+    price : ?Float;
+    createdAt : Time.Time;
   };
 
   public type CompanySettings = {
@@ -264,7 +238,6 @@ actor {
     createdAt : Time.Time;
   };
 
-  // Store expanded company settings separately to preserve migration
   var companySettings : ?CompanySettings = null;
   var allCompanyRegistrations = List.empty<CompanySettings>();
 
@@ -274,8 +247,8 @@ actor {
   let vehicleStore = Map.empty<Nat, Vehicle.Vehicle>();
   let maintenanceStore = Map.empty<Nat, MaintenanceRecord.MaintenanceRecord>();
   let partStore = Map.empty<Nat, Part.Part>();
-
-  // Separate stable store for parts used per maintenance record
+  // Separate stable store for part prices -- avoids breaking stable variable compatibility
+  let partPriceStore = Map.empty<Nat, Float>();
   let maintenancePartsStore = Map.empty<Nat, [Nat]>();
 
   var nextVehicleId = 1;
@@ -286,6 +259,19 @@ actor {
     switch (vehicleStore.get(id)) {
       case (null) { Runtime.trap("Vehicle not found") };
       case (?vehicle) { vehicle };
+    };
+  };
+
+  func toFullPart(part : Part.Part) : PartFull {
+    {
+      id = part.id;
+      name = part.name;
+      partNumber = part.partNumber;
+      quantityInStock = part.quantityInStock;
+      minStockLevel = part.minStockLevel;
+      location = part.location;
+      price = partPriceStore.get(part.id);
+      createdAt = part.createdAt;
     };
   };
 
@@ -313,13 +299,11 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create vehicles");
     };
-
     let newVehicle : Vehicle.Vehicle = {
       vehicle with
       id = nextVehicleId;
       createdAt = Time.now();
     };
-
     vehicleStore.add(nextVehicleId, newVehicle);
     vehicles.add(newVehicle);
     nextVehicleId += 1;
@@ -349,14 +333,8 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update vehicles");
     };
-
     ignore getVehicleInternal(id);
-
-    let updatedVehicle : Vehicle.Vehicle = {
-      vehicle with
-      createdAt = Time.now();
-    };
-
+    let updatedVehicle : Vehicle.Vehicle = { vehicle with createdAt = Time.now() };
     vehicleStore.add(id, updatedVehicle);
   };
 
@@ -364,7 +342,6 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can delete vehicles");
     };
-
     ignore getVehicleInternal(id);
     vehicleStore.remove(id);
   };
@@ -387,10 +364,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create maintenance records");
     };
-
     ignore getVehicleInternal(record.vehicleId);
-
-    // Deduct stock for each part used
     for (partId in record.partsUsed.vals()) {
       switch (partStore.get(partId)) {
         case (null) {};
@@ -402,7 +376,6 @@ actor {
         };
       };
     };
-
     let newRecord : MaintenanceRecord.MaintenanceRecord = {
       id = nextMaintenanceId;
       vehicleId = record.vehicleId;
@@ -415,7 +388,6 @@ actor {
       nextServiceDate = record.nextServiceDate;
       createdAt = Time.now();
     };
-
     maintenanceStore.add(nextMaintenanceId, newRecord);
     maintenanceRecords.add(newRecord);
     if (record.partsUsed.size() > 0) {
@@ -429,12 +401,10 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update maintenance records");
     };
-
     let existingRecord = switch (maintenanceStore.get(id)) {
       case (null) { Runtime.trap("Maintenance record not found") };
       case (?r) { r };
     };
-
     let updatedRecord : MaintenanceRecord.MaintenanceRecord = {
       id = id;
       vehicleId = record.vehicleId;
@@ -447,7 +417,6 @@ actor {
       nextServiceDate = record.nextServiceDate;
       createdAt = existingRecord.createdAt;
     };
-
     maintenanceStore.add(id, updatedRecord);
     maintenancePartsStore.add(id, record.partsUsed);
   };
@@ -482,7 +451,6 @@ actor {
     };
     let currentTime = Time.now();
     let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
-
     maintenanceStore.values().toArray().filter(
       func(record) {
         switch (record.nextServiceDate) {
@@ -498,7 +466,6 @@ actor {
       Runtime.trap("Unauthorized: Only users can view maintenance records");
     };
     let currentTime = Time.now();
-
     maintenanceStore.values().toArray().filter(
       func(record) {
         switch (record.nextServiceDate) {
@@ -521,16 +488,12 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view dashboard stats");
     };
-
     let currentTime = Time.now();
     let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
-
     let allVehicles = vehicleStore.values().toArray();
     let totalVehicles = allVehicles.size();
     let activeVehicles = allVehicles.filter(func(v) { v.status == #Active }).size();
-
     let allRecords = maintenanceStore.values().toArray();
-    
     let upcomingMaintenanceCount = allRecords.filter(
       func(record) {
         switch (record.nextServiceDate) {
@@ -539,7 +502,6 @@ actor {
         };
       }
     ).size();
-
     let overdueCount = allRecords.filter(
       func(record) {
         switch (record.nextServiceDate) {
@@ -548,10 +510,8 @@ actor {
         };
       }
     ).size();
-
     let allParts = partStore.values().toArray();
     let lowStockPartsCount = allParts.filter(func(p) { p.quantityInStock <= p.minStockLevel }).size();
-
     {
       totalVehicles = totalVehicles;
       activeVehicles = activeVehicles;
@@ -561,22 +521,30 @@ actor {
     };
   };
 
-  // Parts Inventory
-  public shared ({ caller }) func createPart(part : Part.Part) : async Nat {
+  // Parts Inventory -- uses PartFull for API to include price
+  public shared ({ caller }) func createPart(part : PartFull) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create parts");
     };
     let newPart : Part.Part = {
-      part with
       id = nextPartId;
+      name = part.name;
+      partNumber = part.partNumber;
+      quantityInStock = part.quantityInStock;
+      minStockLevel = part.minStockLevel;
+      location = part.location;
       createdAt = Time.now();
     };
     partStore.add(nextPartId, newPart);
+    switch (part.price) {
+      case (?p) { partPriceStore.add(nextPartId, p) };
+      case (null) {};
+    };
     nextPartId += 1;
     newPart.id;
   };
 
-  public shared ({ caller }) func updatePart(id : Nat, part : Part.Part) : async () {
+  public shared ({ caller }) func updatePart(id : Nat, part : PartFull) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update parts");
     };
@@ -584,8 +552,20 @@ actor {
       case (null) { Runtime.trap("Part not found") };
       case (?p) { p };
     };
-    let updated : Part.Part = { part with createdAt = existing.createdAt };
+    let updated : Part.Part = {
+      id = id;
+      name = part.name;
+      partNumber = part.partNumber;
+      quantityInStock = part.quantityInStock;
+      minStockLevel = part.minStockLevel;
+      location = part.location;
+      createdAt = existing.createdAt;
+    };
     partStore.add(id, updated);
+    switch (part.price) {
+      case (?p) { partPriceStore.add(id, p) };
+      case (null) { partPriceStore.remove(id) };
+    };
   };
 
   public shared ({ caller }) func deletePart(id : Nat) : async () {
@@ -594,32 +574,35 @@ actor {
     };
     switch (partStore.get(id)) {
       case (null) { Runtime.trap("Part not found") };
-      case (?_) { partStore.remove(id) };
+      case (?_) {
+        partStore.remove(id);
+        partPriceStore.remove(id);
+      };
     };
   };
 
-  public query ({ caller }) func getPart(id : Nat) : async Part.Part {
+  public query ({ caller }) func getPart(id : Nat) : async PartFull {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view parts");
     };
     switch (partStore.get(id)) {
       case (null) { Runtime.trap("Part not found") };
-      case (?p) { p };
+      case (?p) { toFullPart(p) };
     };
   };
 
-  public query ({ caller }) func getAllParts() : async [Part.Part] {
+  public query ({ caller }) func getAllParts() : async [PartFull] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view parts");
     };
-    partStore.values().toArray().sort();
+    partStore.values().toArray().sort().map(toFullPart);
   };
 
-  public query ({ caller }) func getLowStockParts() : async [Part.Part] {
+  public query ({ caller }) func getLowStockParts() : async [PartFull] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view parts");
     };
-    partStore.values().toArray().filter(func(p) { p.quantityInStock <= p.minStockLevel }).sort();
+    partStore.values().toArray().filter(func(p) { p.quantityInStock <= p.minStockLevel }).sort().map(toFullPart);
   };
 
   // Company Settings
@@ -630,14 +613,11 @@ actor {
     companySettings;
   };
 
-  // Allow any authenticated user to save company settings (admin check handled in UI)
   public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Must be logged in to update company settings");
     };
     companySettings := ?settings;
-
-    // Add to all company registrations if new company
     switch (allCompanyRegistrations.filter(func(s) { s.companyName == settings.companyName }).isEmpty()) {
       case (true) { allCompanyRegistrations.add(settings) };
       case (false) {};

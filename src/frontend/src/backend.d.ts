@@ -7,7 +7,7 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface Part {
+export interface PartFull {
     id: bigint;
     partNumber: string;
     quantityInStock: bigint;
@@ -15,7 +15,9 @@ export interface Part {
     createdAt: Time;
     minStockLevel: bigint;
     location: string;
+    price?: number | null;
 }
+export type Part = PartFull;
 export type Time = bigint;
 export interface Vehicle {
     id: bigint;

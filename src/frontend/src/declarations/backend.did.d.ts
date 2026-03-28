@@ -66,6 +66,7 @@ export interface Part {
   'createdAt' : Time,
   'minStockLevel' : bigint,
   'location' : string,
+  'price' : [] | [number],
 }
 export type Status = { 'Inactive' : null } |
   { 'Active' : null };

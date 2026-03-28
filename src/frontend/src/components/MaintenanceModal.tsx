@@ -31,6 +31,10 @@ import {
 } from "../hooks/useQueries";
 import { maintenanceTypeLabel, nowNs, nsToDate } from "../lib/helpers";
 
+function getPartPrice(p: { price?: number | null }): number {
+  return p.price != null ? Number(p.price) : 0;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -306,6 +310,9 @@ export function MaintenanceModal({
                             <p className="text-xs text-muted-foreground">
                               #{part.partNumber} &bull; Stock:{" "}
                               {part.quantityInStock.toString()}
+                              {getPartPrice(part) > 0 && (
+                                <> &bull; ${getPartPrice(part).toFixed(2)}</>
+                              )}
                             </p>
                           </Label>
                           {outOfStock && (
