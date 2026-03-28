@@ -128,7 +128,7 @@ export function PartsPage() {
       quantityInStock: BigInt(form.quantityInStock),
       minStockLevel: BigInt(form.minStockLevel),
       location: form.location,
-      price: priceVal,
+      price: [priceVal] as unknown as number,
       createdAt: editPart?.createdAt ?? nowNs(),
     };
     try {

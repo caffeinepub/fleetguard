@@ -29,12 +29,11 @@ interface LayoutProps {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
 }
 
-const navItems = [
+const topNavItems = [
   { id: "dashboard" as Page, label: "Dashboard", icon: LayoutDashboard },
   { id: "vehicles" as Page, label: "Fleet", icon: Truck },
   { id: "maintenance" as Page, label: "Maintenance", icon: Wrench },
   { id: "parts" as Page, label: "Parts", icon: Package },
-  { id: "work-orders" as Page, label: "Work Orders", icon: ClipboardList },
   { id: "vendors" as Page, label: "Vendors", icon: Store },
   { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
 ];
@@ -62,6 +61,10 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     roleName = "Mechanic";
     roleColorClass = "text-amber-400";
   }
+
+  const isWorkOrdersActive = currentPage === "work-orders";
+  const isMaintenanceActive =
+    currentPage === "maintenance" || isWorkOrdersActive;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -92,10 +95,12 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
           data-ocid="nav.section"
         >
-          {navItems.map((item) => {
+          {topNavItems.map((item) => {
             const Icon = item.icon;
             const active =
-              currentPage === item.id ||
+              (item.id === "maintenance"
+                ? isMaintenanceActive
+                : currentPage === item.id) ||
               (currentPage === "vehicle-detail" && item.id === "vehicles");
             return (
               <button
@@ -111,12 +116,30 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               >
                 <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
                 {item.label}
-                {active && (
+                {active && item.id !== "maintenance" && (
                   <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />
                 )}
               </button>
             );
           })}
+
+          {/* Work Orders — sub-item under Maintenance */}
+          <button
+            type="button"
+            data-ocid="nav.work-orders.link"
+            onClick={() => onNavigate("work-orders")}
+            className={`w-full flex items-center gap-3 pl-8 pr-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              isWorkOrdersActive
+                ? "bg-sidebar-accent/80 text-white"
+                : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-white"
+            }`}
+          >
+            <ClipboardList size={16} className="flex-shrink-0" />
+            Work Orders
+            {isWorkOrdersActive && (
+              <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />
+            )}
+          </button>
 
           <div className="pt-2 mt-2 border-t border-sidebar-border/40">
             <button

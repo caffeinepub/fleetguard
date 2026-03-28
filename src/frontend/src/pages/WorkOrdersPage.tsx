@@ -152,6 +152,15 @@ export function WorkOrdersPage() {
 
   const openEdit = (wo: WorkOrder) => {
     setEditOrder(wo);
+    const scheduledDateRaw = wo.scheduledDate as unknown as
+      | bigint[]
+      | bigint
+      | undefined;
+    const scheduledDateVal = Array.isArray(scheduledDateRaw)
+      ? scheduledDateRaw.length > 0
+        ? scheduledDateRaw[0]
+        : undefined
+      : scheduledDateRaw;
     setForm({
       title: wo.title,
       vehicleId: wo.vehicleId.toString(),
@@ -159,8 +168,8 @@ export function WorkOrdersPage() {
       assignedMechanic: wo.assignedMechanic,
       priority: wo.priority,
       status: wo.status,
-      scheduledDate: wo.scheduledDate
-        ? new Date(Number(wo.scheduledDate) / 1_000_000)
+      scheduledDate: scheduledDateVal
+        ? new Date(Number(scheduledDateVal) / 1_000_000)
             .toISOString()
             .split("T")[0]
         : "",
@@ -177,7 +186,17 @@ export function WorkOrdersPage() {
     if (!actor) return;
     setSaving(true);
     try {
-      const data: WorkOrder = {
+      const completedDateRaw = editOrder?.completedDate as unknown as
+        | bigint[]
+        | bigint
+        | undefined;
+      const completedDateArr = Array.isArray(completedDateRaw)
+        ? completedDateRaw
+        : completedDateRaw != null
+          ? [completedDateRaw]
+          : [];
+
+      const data = {
         id: editOrder?.id ?? 0n,
         title: form.title,
         vehicleId: BigInt(form.vehicleId),
@@ -186,12 +205,12 @@ export function WorkOrdersPage() {
         priority: form.priority as WorkOrderPriority,
         status: form.status as WorkOrderStatus,
         scheduledDate: form.scheduledDate
-          ? BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n
-          : undefined,
-        completedDate: editOrder?.completedDate,
+          ? [BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n]
+          : [],
+        completedDate: completedDateArr,
         notes: form.notes,
         createdAt: editOrder?.createdAt ?? nowNs(),
-      };
+      } as unknown as WorkOrder;
       if (editOrder) {
         await actor.updateWorkOrder(editOrder.id, data);
         toast.success("Work order updated");
@@ -236,6 +255,12 @@ export function WorkOrdersPage() {
     } catch {
       toast.error("Failed to delete work order");
     }
+  };
+
+  const getScheduledDate = (wo: WorkOrder): bigint | undefined => {
+    const raw = wo.scheduledDate as unknown as bigint[] | bigint | undefined;
+    if (Array.isArray(raw)) return raw.length > 0 ? raw[0] : undefined;
+    return raw;
   };
 
   return (
@@ -323,6 +348,7 @@ export function WorkOrdersPage() {
             const isActive =
               wo.status === WorkOrderStatus.Open ||
               wo.status === WorkOrderStatus.InProgress;
+            const scheduledDate = getScheduledDate(wo);
             return (
               <div
                 key={wo.id.toString()}
@@ -346,11 +372,11 @@ export function WorkOrdersPage() {
                     {wo.assignedMechanic && (
                       <span>🔧 {wo.assignedMechanic}</span>
                     )}
-                    {wo.scheduledDate && (
+                    {scheduledDate && (
                       <span>
                         📅{" "}
                         {new Date(
-                          Number(wo.scheduledDate) / 1_000_000,
+                          Number(scheduledDate) / 1_000_000,
                         ).toLocaleDateString()}
                       </span>
                     )}

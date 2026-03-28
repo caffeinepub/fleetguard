@@ -71,10 +71,10 @@ export interface Part {
 export type Status = { 'Inactive' : null } |
   { 'Active' : null };
 export type Time = bigint;
-export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface UserProfile { 'name' : string }
 export interface Vehicle {
   'id' : bigint,
   'status' : Status,
@@ -92,6 +92,50 @@ export type VehicleType = { 'Bus' : null } |
   { 'Trailer' : null } |
   { 'Truck' : null } |
   { 'Other' : null };
+export type WorkOrderPriority = { 'Low' : null } |
+  { 'Medium' : null } |
+  { 'High' : null } |
+  { 'Critical' : null };
+export type WorkOrderStatus = { 'Open' : null } |
+  { 'InProgress' : null } |
+  { 'Completed' : null } |
+  { 'Cancelled' : null };
+export interface WorkOrder {
+  'id' : bigint,
+  'title' : string,
+  'vehicleId' : bigint,
+  'description' : string,
+  'assignedMechanic' : string,
+  'priority' : WorkOrderPriority,
+  'status' : WorkOrderStatus,
+  'scheduledDate' : [] | [Time],
+  'completedDate' : [] | [Time],
+  'notes' : string,
+  'createdAt' : Time,
+}
+export interface Vendor {
+  'id' : bigint,
+  'name' : string,
+  'contactName' : string,
+  'phone' : string,
+  'email' : string,
+  'address' : string,
+  'notes' : string,
+  'category' : string,
+  'createdAt' : Time,
+}
+export interface Warranty {
+  'id' : bigint,
+  'vehicleId' : bigint,
+  'description' : string,
+  'provider' : string,
+  'startDate' : Time,
+  'expiryDate' : Time,
+  'coverageDetails' : string,
+  'cost' : number,
+  'notes' : string,
+  'createdAt' : Time,
+}
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
@@ -106,32 +150,33 @@ export interface _CaffeineStorageRefillResult {
 export interface _SERVICE {
   '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
   '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
-  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
-    [Array<Uint8Array>],
-    undefined
-  >,
-  '_caffeineStorageCreateCertificate' : ActorMethod<
-    [string],
-    _CaffeineStorageCreateCertificateResult
-  >,
-  '_caffeineStorageRefillCashier' : ActorMethod<
-    [[] | [_CaffeineStorageRefillInformation]],
-    _CaffeineStorageRefillResult
-  >,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<[Array<Uint8Array>], undefined>,
+  '_caffeineStorageCreateCertificate' : ActorMethod<[string], _CaffeineStorageCreateCertificateResult>,
+  '_caffeineStorageRefillCashier' : ActorMethod<[[] | [_CaffeineStorageRefillInformation]], _CaffeineStorageRefillResult>,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'bulkCreateVehicles' : ActorMethod<[Array<Vehicle>], Array<bigint>>,
+  'completeWorkOrder' : ActorMethod<[bigint], bigint>,
   'createInviteToken' : ActorMethod<[string, FleetRole], string>,
   'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
   'createPart' : ActorMethod<[Part], bigint>,
   'createVehicle' : ActorMethod<[Vehicle], bigint>,
+  'createVendor' : ActorMethod<[Vendor], bigint>,
+  'createWarranty' : ActorMethod<[Warranty], bigint>,
+  'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
   'deletePart' : ActorMethod<[bigint], undefined>,
   'deleteVehicle' : ActorMethod<[bigint], undefined>,
+  'deleteVendor' : ActorMethod<[bigint], undefined>,
+  'deleteWarranty' : ActorMethod<[bigint], undefined>,
+  'deleteWorkOrder' : ActorMethod<[bigint], undefined>,
   'getAllCompanyRegistrations' : ActorMethod<[], Array<CompanySettings>>,
   'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getAllParts' : ActorMethod<[], Array<Part>>,
   'getAllVehicles' : ActorMethod<[], Array<Vehicle>>,
+  'getAllVendors' : ActorMethod<[], Array<Vendor>>,
+  'getAllWarranties' : ActorMethod<[], Array<Warranty>>,
+  'getAllWorkOrders' : ActorMethod<[], Array<WorkOrder>>,
   'getCallerFleetRole' : ActorMethod<[], [] | [FleetRole]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
@@ -140,27 +185,29 @@ export interface _SERVICE {
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
   'getLowStockParts' : ActorMethod<[], Array<Part>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
-  'getMaintenanceRecordsByVehicle' : ActorMethod<
-    [bigint],
-    Array<MaintenanceRecordFull>
-  >,
+  'getMaintenanceRecordsByVehicle' : ActorMethod<[bigint], Array<MaintenanceRecordFull>>,
   'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getPart' : ActorMethod<[bigint], Part>,
   'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getUserFleetRole' : ActorMethod<[Principal], [] | [FleetRole]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVehicle' : ActorMethod<[bigint], Vehicle>,
+  'getVendor' : ActorMethod<[bigint], Vendor>,
+  'getWarrantiesByVehicle' : ActorMethod<[bigint], Array<Warranty>>,
+  'getWarranty' : ActorMethod<[bigint], Warranty>,
+  'getWorkOrder' : ActorMethod<[bigint], WorkOrder>,
+  'getWorkOrdersByVehicle' : ActorMethod<[bigint], Array<WorkOrder>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
-  'updateMaintenanceRecord' : ActorMethod<
-    [bigint, MaintenanceRecordFull],
-    undefined
-  >,
+  'updateMaintenanceRecord' : ActorMethod<[bigint, MaintenanceRecordFull], undefined>,
   'updatePart' : ActorMethod<[bigint, Part], undefined>,
   'updateVehicle' : ActorMethod<[bigint, Vehicle], undefined>,
+  'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
+  'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,
+  'updateWorkOrder' : ActorMethod<[bigint, WorkOrder], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
