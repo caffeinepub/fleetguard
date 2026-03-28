@@ -12,6 +12,14 @@ import type {
 import type { UserRole } from "../backend";
 import { useActor } from "./useActor";
 
+// SubscriptionRecord is not yet in backend.d.ts — declare locally
+export interface SubscriptionRecord {
+  companyName: string;
+  status: string;
+  startDate: [] | [bigint];
+  updatedAt: bigint;
+}
+
 export function useDashboardStats() {
   const { actor, isFetching } = useActor();
   return useQuery({
@@ -185,7 +193,7 @@ export function useRedeemInviteToken() {
 
 export function useAllCompanyRegistrations() {
   const { actor, isFetching } = useActor();
-  return useQuery({
+  return useQuery<CompanySettings[]>({
     queryKey: ["allCompanyRegistrations"],
     queryFn: async () => {
       if (!actor) return [];
@@ -420,6 +428,83 @@ export function useSaveCompanySettings() {
       return actor.saveCompanySettings(settings);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["companySettings"] }),
+  });
+}
+
+// Subscription
+export function useUpdateSubscriptionStatus() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      companyName,
+      status,
+      startDate,
+    }: { companyName: string; status: string; startDate?: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).updateSubscriptionStatus(
+        companyName,
+        status,
+        startDate ? [startDate] : [],
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allSubscriptions"] });
+      qc.invalidateQueries({ queryKey: ["subscriptionStatus"] });
+    },
+  });
+}
+
+export function useGetSubscriptionStatus(companyName: string | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SubscriptionRecord | null>({
+    queryKey: ["subscriptionStatus", companyName],
+    enabled: !!actor && !isFetching && !!companyName,
+    queryFn: async (): Promise<SubscriptionRecord | null> => {
+      if (!actor || !companyName) return null;
+      const result = (await (actor as any).getSubscriptionStatus(
+        companyName,
+      )) as [] | [SubscriptionRecord];
+      return result.length > 0 ? (result[0] as SubscriptionRecord) : null;
+    },
+  });
+}
+
+export function useGetAllSubscriptions() {
+  const { actor, isFetching } = useActor();
+  return useQuery<SubscriptionRecord[]>({
+    queryKey: ["allSubscriptions"],
+    enabled: !!actor && !isFetching,
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllSubscriptions() as Promise<
+        SubscriptionRecord[]
+      >;
+    },
+  });
+}
+
+export function useGetDefaultCurrency() {
+  const { actor, isFetching } = useActor();
+  return useQuery<string>({
+    queryKey: ["defaultCurrency"],
+    enabled: !!actor && !isFetching,
+    queryFn: async () => {
+      if (!actor) return "CAD";
+      return (actor as any).getDefaultCurrency() as Promise<string>;
+    },
+  });
+}
+
+export function useSaveDefaultCurrency() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (currency: string) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).saveDefaultCurrency(currency);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["defaultCurrency"] }),
   });
 }
 

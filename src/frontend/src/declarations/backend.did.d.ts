@@ -19,6 +19,12 @@ export interface CompanySettings {
   'industry' : string,
   'contactPhone' : string,
 }
+export interface SubscriptionRecord {
+  'companyName' : string,
+  'status' : string,
+  'startDate' : [] | [Time],
+  'updatedAt' : Time,
+}
 export interface DashboardStats {
   'activeVehicles' : bigint,
   'totalVehicles' : bigint,
@@ -201,6 +207,11 @@ export interface _SERVICE {
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
+  'updateSubscriptionStatus' : ActorMethod<[string, string, [] | [bigint]], undefined>,
+  'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
+  'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
+  'getDefaultCurrency' : ActorMethod<[], string>,
+  'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
   'updateMaintenanceRecord' : ActorMethod<[bigint, MaintenanceRecordFull], undefined>,
   'updatePart' : ActorMethod<[bigint, Part], undefined>,

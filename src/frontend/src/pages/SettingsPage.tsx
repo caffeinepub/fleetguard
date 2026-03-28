@@ -22,6 +22,7 @@ import {
 import {
   Check,
   Copy,
+  CreditCard,
   Link,
   Loader2,
   Settings,
@@ -29,7 +30,6 @@ import {
   Upload,
   User,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -39,9 +39,12 @@ import {
   useCallerFleetRole,
   useCreateInviteToken,
   useGetCompanySettings,
+  useGetDefaultCurrency,
+  useGetSubscriptionStatus,
   useInviteTokens,
   useIsAdmin,
   useSaveCompanySettings,
+  useSaveDefaultCurrency,
 } from "../hooks/useQueries";
 
 const fleetRoleLabel: Record<string, string> = {
@@ -65,13 +68,27 @@ function formatTokenDate(ns: bigint): string {
   });
 }
 
+function formatSubDate(ns: bigint): string {
+  const ms = Number(ns / 1_000_000n);
+  return new Date(ms).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export function SettingsPage() {
   const { data: companySettings } = useGetCompanySettings();
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
   const { data: inviteTokens } = useInviteTokens();
+  const { data: subscription } = useGetSubscriptionStatus(
+    companySettings?.companyName,
+  );
+  const { data: savedCurrency } = useGetDefaultCurrency();
   const { identity } = useInternetIdentity();
   const saveSettings = useSaveCompanySettings();
+  const saveCurrency = useSaveDefaultCurrency();
   const createInvite = useCreateInviteToken();
 
   const [companyName, setCompanyName] = useState("");
@@ -87,14 +104,16 @@ export function SettingsPage() {
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  // Copy principal state
   const [copied, setCopied] = useState(false);
 
   const currentName = companyName || companySettings?.companyName || "";
   const currentLogo = logoPreview ?? companySettings?.logoUrl ?? null;
   const principalId = identity?.getPrincipal().toString() ?? "";
+  const currentCurrency = savedCurrency ?? "CAD";
 
-  // Determine display role
+  const subscriptionStatus = subscription?.status ?? "inactive";
+  const subscriptionStartDate = subscription?.startDate;
+
   const displayRole = fleetRole
     ? (fleetRoleLabel[fleetRole] ?? "Fleet Member")
     : isAdmin
@@ -105,6 +124,39 @@ export function SettingsPage() {
     : isAdmin
       ? "bg-primary/10 text-primary"
       : "bg-muted text-muted-foreground";
+
+  const getSubBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-success/10 text-success border-success/30";
+      case "cancelled":
+        return "bg-destructive/10 text-destructive border-destructive/30";
+      default:
+        return "bg-muted text-muted-foreground border-border";
+    }
+  };
+
+  const getSubLabel = (status: string) => {
+    switch (status) {
+      case "active":
+        return "Active";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return "Inactive";
+    }
+  };
+
+  const buildSavePayload = (overrides: Record<string, unknown> = {}) => ({
+    companyName: currentName,
+    industry: companySettings?.industry ?? "",
+    fleetSize: companySettings?.fleetSize ?? "",
+    contactPhone: companySettings?.contactPhone ?? "",
+    logoUrl: companySettings?.logoUrl ?? "",
+    adminPrincipal: companySettings?.adminPrincipal ?? principalId,
+    createdAt: companySettings?.createdAt ?? BigInt(Date.now()) * 1_000_000n,
+    ...overrides,
+  });
 
   const handleCopyPrincipal = async () => {
     if (!principalId) return;
@@ -136,16 +188,7 @@ export function SettingsPage() {
       const base64 = reader.result as string;
       setLogoPreview(base64);
       try {
-        await saveSettings.mutateAsync({
-          companyName: currentName,
-          industry: companySettings?.industry ?? "",
-          fleetSize: companySettings?.fleetSize ?? "",
-          contactPhone: companySettings?.contactPhone ?? "",
-          logoUrl: base64,
-          adminPrincipal: companySettings?.adminPrincipal ?? principalId,
-          createdAt:
-            companySettings?.createdAt ?? BigInt(Date.now()) * 1_000_000n,
-        });
+        await saveSettings.mutateAsync(buildSavePayload({ logoUrl: base64 }));
         toast.success("Logo uploaded successfully");
       } catch {
         toast.error("Failed to save logo");
@@ -166,19 +209,21 @@ export function SettingsPage() {
       return;
     }
     try {
-      await saveSettings.mutateAsync({
-        companyName: companyName.trim(),
-        industry: companySettings?.industry ?? "",
-        fleetSize: companySettings?.fleetSize ?? "",
-        contactPhone: companySettings?.contactPhone ?? "",
-        logoUrl: companySettings?.logoUrl ?? "",
-        adminPrincipal: companySettings?.adminPrincipal ?? principalId,
-        createdAt:
-          companySettings?.createdAt ?? BigInt(Date.now()) * 1_000_000n,
-      });
+      await saveSettings.mutateAsync(
+        buildSavePayload({ companyName: companyName.trim() }),
+      );
       toast.success("Company name saved");
     } catch {
       toast.error("Failed to save company name");
+    }
+  };
+
+  const handleSaveCurrency = async (val: string) => {
+    try {
+      await saveCurrency.mutateAsync(val);
+      toast.success(`Currency set to ${val}`);
+    } catch {
+      toast.error("Failed to save currency");
     }
   };
 
@@ -304,6 +349,93 @@ export function SettingsPage() {
                   )}
                 </Button>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Currency */}
+            <div className="space-y-3">
+              <Label>Default Currency</Label>
+              <p className="text-xs text-muted-foreground">
+                Used for displaying parts inventory value and repair costs.
+              </p>
+              <Select
+                value={currentCurrency}
+                onValueChange={handleSaveCurrency}
+              >
+                <SelectTrigger
+                  className="h-10 w-36"
+                  data-ocid="settings.select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CAD">🇨🇦 CAD</SelectItem>
+                  <SelectItem value="USD">🇺🇸 USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Subscription — admin only */}
+      {isAdmin && (
+        <Card className="shadow-card border-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <CreditCard size={16} /> Subscription
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+              <div className="space-y-1">
+                <p className="font-semibold text-sm">FleetGuard Pro</p>
+                <p className="text-2xl font-bold">
+                  $499
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /month
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Unlimited vehicles · Full maintenance tracking · Work orders ·
+                  Parts inventory · Team management
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={`shrink-0 text-xs font-semibold px-3 py-1 capitalize ${getSubBadge(
+                  subscriptionStatus,
+                )}`}
+                data-ocid="settings.panel"
+              >
+                {getSubLabel(subscriptionStatus)}
+              </Badge>
+            </div>
+
+            {subscriptionStatus === "active" &&
+              subscriptionStartDate &&
+              subscriptionStartDate.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Active since{" "}
+                  <strong>
+                    {formatSubDate(subscriptionStartDate[0] as bigint)}
+                  </strong>
+                </p>
+              )}
+
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <CreditCard className="w-4 h-4 text-primary shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                To activate or manage your subscription, please contact{" "}
+                <a
+                  href="mailto:support@fleetguard.app"
+                  className="text-primary underline hover:no-underline"
+                >
+                  support@fleetguard.app
+                </a>
+                . Our team will assist you with billing.
+              </p>
             </div>
           </CardContent>
         </Card>

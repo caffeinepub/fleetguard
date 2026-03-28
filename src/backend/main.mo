@@ -238,6 +238,18 @@ actor {
     createdAt : Time.Time;
   };
 
+  // Subscription record (stored separately to avoid stable var migration issues)
+  public type SubscriptionRecord = {
+    companyName : Text;
+    status : Text;        // "inactive" | "active" | "cancelled"
+    startDate : ?Time.Time;
+    updatedAt : Time.Time;
+  };
+
+  // Separate stable maps so CompanySettings stable var is never migrated
+  var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
+  stable var defaultCurrency : Text = "CAD";
+
   // WorkOrder types
   public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
   public type WorkOrderStatus = { #Open; #InProgress; #Completed; #Cancelled };
@@ -864,8 +876,12 @@ actor {
   };
 
   public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    // Auto-assign user role on first settings save (e.g. during onboarding)
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Must be logged in to update company settings");
+      AccessControl.assignRole(accessControlState, caller, caller, #user);
     };
     companySettings := ?settings;
     switch (allCompanyRegistrations.filter(func(s) { s.companyName == settings.companyName }).isEmpty()) {
@@ -879,5 +895,46 @@ actor {
       Runtime.trap("Unauthorized: Only admins and developers can view all company registrations");
     };
     allCompanyRegistrations.toArray();
+  };
+
+  public shared ({ caller }) func updateSubscriptionStatus(companyName : Text, status : Text, startDate : ?Time.Time) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only admins and developers can update subscription status");
+    };
+    let rec : SubscriptionRecord = {
+      companyName;
+      status;
+      startDate;
+      updatedAt = Time.now();
+    };
+    subscriptionRecords.add(companyName, rec);
+  };
+
+  public query ({ caller }) func getSubscriptionStatus(companyName : Text) : async ?SubscriptionRecord {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    subscriptionRecords.get(companyName);
+  };
+
+  public query ({ caller }) func getAllSubscriptions() : async [SubscriptionRecord] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only admins and developers can view all subscriptions");
+    };
+    subscriptionRecords.values().toArray();
+  };
+
+  public query ({ caller }) func getDefaultCurrency() : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    defaultCurrency;
+  };
+
+  public shared ({ caller }) func saveDefaultCurrency(currency : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    defaultCurrency := currency;
   };
 };

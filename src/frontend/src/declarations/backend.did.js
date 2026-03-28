@@ -96,6 +96,12 @@ export const CompanySettings = IDL.Record({
   'industry' : IDL.Text,
   'contactPhone' : IDL.Text,
 });
+export const SubscriptionRecord = IDL.Record({
+  'companyName' : IDL.Text,
+  'status' : IDL.Text,
+  'startDate' : IDL.Opt(IDL.Int),
+  'updatedAt' : IDL.Int,
+});
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const DashboardStats = IDL.Record({
   'activeVehicles' : IDL.Nat,
@@ -274,6 +280,11 @@ export const idlService = IDL.Service({
   'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+  'updateSubscriptionStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Int)], [], []),
+  'getSubscriptionStatus' : IDL.Func([IDL.Text], [IDL.Opt(SubscriptionRecord)], ['query']),
+  'getAllSubscriptions' : IDL.Func([], [IDL.Vec(SubscriptionRecord)], ['query']),
+  'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
+  'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
   'updateMaintenanceRecord' : IDL.Func(
       [IDL.Nat, MaintenanceRecordFull],
@@ -374,6 +385,12 @@ export const idlFactory = ({ IDL }) => {
     'fleetSize' : IDL.Text,
     'industry' : IDL.Text,
     'contactPhone' : IDL.Text,
+  });
+  const SubscriptionRecord = IDL.Record({
+    'companyName' : IDL.Text,
+    'status' : IDL.Text,
+    'startDate' : IDL.Opt(IDL.Int),
+    'updatedAt' : IDL.Int,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const DashboardStats = IDL.Record({
@@ -557,6 +574,11 @@ export const idlFactory = ({ IDL }) => {
     'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+    'updateSubscriptionStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Int)], [], []),
+    'getSubscriptionStatus' : IDL.Func([IDL.Text], [IDL.Opt(SubscriptionRecord)], ['query']),
+    'getAllSubscriptions' : IDL.Func([], [IDL.Vec(SubscriptionRecord)], ['query']),
+    'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
+    'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
     'updateMaintenanceRecord' : IDL.Func(
         [IDL.Nat, MaintenanceRecordFull],

@@ -132,7 +132,7 @@ export function OnboardingPage() {
                 Set Up Your FleetGuard Account
               </h1>
               <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
-                You're the Administrator. Complete this setup to get your
+                You’re the Administrator. Complete this setup to get your
                 company running and then invite your team members.
               </p>
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-left mb-8">
@@ -311,7 +311,7 @@ export function OnboardingPage() {
                 <CheckCircle2 className="w-11 h-11 text-success" />
               </div>
               <h2 className="text-2xl font-bold mb-2">
-                You're all set, {name}!
+                You’re all set, {name}!
               </h2>
               <p className="text-muted-foreground text-sm mb-6">
                 Your fleet account has been created. You can now invite your
