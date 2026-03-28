@@ -1,11 +1,14 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ChevronRight,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   Package,
   Settings,
   Shield,
+  ShieldCheck,
+  Store,
   Truck,
   Wrench,
 } from "lucide-react";
@@ -31,6 +34,9 @@ const navItems = [
   { id: "vehicles" as Page, label: "Fleet", icon: Truck },
   { id: "maintenance" as Page, label: "Maintenance", icon: Wrench },
   { id: "parts" as Page, label: "Parts", icon: Package },
+  { id: "work-orders" as Page, label: "Work Orders", icon: ClipboardList },
+  { id: "vendors" as Page, label: "Vendors", icon: Store },
+  { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
 ];
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
@@ -82,7 +88,10 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1" data-ocid="nav.section">
+        <nav
+          className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
+          data-ocid="nav.section"
+        >
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =

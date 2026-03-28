@@ -21,6 +21,9 @@ import { PartsPage } from "./pages/PartsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { VehicleDetailPage } from "./pages/VehicleDetailPage";
 import { VehiclesPage } from "./pages/VehiclesPage";
+import { VendorsPage } from "./pages/VendorsPage";
+import { WarrantiesPage } from "./pages/WarrantiesPage";
+import { WorkOrdersPage } from "./pages/WorkOrdersPage";
 
 export type Page =
   | "dashboard"
@@ -28,6 +31,9 @@ export type Page =
   | "maintenance"
   | "vehicle-detail"
   | "parts"
+  | "work-orders"
+  | "vendors"
+  | "warranties"
   | "settings"
   | "invite-accept"
   | "dev-portal";
@@ -166,6 +172,12 @@ function AppContent() {
         return <MaintenancePage />;
       case "parts":
         return <PartsPage />;
+      case "work-orders":
+        return <WorkOrdersPage />;
+      case "vendors":
+        return <VendorsPage />;
+      case "warranties":
+        return <WarrantiesPage />;
       case "settings":
         return <SettingsPage />;
       case "vehicle-detail": {

@@ -319,6 +319,8 @@ export function useUpdateMaintenance() {
       qc.invalidateQueries({ queryKey: ["maintenanceByVehicle"] });
       qc.invalidateQueries({ queryKey: ["upcomingMaintenance"] });
       qc.invalidateQueries({ queryKey: ["overdueMaintenance"] });
+      qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["lowStockParts"] });
     },
   });
 }
@@ -418,5 +420,44 @@ export function useSaveCompanySettings() {
       return actor.saveCompanySettings(settings);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["companySettings"] }),
+  });
+}
+
+// Work Orders
+export function useAllWorkOrders() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["workOrders"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllWorkOrders();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+// Vendors
+export function useAllVendors() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["vendors"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllVendors();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+// Warranties
+export function useAllWarranties() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["warranties"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllWarranties();
+    },
+    enabled: !!actor && !isFetching,
   });
 }

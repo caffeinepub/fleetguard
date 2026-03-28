@@ -31,8 +31,11 @@ import {
 } from "../hooks/useQueries";
 import { maintenanceTypeLabel, nowNs, nsToDate } from "../lib/helpers";
 
-function getPartPrice(p: { price?: number | null }): number {
-  return p.price != null ? Number(p.price) : 0;
+function getPartPrice(p: { price?: number | null | number[] | [] }): number {
+  if (p.price == null) return 0;
+  if (Array.isArray(p.price))
+    return p.price.length > 0 ? Number((p.price as number[])[0]) : 0;
+  return Number(p.price);
 }
 
 interface Props {

@@ -196,6 +196,55 @@ export enum VehicleType {
     Truck = "Truck",
     Other = "Other"
 }
+
+export interface WorkOrder {
+    id: bigint;
+    title: string;
+    vehicleId: bigint;
+    description: string;
+    assignedMechanic: string;
+    priority: WorkOrderPriority;
+    status: WorkOrderStatus;
+    scheduledDate?: Time;
+    completedDate?: Time;
+    notes: string;
+    createdAt: Time;
+}
+export interface Vendor {
+    id: bigint;
+    name: string;
+    contactName: string;
+    phone: string;
+    email: string;
+    address: string;
+    notes: string;
+    category: string;
+    createdAt: Time;
+}
+export interface Warranty {
+    id: bigint;
+    vehicleId: bigint;
+    description: string;
+    provider: string;
+    startDate: Time;
+    expiryDate: Time;
+    coverageDetails: string;
+    cost: number;
+    notes: string;
+    createdAt: Time;
+}
+export enum WorkOrderPriority {
+    Low = "Low",
+    Medium = "Medium",
+    High = "High",
+    Critical = "Critical"
+}
+export enum WorkOrderStatus {
+    Open = "Open",
+    InProgress = "InProgress",
+    Completed = "Completed",
+    Cancelled = "Cancelled"
+}
 export interface backendInterface {
     _caffeineStorageBlobIsLive(hash: Uint8Array): Promise<boolean>;
     _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>>;
@@ -239,6 +288,24 @@ export interface backendInterface {
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
     updatePart(id: bigint, part: Part): Promise<void>;
     updateVehicle(id: bigint, vehicle: Vehicle): Promise<void>;
+    completeWorkOrder(id: bigint): Promise<bigint>;
+    createVendor(vendor: Vendor): Promise<bigint>;
+    createWarranty(warranty: Warranty): Promise<bigint>;
+    createWorkOrder(wo: WorkOrder): Promise<bigint>;
+    deleteVendor(id: bigint): Promise<void>;
+    deleteWarranty(id: bigint): Promise<void>;
+    deleteWorkOrder(id: bigint): Promise<void>;
+    getAllVendors(): Promise<Array<Vendor>>;
+    getAllWarranties(): Promise<Array<Warranty>>;
+    getAllWorkOrders(): Promise<Array<WorkOrder>>;
+    getVendor(id: bigint): Promise<Vendor>;
+    getWarranty(id: bigint): Promise<Warranty>;
+    getWarrantiesByVehicle(vehicleId: bigint): Promise<Array<Warranty>>;
+    getWorkOrder(id: bigint): Promise<WorkOrder>;
+    getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;
+    updateVendor(id: bigint, vendor: Vendor): Promise<void>;
+    updateWarranty(id: bigint, warranty: Warranty): Promise<void>;
+    updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
 }
 import type { CompanySettings as _CompanySettings, FleetRole as _FleetRole, InviteToken as _InviteToken, MaintenanceRecordFull as _MaintenanceRecordFull, MaintenanceType as _MaintenanceType, Status as _Status, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, Vehicle as _Vehicle, VehicleType as _VehicleType, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -831,6 +898,168 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAllWorkOrders(): Promise<Array<WorkOrder>> {
+        const actor = this.actor as any;
+        if (!actor.getAllWorkOrders) return [];
+        const result = await actor.getAllWorkOrders();
+        return (result as any[]).map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            vehicleId: r.vehicleId,
+            description: r.description,
+            assignedMechanic: r.assignedMechanic,
+            priority: Object.keys(r.priority)[0] as WorkOrderPriority,
+            status: Object.keys(r.status)[0] as WorkOrderStatus,
+            scheduledDate: r.scheduledDate && r.scheduledDate.length > 0 ? r.scheduledDate[0] : undefined,
+            completedDate: r.completedDate && r.completedDate.length > 0 ? r.completedDate[0] : undefined,
+            notes: r.notes,
+            createdAt: r.createdAt,
+        }));
+    }
+    async getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>> {
+        const actor = this.actor as any;
+        if (!actor.getWorkOrdersByVehicle) return [];
+        const result = await actor.getWorkOrdersByVehicle(vehicleId);
+        return (result as any[]).map((r: any) => ({
+            id: r.id, title: r.title, vehicleId: r.vehicleId, description: r.description,
+            assignedMechanic: r.assignedMechanic, priority: Object.keys(r.priority)[0] as WorkOrderPriority,
+            status: Object.keys(r.status)[0] as WorkOrderStatus,
+            scheduledDate: r.scheduledDate?.length > 0 ? r.scheduledDate[0] : undefined,
+            completedDate: r.completedDate?.length > 0 ? r.completedDate[0] : undefined,
+            notes: r.notes, createdAt: r.createdAt,
+        }));
+    }
+    async getWorkOrder(id: bigint): Promise<WorkOrder> {
+        const actor = this.actor as any;
+        const r = await actor.getWorkOrder(id);
+        return { id: r.id, title: r.title, vehicleId: r.vehicleId, description: r.description,
+            assignedMechanic: r.assignedMechanic, priority: Object.keys(r.priority)[0] as WorkOrderPriority,
+            status: Object.keys(r.status)[0] as WorkOrderStatus,
+            scheduledDate: r.scheduledDate?.length > 0 ? r.scheduledDate[0] : undefined,
+            completedDate: r.completedDate?.length > 0 ? r.completedDate[0] : undefined,
+            notes: r.notes, createdAt: r.createdAt };
+    }
+    async createWorkOrder(wo: WorkOrder): Promise<bigint> {
+        const actor = this.actor as any;
+        if (!actor.createWorkOrder) return 0n;
+        return actor.createWorkOrder({
+            id: wo.id, title: wo.title, vehicleId: wo.vehicleId, description: wo.description,
+            assignedMechanic: wo.assignedMechanic,
+            priority: { [wo.priority]: null },
+            status: { [wo.status]: null },
+            scheduledDate: wo.scheduledDate != null ? [wo.scheduledDate] : [],
+            completedDate: wo.completedDate != null ? [wo.completedDate] : [],
+            notes: wo.notes, createdAt: wo.createdAt,
+        });
+    }
+    async updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.updateWorkOrder) return;
+        return actor.updateWorkOrder(id, {
+            id: wo.id, title: wo.title, vehicleId: wo.vehicleId, description: wo.description,
+            assignedMechanic: wo.assignedMechanic,
+            priority: { [wo.priority]: null },
+            status: { [wo.status]: null },
+            scheduledDate: wo.scheduledDate != null ? [wo.scheduledDate] : [],
+            completedDate: wo.completedDate != null ? [wo.completedDate] : [],
+            notes: wo.notes, createdAt: wo.createdAt,
+        });
+    }
+    async completeWorkOrder(id: bigint): Promise<bigint> {
+        const actor = this.actor as any;
+        if (!actor.completeWorkOrder) return 0n;
+        return actor.completeWorkOrder(id);
+    }
+    async deleteWorkOrder(id: bigint): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.deleteWorkOrder) return;
+        return actor.deleteWorkOrder(id);
+    }
+    async getAllVendors(): Promise<Array<Vendor>> {
+        const actor = this.actor as any;
+        if (!actor.getAllVendors) return [];
+        const result = await actor.getAllVendors();
+        return (result as any[]).map((v: any) => ({
+            id: v.id, name: v.name, contactName: v.contactName, phone: v.phone,
+            email: v.email, address: v.address, notes: v.notes, category: v.category, createdAt: v.createdAt,
+        }));
+    }
+    async getVendor(id: bigint): Promise<Vendor> {
+        const actor = this.actor as any;
+        const v = await actor.getVendor(id);
+        return { id: v.id, name: v.name, contactName: v.contactName, phone: v.phone,
+            email: v.email, address: v.address, notes: v.notes, category: v.category, createdAt: v.createdAt };
+    }
+    async createVendor(vendor: Vendor): Promise<bigint> {
+        const actor = this.actor as any;
+        if (!actor.createVendor) return 0n;
+        return actor.createVendor({ id: vendor.id, name: vendor.name, contactName: vendor.contactName,
+            phone: vendor.phone, email: vendor.email, address: vendor.address,
+            notes: vendor.notes, category: vendor.category, createdAt: vendor.createdAt });
+    }
+    async updateVendor(id: bigint, vendor: Vendor): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.updateVendor) return;
+        return actor.updateVendor(id, { id: vendor.id, name: vendor.name, contactName: vendor.contactName,
+            phone: vendor.phone, email: vendor.email, address: vendor.address,
+            notes: vendor.notes, category: vendor.category, createdAt: vendor.createdAt });
+    }
+    async deleteVendor(id: bigint): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.deleteVendor) return;
+        return actor.deleteVendor(id);
+    }
+    async getAllWarranties(): Promise<Array<Warranty>> {
+        const actor = this.actor as any;
+        if (!actor.getAllWarranties) return [];
+        const result = await actor.getAllWarranties();
+        return (result as any[]).map((w: any) => ({
+            id: w.id, vehicleId: w.vehicleId, description: w.description, provider: w.provider,
+            startDate: w.startDate, expiryDate: w.expiryDate, coverageDetails: w.coverageDetails,
+            cost: Number(w.cost), notes: w.notes, createdAt: w.createdAt,
+        }));
+    }
+    async getWarrantiesByVehicle(vehicleId: bigint): Promise<Array<Warranty>> {
+        const actor = this.actor as any;
+        if (!actor.getWarrantiesByVehicle) return [];
+        const result = await actor.getWarrantiesByVehicle(vehicleId);
+        return (result as any[]).map((w: any) => ({
+            id: w.id, vehicleId: w.vehicleId, description: w.description, provider: w.provider,
+            startDate: w.startDate, expiryDate: w.expiryDate, coverageDetails: w.coverageDetails,
+            cost: Number(w.cost), notes: w.notes, createdAt: w.createdAt,
+        }));
+    }
+    async getWarranty(id: bigint): Promise<Warranty> {
+        const actor = this.actor as any;
+        const w = await actor.getWarranty(id);
+        return { id: w.id, vehicleId: w.vehicleId, description: w.description, provider: w.provider,
+            startDate: w.startDate, expiryDate: w.expiryDate, coverageDetails: w.coverageDetails,
+            cost: Number(w.cost), notes: w.notes, createdAt: w.createdAt };
+    }
+    async createWarranty(warranty: Warranty): Promise<bigint> {
+        const actor = this.actor as any;
+        if (!actor.createWarranty) return 0n;
+        return actor.createWarranty({ id: warranty.id, vehicleId: warranty.vehicleId,
+            description: warranty.description, provider: warranty.provider,
+            startDate: warranty.startDate, expiryDate: warranty.expiryDate,
+            coverageDetails: warranty.coverageDetails, cost: warranty.cost,
+            notes: warranty.notes, createdAt: warranty.createdAt });
+    }
+    async updateWarranty(id: bigint, warranty: Warranty): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.updateWarranty) return;
+        return actor.updateWarranty(id, { id: warranty.id, vehicleId: warranty.vehicleId,
+            description: warranty.description, provider: warranty.provider,
+            startDate: warranty.startDate, expiryDate: warranty.expiryDate,
+            coverageDetails: warranty.coverageDetails, cost: warranty.cost,
+            notes: warranty.notes, createdAt: warranty.createdAt });
+    }
+    async deleteWarranty(id: bigint): Promise<void> {
+        const actor = this.actor as any;
+        if (!actor.deleteWarranty) return;
+        return actor.deleteWarranty(id);
+    }
+
 }
 function from_candid_FleetRole_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _FleetRole): FleetRole {
     return from_candid_variant_n38(_uploadFile, _downloadFile, value);
