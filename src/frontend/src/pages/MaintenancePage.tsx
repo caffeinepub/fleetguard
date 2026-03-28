@@ -9,12 +9,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter, Pencil, Plus, Search } from "lucide-react";
+import { Download, Filter, Pencil, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { MaintenanceType } from "../backend";
-import type { MaintenanceRecord, Vehicle } from "../backend";
+import type { MaintenanceRecordFull, Vehicle } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useAllMaintenanceRecords, useAllVehicles } from "../hooks/useQueries";
+import { exportCSV, exportPDF } from "../lib/exportUtils";
 import {
   formatCurrency,
   formatDate,
@@ -28,11 +29,13 @@ export function MaintenancePage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editRecord, setEditRecord] = useState<MaintenanceRecord | null>(null);
+  const [editRecord, setEditRecord] = useState<MaintenanceRecordFull | null>(
+    null,
+  );
 
   const filtered =
     records
-      ?.filter((r: MaintenanceRecord) => {
+      ?.filter((r: MaintenanceRecordFull) => {
         const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
         const matchSearch =
           r.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -52,9 +55,59 @@ export function MaintenancePage() {
     setEditRecord(null);
     setModalOpen(true);
   };
-  const openEdit = (r: MaintenanceRecord) => {
+  const openEdit = (r: MaintenanceRecordFull) => {
     setEditRecord(r);
     setModalOpen(true);
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Vehicle",
+      "Type",
+      "Date",
+      "Description",
+      "Mileage",
+      "Cost",
+      "Technician",
+      "Next Service",
+    ];
+    const rows = (records ?? []).map((r: MaintenanceRecordFull) => {
+      const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
+      return [
+        vehicle?.name ?? "Unknown",
+        maintenanceTypeLabel[r.maintenanceType],
+        formatDate(r.date),
+        r.description,
+        `${r.mileage.toString()} mi`,
+        formatCurrency(r.cost),
+        r.technicianName,
+        r.nextServiceDate ? formatDate(r.nextServiceDate) : "",
+      ];
+    });
+    exportCSV("maintenance-history", headers, rows);
+  };
+
+  const handleExportPDF = () => {
+    const headers = [
+      "Vehicle",
+      "Type",
+      "Date",
+      "Description",
+      "Cost",
+      "Technician",
+    ];
+    const rows = (records ?? []).map((r: MaintenanceRecordFull) => {
+      const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
+      return [
+        vehicle?.name ?? "Unknown",
+        maintenanceTypeLabel[r.maintenanceType],
+        formatDate(r.date),
+        r.description,
+        formatCurrency(r.cost),
+        r.technicianName,
+      ];
+    });
+    exportPDF("Maintenance History Report", headers, rows);
   };
 
   return (
@@ -66,13 +119,31 @@ export function MaintenancePage() {
             {records?.length ?? 0} total records
           </p>
         </div>
-        <Button
-          data-ocid="maintenance.primary_button"
-          onClick={openAdd}
-          className="gap-2"
-        >
-          <Plus size={16} /> Add Record
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-ocid="maintenance.secondary_button"
+            onClick={handleExportCSV}
+          >
+            <Download size={15} /> CSV
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-ocid="maintenance.toggle"
+            onClick={handleExportPDF}
+          >
+            <Download size={15} /> PDF
+          </Button>
+          <Button
+            data-ocid="maintenance.primary_button"
+            onClick={openAdd}
+            className="gap-2"
+          >
+            <Plus size={16} /> Add Record
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -157,7 +228,7 @@ export function MaintenancePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {filtered.map((r: MaintenanceRecord, i: number) => {
+                {filtered.map((r: MaintenanceRecordFull, i: number) => {
                   const vehicle = vehicles?.find(
                     (v: Vehicle) => v.id === r.vehicleId,
                   );

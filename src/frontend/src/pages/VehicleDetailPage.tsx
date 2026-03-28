@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Status } from "../backend";
-import type { MaintenanceRecord } from "../backend";
+import type { MaintenanceRecordFull } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { VehicleModal } from "../components/VehicleModal";
 import {
@@ -41,7 +41,9 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
   const { data: isAdmin } = useIsAdmin();
   const [mModalOpen, setMModalOpen] = useState(false);
   const [vModalOpen, setVModalOpen] = useState(false);
-  const [editRecord, setEditRecord] = useState<MaintenanceRecord | null>(null);
+  const [editRecord, setEditRecord] = useState<MaintenanceRecordFull | null>(
+    null,
+  );
 
   const sortedRecords =
     records?.slice().sort((a, b) => Number(b.date - a.date)) ?? [];
@@ -218,7 +220,7 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {sortedRecords.map((r: MaintenanceRecord, i: number) => (
+                {sortedRecords.map((r: MaintenanceRecordFull, i: number) => (
                   <tr
                     key={r.id.toString()}
                     data-ocid={`vehicle_detail.item.${i + 1}`}

@@ -3,15 +3,22 @@ import {
   ChevronRight,
   LayoutDashboard,
   LogOut,
+  Package,
+  Settings,
   Shield,
   Truck,
   Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import type { Page } from "../App";
+import { FleetRole } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useCallerProfile } from "../hooks/useQueries";
-
-type Page = "dashboard" | "vehicles" | "maintenance" | "vehicle-detail";
+import {
+  useCallerFleetRole,
+  useCallerProfile,
+  useGetCompanySettings,
+  useIsAdmin,
+} from "../hooks/useQueries";
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,15 +30,32 @@ const navItems = [
   { id: "dashboard" as Page, label: "Dashboard", icon: LayoutDashboard },
   { id: "vehicles" as Page, label: "Fleet", icon: Truck },
   { id: "maintenance" as Page, label: "Maintenance", icon: Wrench },
+  { id: "parts" as Page, label: "Parts", icon: Package },
 ];
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { clear, identity } = useInternetIdentity();
   const { data: profile } = useCallerProfile();
+  const { data: companySettings } = useGetCompanySettings();
+  const { data: fleetRole } = useCallerFleetRole();
+  const { data: isAdmin } = useIsAdmin();
   const principal = identity?.getPrincipal().toString();
   const shortPrincipal = principal ? `${principal.slice(0, 8)}...` : "";
   const displayName = profile?.name || shortPrincipal;
   const initials = profile?.name ? profile.name.slice(0, 2).toUpperCase() : "U";
+
+  let roleName = "Fleet Member";
+  let roleColorClass = "text-sidebar-foreground/50";
+  if (fleetRole === FleetRole.Admin || isAdmin) {
+    roleName = "Administrator";
+    roleColorClass = "text-primary";
+  } else if (fleetRole === FleetRole.FleetManager) {
+    roleName = "Fleet Manager";
+    roleColorClass = "text-success";
+  } else if (fleetRole === FleetRole.Mechanic) {
+    roleName = "Mechanic";
+    roleColorClass = "text-amber-400";
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -40,11 +64,19 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         {/* Logo */}
         <div className="px-6 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Shield className="w-4 h-4 text-white" />
-            </div>
+            {companySettings?.logoUrl ? (
+              <img
+                src={companySettings.logoUrl}
+                alt="Company Logo"
+                className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+            )}
             <span className="font-semibold text-lg tracking-tight text-white">
-              FleetGuard
+              {companySettings?.companyName || "FleetGuard"}
             </span>
           </div>
         </div>
@@ -76,6 +108,25 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               </button>
             );
           })}
+
+          <div className="pt-2 mt-2 border-t border-sidebar-border/40">
+            <button
+              type="button"
+              data-ocid="nav.settings.link"
+              onClick={() => onNavigate("settings")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                currentPage === "settings"
+                  ? "bg-sidebar-accent text-white"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-white"
+              }`}
+            >
+              <Settings size={18} className="flex-shrink-0" />
+              Settings
+              {currentPage === "settings" && (
+                <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />
+              )}
+            </button>
+          </div>
         </nav>
 
         {/* User */}
@@ -90,9 +141,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               <p className="text-sm font-medium text-white truncate">
                 {displayName}
               </p>
-              <p className="text-xs text-sidebar-foreground/50 truncate">
-                Fleet Manager
-              </p>
+              <p className={`text-xs truncate ${roleColorClass}`}>{roleName}</p>
             </div>
           </div>
           <button

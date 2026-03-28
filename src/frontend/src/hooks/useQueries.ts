@@ -1,5 +1,15 @@
+import { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MaintenanceRecord, UserProfile, Vehicle } from "../backend";
+import type {
+  CompanySettings,
+  FleetRole,
+  InviteToken,
+  MaintenanceRecordFull,
+  Part,
+  UserProfile,
+  Vehicle,
+} from "../backend";
+import type { UserRole } from "../backend";
 import { useActor } from "./useActor";
 
 export function useDashboardStats() {
@@ -110,6 +120,81 @@ export function useIsAdmin() {
   });
 }
 
+export function useCallerUserRole() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["callerUserRole"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerUserRole();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCallerFleetRole() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["callerFleetRole"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerFleetRole();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useInviteTokens() {
+  const { actor, isFetching } = useActor();
+  return useQuery<InviteToken[]>({
+    queryKey: ["inviteTokens"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getInviteTokens();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateInviteToken() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, role }: { email: string; role: FleetRole }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createInviteToken(email, role);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["inviteTokens"] }),
+  });
+}
+
+export function useRedeemInviteToken() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.redeemInviteToken(token);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["callerFleetRole"] });
+      qc.invalidateQueries({ queryKey: ["callerUserRole"] });
+    },
+  });
+}
+
+export function useAllCompanyRegistrations() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allCompanyRegistrations"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllCompanyRegistrations();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 export function useSaveProfile() {
   const { actor } = useActor();
   const qc = useQueryClient();
@@ -119,6 +204,21 @@ export function useSaveProfile() {
       return actor.saveCallerUserProfile(profile);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["callerProfile"] }),
+  });
+}
+
+export function useAssignUserRole() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      principal,
+      role,
+    }: { principal: string; role: UserRole }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.assignCallerUserRole(Principal.fromText(principal), role);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["callerUserRole"] }),
   });
 }
 
@@ -168,11 +268,26 @@ export function useDeleteVehicle() {
   });
 }
 
+export function useBulkCreateVehicles() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vehicles: Vehicle[]) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.bulkCreateVehicles(vehicles);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["vehicles"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+    },
+  });
+}
+
 export function useCreateMaintenance() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (r: MaintenanceRecord) => {
+    mutationFn: (r: MaintenanceRecordFull) => {
       if (!actor) throw new Error("Not connected");
       return actor.createMaintenanceRecord(r);
     },
@@ -182,6 +297,8 @@ export function useCreateMaintenance() {
       qc.invalidateQueries({ queryKey: ["upcomingMaintenance"] });
       qc.invalidateQueries({ queryKey: ["overdueMaintenance"] });
       qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+      qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["lowStockParts"] });
     },
   });
 }
@@ -190,7 +307,10 @@ export function useUpdateMaintenance() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, record }: { id: bigint; record: MaintenanceRecord }) => {
+    mutationFn: ({
+      id,
+      record,
+    }: { id: bigint; record: MaintenanceRecordFull }) => {
       if (!actor) throw new Error("Not connected");
       return actor.updateMaintenanceRecord(id, record);
     },
@@ -200,5 +320,103 @@ export function useUpdateMaintenance() {
       qc.invalidateQueries({ queryKey: ["upcomingMaintenance"] });
       qc.invalidateQueries({ queryKey: ["overdueMaintenance"] });
     },
+  });
+}
+
+// Parts
+export function useAllParts() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Part[]>({
+    queryKey: ["parts"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllParts();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetLowStockParts() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Part[]>({
+    queryKey: ["lowStockParts"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getLowStockParts();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreatePart() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (part: Part) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createPart(part);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["lowStockParts"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+    },
+  });
+}
+
+export function useUpdatePart() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, part }: { id: bigint; part: Part }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.updatePart(id, part);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["lowStockParts"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+    },
+  });
+}
+
+export function useDeletePart() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deletePart(id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["lowStockParts"] });
+      qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+    },
+  });
+}
+
+// Company Settings
+export function useGetCompanySettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery<CompanySettings | null>({
+    queryKey: ["companySettings"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCompanySettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveCompanySettings() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (settings: CompanySettings) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.saveCompanySettings(settings);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["companySettings"] }),
   });
 }

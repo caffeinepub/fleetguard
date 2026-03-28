@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { BarChart3, Shield, Truck, Wrench } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -92,6 +93,25 @@ export function LoginPage() {
                 "Sign in with Internet Identity"
               )}
             </Button>
+
+            <div className="flex items-center gap-3 my-5">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <Separator className="flex-1" />
+            </div>
+
+            <Button
+              data-ocid="login.secondary_button"
+              variant="outline"
+              className="w-full h-11 text-base font-medium"
+              onClick={() => login()}
+              disabled={isLoggingIn}
+            >
+              Sign Up — New Company
+            </Button>
+            <p className="text-center text-xs text-muted-foreground mt-3">
+              New to FleetGuard? Sign up to register your company.
+            </p>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
               Secured by the Internet Computer blockchain

@@ -10,13 +10,33 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface CompanySettings {
+  'adminPrincipal' : string,
+  'createdAt' : Time,
+  'logoUrl' : string,
+  'companyName' : string,
+  'fleetSize' : string,
+  'industry' : string,
+  'contactPhone' : string,
+}
 export interface DashboardStats {
   'activeVehicles' : bigint,
   'totalVehicles' : bigint,
   'upcomingMaintenanceCount' : bigint,
   'overdueCount' : bigint,
+  'lowStockPartsCount' : bigint,
 }
-export interface MaintenanceRecord {
+export type FleetRole = { 'FleetManager' : null } |
+  { 'Mechanic' : null } |
+  { 'Admin' : null };
+export interface InviteToken {
+  'token' : string,
+  'usedBy' : [] | [Principal],
+  'createdAt' : Time,
+  'role' : FleetRole,
+  'email' : string,
+}
+export interface MaintenanceRecordFull {
   'id' : bigint,
   'mileage' : bigint,
   'technicianName' : string,
@@ -24,6 +44,7 @@ export interface MaintenanceRecord {
   'cost' : number,
   'date' : Time,
   'createdAt' : Time,
+  'partsUsed' : Array<bigint>,
   'description' : string,
   'maintenanceType' : MaintenanceType,
   'vehicleId' : bigint,
@@ -37,6 +58,15 @@ export type MaintenanceType = { 'OilChange' : null } |
   { 'Electrical' : null } |
   { 'Other' : null } |
   { 'EngineCheck' : null };
+export interface Part {
+  'id' : bigint,
+  'partNumber' : string,
+  'quantityInStock' : bigint,
+  'name' : string,
+  'createdAt' : Time,
+  'minStockLevel' : bigint,
+  'location' : string,
+}
 export type Status = { 'Inactive' : null } |
   { 'Active' : null };
 export type Time = bigint;
@@ -61,32 +91,74 @@ export type VehicleType = { 'Bus' : null } |
   { 'Trailer' : null } |
   { 'Truck' : null } |
   { 'Other' : null };
+export interface _CaffeineStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _CaffeineStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _CaffeineStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface _SERVICE {
+  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
+  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
+  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'createMaintenanceRecord' : ActorMethod<[MaintenanceRecord], bigint>,
+  'bulkCreateVehicles' : ActorMethod<[Array<Vehicle>], Array<bigint>>,
+  'createInviteToken' : ActorMethod<[string, FleetRole], string>,
+  'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
+  'createPart' : ActorMethod<[Part], bigint>,
   'createVehicle' : ActorMethod<[Vehicle], bigint>,
+  'deletePart' : ActorMethod<[bigint], undefined>,
   'deleteVehicle' : ActorMethod<[bigint], undefined>,
-  'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecord>>,
+  'getAllCompanyRegistrations' : ActorMethod<[], Array<CompanySettings>>,
+  'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
+  'getAllParts' : ActorMethod<[], Array<Part>>,
   'getAllVehicles' : ActorMethod<[], Array<Vehicle>>,
+  'getCallerFleetRole' : ActorMethod<[], [] | [FleetRole]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
-  'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecord>,
+  'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
+  'getLowStockParts' : ActorMethod<[], Array<Part>>,
+  'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
   'getMaintenanceRecordsByVehicle' : ActorMethod<
     [bigint],
-    Array<MaintenanceRecord>
+    Array<MaintenanceRecordFull>
   >,
-  'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecord>>,
-  'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecord>>,
+  'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
+  'getPart' : ActorMethod<[bigint], Part>,
+  'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
+  'getUserFleetRole' : ActorMethod<[Principal], [] | [FleetRole]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getVehicle' : ActorMethod<[bigint], Vehicle>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
+  'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
   'updateMaintenanceRecord' : ActorMethod<
-    [bigint, MaintenanceRecord],
+    [bigint, MaintenanceRecordFull],
     undefined
   >,
+  'updatePart' : ActorMethod<[bigint, Part], undefined>,
   'updateVehicle' : ActorMethod<[bigint, Vehicle], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

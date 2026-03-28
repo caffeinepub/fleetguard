@@ -7,18 +7,21 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Package,
   Plus,
   Truck,
 } from "lucide-react";
+import type { Page } from "../App";
 import type { Vehicle } from "../backend";
 import { Status } from "../backend";
 import {
   useAllMaintenanceRecords,
   useAllVehicles,
+  useCallerProfile,
   useDashboardStats,
+  useGetCompanySettings,
   useUpcomingMaintenance,
 } from "../hooks/useQueries";
-import { useCallerProfile } from "../hooks/useQueries";
 import {
   formatCurrency,
   formatDate,
@@ -26,7 +29,6 @@ import {
   vehicleTypeLabel,
 } from "../lib/helpers";
 
-type Page = "dashboard" | "vehicles" | "maintenance" | "vehicle-detail";
 interface Props {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
 }
@@ -52,6 +54,7 @@ export function DashboardPage({ onNavigate }: Props) {
     useUpcomingMaintenance();
   const { data: allRecords } = useAllMaintenanceRecords();
   const { data: profile } = useCallerProfile();
+  const { data: companySettings } = useGetCompanySettings();
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -65,6 +68,8 @@ export function DashboardPage({ onNavigate }: Props) {
       ?.slice()
       .sort((a, b) => Number(b.createdAt - a.createdAt))
       .slice(0, 5) ?? [];
+
+  const lowStockCount = Number(stats?.lowStockPartsCount ?? 0n);
 
   const kpis = [
     {
@@ -95,20 +100,36 @@ export function DashboardPage({ onNavigate }: Props) {
       color: "text-destructive",
       bg: "bg-destructive/10",
     },
+    {
+      label: "Low Stock Parts",
+      value: stats?.lowStockPartsCount ?? 0n,
+      icon: Package,
+      color: "text-warning",
+      bg: "bg-warning/10",
+    },
   ];
 
   return (
     <div className="p-6 space-y-6 animate-fade-in" data-ocid="dashboard.page">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {greeting()}
-            {profile?.name ? `, ${profile.name}` : ""} 👋
-          </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Here's what's happening with your fleet today.
-          </p>
+        <div className="flex items-center gap-3">
+          {companySettings?.logoUrl && (
+            <img
+              src={companySettings.logoUrl}
+              alt="Company Logo"
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+          )}
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              {greeting()}
+              {profile?.name ? `, ${profile.name}` : ""} 👋
+            </h1>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              Here's what's happening with your fleet today.
+            </p>
+          </div>
         </div>
         <Button
           data-ocid="dashboard.primary_button"
@@ -119,9 +140,34 @@ export function DashboardPage({ onNavigate }: Props) {
         </Button>
       </div>
 
+      {/* Low Stock Alert */}
+      {!statsLoading && lowStockCount > 0 && (
+        <div
+          data-ocid="dashboard.lowstock.card"
+          className="flex items-center gap-3 px-5 py-4 rounded-xl bg-warning/10 border border-warning/30"
+        >
+          <Package className="w-5 h-5 text-warning flex-shrink-0" />
+          <p className="text-sm font-medium text-warning flex-1">
+            <span className="font-bold">
+              {lowStockCount} part{lowStockCount !== 1 ? "s" : ""}
+            </span>{" "}
+            running low on stock — reorder soon.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-warning/40 text-warning hover:bg-warning/10 h-8 text-xs"
+            onClick={() => onNavigate("parts")}
+            data-ocid="dashboard.lowstock.button"
+          >
+            View Parts
+          </Button>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-4"
         data-ocid="dashboard.section"
       >
         {kpis.map((kpi, i) => {

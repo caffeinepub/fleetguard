@@ -4,16 +4,49 @@ import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
-import { useAllVehicles, useCallerProfile } from "./hooks/useQueries";
-import { seedData } from "./lib/seed";
+import {
+  useAllParts,
+  useAllVehicles,
+  useCallerProfile,
+} from "./hooks/useQueries";
+import { seedData, seedParts } from "./lib/seed";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DevPortalPage } from "./pages/DevPortalPage";
+import { InviteAcceptPage } from "./pages/InviteAcceptPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { PartsPage } from "./pages/PartsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { VehicleDetailPage } from "./pages/VehicleDetailPage";
 import { VehiclesPage } from "./pages/VehiclesPage";
 
-type Page = "dashboard" | "vehicles" | "maintenance" | "vehicle-detail";
+export type Page =
+  | "dashboard"
+  | "vehicles"
+  | "maintenance"
+  | "vehicle-detail"
+  | "parts"
+  | "settings"
+  | "invite-accept"
+  | "dev-portal";
+
+const DEV_KEY = "FLEETGUARD_DEV_2026";
+
+function getInviteToken(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("inviteToken");
+}
+
+function checkDevAccess(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  const urlKey = params.get("devKey");
+  if (urlKey === DEV_KEY) {
+    localStorage.setItem("devKey", urlKey);
+    return true;
+  }
+  return localStorage.getItem("devKey") === DEV_KEY;
+}
 
 interface NavState {
   page: Page;
@@ -25,14 +58,18 @@ function AppContent() {
   const { actor } = useActor();
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
   const { data: vehicles, isLoading: vehiclesLoading } = useAllVehicles();
+  const { data: parts, isLoading: partsLoading } = useAllParts();
   const [nav, setNav] = useState<NavState>({ page: "dashboard" });
   const [seeded, setSeeded] = useState(false);
+  const [partsSeeded, setPartsSeeded] = useState(false);
+  const [isDevPortal] = useState(() => checkDevAccess());
+  const [inviteToken] = useState(() => getInviteToken());
 
   const navigate = (page: Page, params?: Record<string, unknown>) => {
     setNav({ page, params });
   };
 
-  // Seed data on first load when vehicles list is empty
+  // Seed vehicles + maintenance data on first load
   useEffect(() => {
     if (!identity || !actor || seeded || vehiclesLoading) return;
     if (vehicles && vehicles.length === 0) {
@@ -42,6 +79,22 @@ function AppContent() {
       setSeeded(true);
     }
   }, [identity, actor, vehicles, vehiclesLoading, seeded]);
+
+  // Seed parts data separately
+  useEffect(() => {
+    if (!identity || !actor || partsSeeded || partsLoading) return;
+    if (parts && parts.length === 0) {
+      setPartsSeeded(true);
+      seedParts(actor).catch(console.error);
+    } else if (parts && parts.length > 0) {
+      setPartsSeeded(true);
+    }
+  }, [identity, actor, parts, partsLoading, partsSeeded]);
+
+  // Dev portal — no auth needed
+  if (isDevPortal) {
+    return <DevPortalPage />;
+  }
 
   if (isInitializing) {
     return (
@@ -67,6 +120,12 @@ function AppContent() {
     );
   }
 
+  // Invited user — has token but no profile yet
+  if (inviteToken && (profile === null || profile === undefined)) {
+    return <InviteAcceptPage token={inviteToken} />;
+  }
+
+  // New user — no profile, no invite token → admin onboarding
   if (profile === null || profile === undefined) {
     return <OnboardingPage />;
   }
@@ -79,6 +138,10 @@ function AppContent() {
         return <VehiclesPage onNavigate={navigate} />;
       case "maintenance":
         return <MaintenancePage />;
+      case "parts":
+        return <PartsPage />;
+      case "settings":
+        return <SettingsPage />;
       case "vehicle-detail": {
         const vehicleId = nav.params?.vehicleId as bigint | undefined;
         if (!vehicleId) return <DashboardPage onNavigate={navigate} />;

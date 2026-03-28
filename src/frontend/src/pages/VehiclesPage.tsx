@@ -20,33 +20,74 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
-import { useState } from "react";
+import {
+  Download,
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Truck,
+  Upload,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+import type { Page } from "../App";
 import type { Vehicle } from "../backend";
 import { Status, VehicleType } from "../backend";
 import { VehicleModal } from "../components/VehicleModal";
 import {
   useAllVehicles,
+  useBulkCreateVehicles,
   useDeleteVehicle,
   useIsAdmin,
 } from "../hooks/useQueries";
-import { vehicleTypeLabel } from "../lib/helpers";
+import { exportCSV, exportPDF } from "../lib/exportUtils";
+import { nowNs, vehicleTypeLabel } from "../lib/helpers";
 
-type Page = "dashboard" | "vehicles" | "maintenance" | "vehicle-detail";
 interface Props {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
+}
+
+function parseCSVRow(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function mapVehicleType(raw: string): VehicleType {
+  const r = raw.toLowerCase();
+  if (r === "truck") return VehicleType.Truck;
+  if (r === "trailer") return VehicleType.Trailer;
+  if (r === "bus") return VehicleType.Bus;
+  if (r === "van") return VehicleType.Van;
+  return VehicleType.Other;
 }
 
 export function VehiclesPage({ onNavigate }: Props) {
   const { data: vehicles, isLoading } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
   const deleteVehicle = useDeleteVehicle();
+  const bulkCreate = useBulkCreateVehicles();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const filtered =
     vehicles?.filter((v: Vehicle) => {
@@ -77,6 +118,125 @@ export function VehiclesPage({ onNavigate }: Props) {
     setModalOpen(true);
   };
 
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) {
+      toast.error("CSV file must have a header row and at least one data row");
+      return;
+    }
+
+    const headers = parseCSVRow(lines[0]).map((h) => h.toLowerCase());
+    const nameIdx = headers.indexOf("name");
+    const typeIdx = headers.indexOf("vehicletype");
+    const plateIdx = headers.indexOf("licenseplate");
+    const yearIdx = headers.indexOf("year");
+    const makeIdx = headers.indexOf("make");
+    const modelIdx = headers.indexOf("model");
+    const statusIdx = headers.indexOf("status");
+    const notesIdx = headers.indexOf("notes");
+
+    if (nameIdx === -1) {
+      toast.error("CSV must have a 'name' column");
+      return;
+    }
+
+    const vehiclesToImport: Vehicle[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVRow(lines[i]);
+      const name = cols[nameIdx] ?? "";
+      if (!name) continue;
+      vehiclesToImport.push({
+        id: 0n,
+        name,
+        vehicleType:
+          typeIdx >= 0
+            ? mapVehicleType(cols[typeIdx] ?? "")
+            : VehicleType.Other,
+        licensePlate: plateIdx >= 0 ? (cols[plateIdx] ?? "") : "",
+        year:
+          yearIdx >= 0
+            ? BigInt(Number.parseInt(cols[yearIdx] ?? "2020") || 2020)
+            : 2020n,
+        make: makeIdx >= 0 ? (cols[makeIdx] ?? "") : "",
+        model: modelIdx >= 0 ? (cols[modelIdx] ?? "") : "",
+        status:
+          statusIdx >= 0 && (cols[statusIdx] ?? "").toLowerCase() === "inactive"
+            ? Status.Inactive
+            : Status.Active,
+        notes: notesIdx >= 0 ? (cols[notesIdx] ?? "") : "",
+        createdAt: nowNs(),
+      });
+    }
+
+    if (vehiclesToImport.length === 0) {
+      toast.error("No valid vehicles found in CSV");
+      return;
+    }
+
+    const importToast = toast.loading(
+      `Importing ${vehiclesToImport.length} vehicle(s)...`,
+    );
+    try {
+      await bulkCreate.mutateAsync(vehiclesToImport);
+      toast.dismiss(importToast);
+      toast.success(
+        `Successfully imported ${vehiclesToImport.length} vehicle(s)`,
+      );
+    } catch {
+      toast.dismiss(importToast);
+      toast.error("Failed to import vehicles");
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Name",
+      "Make",
+      "Model",
+      "Year",
+      "Type",
+      "License Plate",
+      "Status",
+    ];
+    const rows = (vehicles ?? []).map((v: Vehicle) => [
+      v.name,
+      v.make,
+      v.model,
+      v.year.toString(),
+      vehicleTypeLabel[v.vehicleType],
+      v.licensePlate,
+      v.status,
+    ]);
+    exportCSV("fleet-equipment-list", headers, rows);
+  };
+
+  const handleExportPDF = () => {
+    const headers = [
+      "Name",
+      "Make",
+      "Model",
+      "Year",
+      "Type",
+      "License Plate",
+      "Status",
+    ];
+    const rows = (vehicles ?? []).map((v: Vehicle) => [
+      v.name,
+      v.make,
+      v.model,
+      v.year.toString(),
+      vehicleTypeLabel[v.vehicleType],
+      v.licensePlate,
+      v.status,
+    ]);
+    exportPDF("Fleet Equipment List", headers, rows);
+  };
+
   return (
     <div className="p-6 space-y-5 animate-fade-in" data-ocid="vehicles.page">
       <div className="flex items-center justify-between">
@@ -86,13 +246,52 @@ export function VehiclesPage({ onNavigate }: Props) {
             {vehicles?.length ?? 0} vehicles in your fleet
           </p>
         </div>
-        <Button
-          data-ocid="vehicles.primary_button"
-          onClick={openAdd}
-          className="gap-2"
-        >
-          <Plus size={16} /> Add Vehicle
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-ocid="vehicles.secondary_button"
+            onClick={handleExportCSV}
+          >
+            <Download size={15} /> CSV
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-ocid="vehicles.toggle"
+            onClick={handleExportPDF}
+          >
+            <Download size={15} /> PDF
+          </Button>
+          {isAdmin && (
+            <>
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleCSVImport}
+                data-ocid="vehicles.upload_button"
+              />
+              <Button
+                variant="outline"
+                className="gap-2"
+                data-ocid="vehicles.dropzone"
+                onClick={() => csvInputRef.current?.click()}
+                disabled={bulkCreate.isPending}
+              >
+                <Upload size={15} /> Import CSV
+              </Button>
+            </>
+          )}
+          <Button
+            data-ocid="vehicles.primary_button"
+            onClick={openAdd}
+            className="gap-2"
+          >
+            <Plus size={16} /> Add Vehicle
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

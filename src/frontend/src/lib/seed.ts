@@ -11,7 +11,6 @@ const daysFromNowNs = (days: number): bigint =>
 export async function seedData(actor: backendInterface): Promise<void> {
   const now = nowNs();
 
-  // Create vehicles
   const v1 = await actor.createVehicle({
     id: 0n,
     name: "Truck Alpha",
@@ -61,7 +60,6 @@ export async function seedData(actor: backendInterface): Promise<void> {
     createdAt: now,
   });
 
-  // Maintenance records for Truck Alpha
   await actor.createMaintenanceRecord({
     id: 0n,
     vehicleId: v1,
@@ -72,6 +70,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 45200n,
     technicianName: "James Carter",
     nextServiceDate: daysFromNowNs(30),
+    partsUsed: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -84,6 +83,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 38000n,
     technicianName: "Maria Lopez",
     nextServiceDate: daysFromNowNs(180),
+    partsUsed: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -96,10 +96,9 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 47800n,
     technicianName: "James Carter",
     nextServiceDate: daysFromNowNs(90),
+    partsUsed: [],
     createdAt: now,
   });
-
-  // Maintenance records for Bus Route 7
   await actor.createMaintenanceRecord({
     id: 0n,
     vehicleId: v2,
@@ -110,6 +109,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 92000n,
     technicianName: "Robert Kim",
     nextServiceDate: daysFromNowNs(5),
+    partsUsed: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -122,10 +122,9 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 88000n,
     technicianName: "Robert Kim",
     nextServiceDate: daysFromNowNs(15),
+    partsUsed: [],
     createdAt: now,
   });
-
-  // Maintenance records for Van Delivery 3
   await actor.createMaintenanceRecord({
     id: 0n,
     vehicleId: v3,
@@ -135,6 +134,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     cost: 200,
     mileage: 31500n,
     technicianName: "Sarah Patel",
+    partsUsed: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -147,10 +147,9 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 27000n,
     technicianName: "Sarah Patel",
     nextServiceDate: daysFromNowNs(60),
+    partsUsed: [],
     createdAt: now,
   });
-
-  // Maintenance records for Trailer H20
   await actor.createMaintenanceRecord({
     id: 0n,
     vehicleId: v4,
@@ -160,6 +159,57 @@ export async function seedData(actor: backendInterface): Promise<void> {
     cost: 1200,
     mileage: 0n,
     technicianName: "Carlos Ruiz",
+    partsUsed: [],
+    createdAt: now,
+  });
+}
+
+export async function seedParts(actor: backendInterface): Promise<void> {
+  const now = nowNs();
+  const a = actor as any;
+  await a.createPart({
+    id: 0n,
+    name: "Air Filter",
+    partNumber: "AF-2210",
+    quantityInStock: 24n,
+    minStockLevel: 5n,
+    location: "Shelf A-1",
+    createdAt: now,
+  });
+  await a.createPart({
+    id: 0n,
+    name: "Oil Filter",
+    partNumber: "OF-5580",
+    quantityInStock: 18n,
+    minStockLevel: 10n,
+    location: "Shelf A-2",
+    createdAt: now,
+  });
+  await a.createPart({
+    id: 0n,
+    name: "Brake Pads (Front)",
+    partNumber: "BP-F440",
+    quantityInStock: 6n,
+    minStockLevel: 8n,
+    location: "Shelf B-3",
+    createdAt: now,
+  });
+  await a.createPart({
+    id: 0n,
+    name: "Windshield Wiper Blade",
+    partNumber: "WB-2422",
+    quantityInStock: 30n,
+    minStockLevel: 10n,
+    location: "Shelf C-1",
+    createdAt: now,
+  });
+  await a.createPart({
+    id: 0n,
+    name: "Spark Plug Set",
+    partNumber: "SP-NGK8",
+    quantityInStock: 3n,
+    minStockLevel: 5n,
+    location: "Shelf A-4",
     createdAt: now,
   });
 }

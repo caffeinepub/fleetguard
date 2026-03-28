@@ -8,34 +8,21 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  'method' : IDL.Text,
+  'blob_hash' : IDL.Text,
+});
+export const _CaffeineStorageRefillInformation = IDL.Record({
+  'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const _CaffeineStorageRefillResult = IDL.Record({
+  'success' : IDL.Opt(IDL.Bool),
+  'topped_up_amount' : IDL.Opt(IDL.Nat),
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
-});
-export const Time = IDL.Int;
-export const MaintenanceType = IDL.Variant({
-  'OilChange' : IDL.Null,
-  'Inspection' : IDL.Null,
-  'TireRotation' : IDL.Null,
-  'Transmission' : IDL.Null,
-  'Bodywork' : IDL.Null,
-  'BrakeService' : IDL.Null,
-  'Electrical' : IDL.Null,
-  'Other' : IDL.Null,
-  'EngineCheck' : IDL.Null,
-});
-export const MaintenanceRecord = IDL.Record({
-  'id' : IDL.Nat,
-  'mileage' : IDL.Nat,
-  'technicianName' : IDL.Text,
-  'nextServiceDate' : IDL.Opt(Time),
-  'cost' : IDL.Float64,
-  'date' : Time,
-  'createdAt' : Time,
-  'description' : IDL.Text,
-  'maintenanceType' : MaintenanceType,
-  'vehicleId' : IDL.Nat,
 });
 export const Status = IDL.Variant({
   'Inactive' : IDL.Null,
@@ -48,6 +35,7 @@ export const VehicleType = IDL.Variant({
   'Truck' : IDL.Null,
   'Other' : IDL.Null,
 });
+export const Time = IDL.Int;
 export const Vehicle = IDL.Record({
   'id' : IDL.Nat,
   'status' : Status,
@@ -60,43 +48,148 @@ export const Vehicle = IDL.Record({
   'year' : IDL.Nat,
   'notes' : IDL.Text,
 });
+export const FleetRole = IDL.Variant({
+  'FleetManager' : IDL.Null,
+  'Mechanic' : IDL.Null,
+  'Admin' : IDL.Null,
+});
+export const MaintenanceType = IDL.Variant({
+  'OilChange' : IDL.Null,
+  'Inspection' : IDL.Null,
+  'TireRotation' : IDL.Null,
+  'Transmission' : IDL.Null,
+  'Bodywork' : IDL.Null,
+  'BrakeService' : IDL.Null,
+  'Electrical' : IDL.Null,
+  'Other' : IDL.Null,
+  'EngineCheck' : IDL.Null,
+});
+export const MaintenanceRecordFull = IDL.Record({
+  'id' : IDL.Nat,
+  'mileage' : IDL.Nat,
+  'technicianName' : IDL.Text,
+  'nextServiceDate' : IDL.Opt(Time),
+  'cost' : IDL.Float64,
+  'date' : Time,
+  'createdAt' : Time,
+  'partsUsed' : IDL.Vec(IDL.Nat),
+  'description' : IDL.Text,
+  'maintenanceType' : MaintenanceType,
+  'vehicleId' : IDL.Nat,
+});
+export const Part = IDL.Record({
+  'id' : IDL.Nat,
+  'partNumber' : IDL.Text,
+  'quantityInStock' : IDL.Nat,
+  'name' : IDL.Text,
+  'createdAt' : Time,
+  'minStockLevel' : IDL.Nat,
+  'location' : IDL.Text,
+});
+export const CompanySettings = IDL.Record({
+  'adminPrincipal' : IDL.Text,
+  'createdAt' : Time,
+  'logoUrl' : IDL.Text,
+  'companyName' : IDL.Text,
+  'fleetSize' : IDL.Text,
+  'industry' : IDL.Text,
+  'contactPhone' : IDL.Text,
+});
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const DashboardStats = IDL.Record({
   'activeVehicles' : IDL.Nat,
   'totalVehicles' : IDL.Nat,
   'upcomingMaintenanceCount' : IDL.Nat,
   'overdueCount' : IDL.Nat,
+  'lowStockPartsCount' : IDL.Nat,
+});
+export const InviteToken = IDL.Record({
+  'token' : IDL.Text,
+  'usedBy' : IDL.Opt(IDL.Principal),
+  'createdAt' : Time,
+  'role' : FleetRole,
+  'email' : IDL.Text,
 });
 
 export const idlService = IDL.Service({
-  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'createMaintenanceRecord' : IDL.Func([MaintenanceRecord], [IDL.Nat], []),
-  'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
-  'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
-  'getAllMaintenanceRecords' : IDL.Func(
-      [],
-      [IDL.Vec(MaintenanceRecord)],
+  '_caffeineStorageBlobIsLive' : IDL.Func(
+      [IDL.Vec(IDL.Nat8)],
+      [IDL.Bool],
       ['query'],
     ),
+  '_caffeineStorageBlobsToDelete' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      ['query'],
+    ),
+  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [],
+      [],
+    ),
+  '_caffeineStorageCreateCertificate' : IDL.Func(
+      [IDL.Text],
+      [_CaffeineStorageCreateCertificateResult],
+      [],
+    ),
+  '_caffeineStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_CaffeineStorageRefillInformation)],
+      [_CaffeineStorageRefillResult],
+      [],
+    ),
+  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'bulkCreateVehicles' : IDL.Func([IDL.Vec(Vehicle)], [IDL.Vec(IDL.Nat)], []),
+  'createInviteToken' : IDL.Func([IDL.Text, FleetRole], [IDL.Text], []),
+  'createMaintenanceRecord' : IDL.Func([MaintenanceRecordFull], [IDL.Nat], []),
+  'createPart' : IDL.Func([Part], [IDL.Nat], []),
+  'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
+  'deletePart' : IDL.Func([IDL.Nat], [], []),
+  'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
+  'getAllCompanyRegistrations' : IDL.Func(
+      [],
+      [IDL.Vec(CompanySettings)],
+      ['query'],
+    ),
+  'getAllMaintenanceRecords' : IDL.Func(
+      [],
+      [IDL.Vec(MaintenanceRecordFull)],
+      ['query'],
+    ),
+  'getAllParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
   'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
+  'getCallerFleetRole' : IDL.Func([], [IDL.Opt(FleetRole)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
-  'getMaintenanceRecord' : IDL.Func([IDL.Nat], [MaintenanceRecord], ['query']),
+  'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
+  'getLowStockParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
+  'getMaintenanceRecord' : IDL.Func(
+      [IDL.Nat],
+      [MaintenanceRecordFull],
+      ['query'],
+    ),
   'getMaintenanceRecordsByVehicle' : IDL.Func(
       [IDL.Nat],
-      [IDL.Vec(MaintenanceRecord)],
+      [IDL.Vec(MaintenanceRecordFull)],
       ['query'],
     ),
   'getOverdueMaintenance' : IDL.Func(
       [],
-      [IDL.Vec(MaintenanceRecord)],
+      [IDL.Vec(MaintenanceRecordFull)],
       ['query'],
     ),
+  'getPart' : IDL.Func([IDL.Nat], [Part], ['query']),
   'getUpcomingMaintenance' : IDL.Func(
       [],
-      [IDL.Vec(MaintenanceRecord)],
+      [IDL.Vec(MaintenanceRecordFull)],
+      ['query'],
+    ),
+  'getUserFleetRole' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(FleetRole)],
       ['query'],
     ),
   'getUserProfile' : IDL.Func(
@@ -106,42 +199,37 @@ export const idlService = IDL.Service({
     ),
   'getVehicle' : IDL.Func([IDL.Nat], [Vehicle], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'updateMaintenanceRecord' : IDL.Func([IDL.Nat, MaintenanceRecord], [], []),
+  'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+  'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
+  'updateMaintenanceRecord' : IDL.Func(
+      [IDL.Nat, MaintenanceRecordFull],
+      [],
+      [],
+    ),
+  'updatePart' : IDL.Func([IDL.Nat, Part], [], []),
   'updateVehicle' : IDL.Func([IDL.Nat, Vehicle], [], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _CaffeineStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _CaffeineStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
-  });
-  const Time = IDL.Int;
-  const MaintenanceType = IDL.Variant({
-    'OilChange' : IDL.Null,
-    'Inspection' : IDL.Null,
-    'TireRotation' : IDL.Null,
-    'Transmission' : IDL.Null,
-    'Bodywork' : IDL.Null,
-    'BrakeService' : IDL.Null,
-    'Electrical' : IDL.Null,
-    'Other' : IDL.Null,
-    'EngineCheck' : IDL.Null,
-  });
-  const MaintenanceRecord = IDL.Record({
-    'id' : IDL.Nat,
-    'mileage' : IDL.Nat,
-    'technicianName' : IDL.Text,
-    'nextServiceDate' : IDL.Opt(Time),
-    'cost' : IDL.Float64,
-    'date' : Time,
-    'createdAt' : Time,
-    'description' : IDL.Text,
-    'maintenanceType' : MaintenanceType,
-    'vehicleId' : IDL.Nat,
   });
   const Status = IDL.Variant({ 'Inactive' : IDL.Null, 'Active' : IDL.Null });
   const VehicleType = IDL.Variant({
@@ -151,6 +239,7 @@ export const idlFactory = ({ IDL }) => {
     'Truck' : IDL.Null,
     'Other' : IDL.Null,
   });
+  const Time = IDL.Int;
   const Vehicle = IDL.Record({
     'id' : IDL.Nat,
     'status' : Status,
@@ -163,47 +252,152 @@ export const idlFactory = ({ IDL }) => {
     'year' : IDL.Nat,
     'notes' : IDL.Text,
   });
+  const FleetRole = IDL.Variant({
+    'FleetManager' : IDL.Null,
+    'Mechanic' : IDL.Null,
+    'Admin' : IDL.Null,
+  });
+  const MaintenanceType = IDL.Variant({
+    'OilChange' : IDL.Null,
+    'Inspection' : IDL.Null,
+    'TireRotation' : IDL.Null,
+    'Transmission' : IDL.Null,
+    'Bodywork' : IDL.Null,
+    'BrakeService' : IDL.Null,
+    'Electrical' : IDL.Null,
+    'Other' : IDL.Null,
+    'EngineCheck' : IDL.Null,
+  });
+  const MaintenanceRecordFull = IDL.Record({
+    'id' : IDL.Nat,
+    'mileage' : IDL.Nat,
+    'technicianName' : IDL.Text,
+    'nextServiceDate' : IDL.Opt(Time),
+    'cost' : IDL.Float64,
+    'date' : Time,
+    'createdAt' : Time,
+    'partsUsed' : IDL.Vec(IDL.Nat),
+    'description' : IDL.Text,
+    'maintenanceType' : MaintenanceType,
+    'vehicleId' : IDL.Nat,
+  });
+  const Part = IDL.Record({
+    'id' : IDL.Nat,
+    'partNumber' : IDL.Text,
+    'quantityInStock' : IDL.Nat,
+    'name' : IDL.Text,
+    'createdAt' : Time,
+    'minStockLevel' : IDL.Nat,
+    'location' : IDL.Text,
+  });
+  const CompanySettings = IDL.Record({
+    'adminPrincipal' : IDL.Text,
+    'createdAt' : Time,
+    'logoUrl' : IDL.Text,
+    'companyName' : IDL.Text,
+    'fleetSize' : IDL.Text,
+    'industry' : IDL.Text,
+    'contactPhone' : IDL.Text,
+  });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const DashboardStats = IDL.Record({
     'activeVehicles' : IDL.Nat,
     'totalVehicles' : IDL.Nat,
     'upcomingMaintenanceCount' : IDL.Nat,
     'overdueCount' : IDL.Nat,
+    'lowStockPartsCount' : IDL.Nat,
+  });
+  const InviteToken = IDL.Record({
+    'token' : IDL.Text,
+    'usedBy' : IDL.Opt(IDL.Principal),
+    'createdAt' : Time,
+    'role' : FleetRole,
+    'email' : IDL.Text,
   });
   
   return IDL.Service({
-    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'createMaintenanceRecord' : IDL.Func([MaintenanceRecord], [IDL.Nat], []),
-    'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
-    'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
-    'getAllMaintenanceRecords' : IDL.Func(
-        [],
-        [IDL.Vec(MaintenanceRecord)],
+    '_caffeineStorageBlobIsLive' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IDL.Bool],
         ['query'],
       ),
+    '_caffeineStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_caffeineStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_CaffeineStorageCreateCertificateResult],
+        [],
+      ),
+    '_caffeineStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_CaffeineStorageRefillInformation)],
+        [_CaffeineStorageRefillResult],
+        [],
+      ),
+    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'bulkCreateVehicles' : IDL.Func([IDL.Vec(Vehicle)], [IDL.Vec(IDL.Nat)], []),
+    'createInviteToken' : IDL.Func([IDL.Text, FleetRole], [IDL.Text], []),
+    'createMaintenanceRecord' : IDL.Func(
+        [MaintenanceRecordFull],
+        [IDL.Nat],
+        [],
+      ),
+    'createPart' : IDL.Func([Part], [IDL.Nat], []),
+    'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
+    'deletePart' : IDL.Func([IDL.Nat], [], []),
+    'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
+    'getAllCompanyRegistrations' : IDL.Func(
+        [],
+        [IDL.Vec(CompanySettings)],
+        ['query'],
+      ),
+    'getAllMaintenanceRecords' : IDL.Func(
+        [],
+        [IDL.Vec(MaintenanceRecordFull)],
+        ['query'],
+      ),
+    'getAllParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
     'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
+    'getCallerFleetRole' : IDL.Func([], [IDL.Opt(FleetRole)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
+    'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
+    'getLowStockParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
     'getMaintenanceRecord' : IDL.Func(
         [IDL.Nat],
-        [MaintenanceRecord],
+        [MaintenanceRecordFull],
         ['query'],
       ),
     'getMaintenanceRecordsByVehicle' : IDL.Func(
         [IDL.Nat],
-        [IDL.Vec(MaintenanceRecord)],
+        [IDL.Vec(MaintenanceRecordFull)],
         ['query'],
       ),
     'getOverdueMaintenance' : IDL.Func(
         [],
-        [IDL.Vec(MaintenanceRecord)],
+        [IDL.Vec(MaintenanceRecordFull)],
         ['query'],
       ),
+    'getPart' : IDL.Func([IDL.Nat], [Part], ['query']),
     'getUpcomingMaintenance' : IDL.Func(
         [],
-        [IDL.Vec(MaintenanceRecord)],
+        [IDL.Vec(MaintenanceRecordFull)],
+        ['query'],
+      ),
+    'getUserFleetRole' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(FleetRole)],
         ['query'],
       ),
     'getUserProfile' : IDL.Func(
@@ -213,8 +407,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getVehicle' : IDL.Func([IDL.Nat], [Vehicle], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'updateMaintenanceRecord' : IDL.Func([IDL.Nat, MaintenanceRecord], [], []),
+    'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+    'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
+    'updateMaintenanceRecord' : IDL.Func(
+        [IDL.Nat, MaintenanceRecordFull],
+        [],
+        [],
+      ),
+    'updatePart' : IDL.Func([IDL.Nat, Part], [], []),
     'updateVehicle' : IDL.Func([IDL.Nat, Vehicle], [], []),
   });
 };
