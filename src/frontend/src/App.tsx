@@ -8,6 +8,7 @@ import {
   useAllParts,
   useAllVehicles,
   useCallerProfile,
+  useGetCompanySettings,
 } from "./hooks/useQueries";
 import { seedData, seedParts } from "./lib/seed";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -32,6 +33,7 @@ export type Page =
   | "dev-portal";
 
 const DEV_KEY = "FLEETGUARD_DEV_2026";
+const SIGNUP_INTENT_KEY = "fleetguard_signup_intent";
 
 function getInviteToken(): string | null {
   const params = new URLSearchParams(window.location.search);
@@ -48,15 +50,25 @@ function checkDevAccess(): boolean {
   return localStorage.getItem("devKey") === DEV_KEY;
 }
 
+function isProfileEmpty(profile: unknown): boolean {
+  return (
+    profile === null ||
+    profile === undefined ||
+    (Array.isArray(profile) && profile.length === 0)
+  );
+}
+
 interface NavState {
   page: Page;
   params?: Record<string, unknown>;
 }
 
 function AppContent() {
-  const { identity, isInitializing } = useInternetIdentity();
+  const { identity, isInitializing, login } = useInternetIdentity();
   const { actor } = useActor();
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
+  const { data: companySettings, isLoading: companySettingsLoading } =
+    useGetCompanySettings();
   const { data: vehicles, isLoading: vehiclesLoading } = useAllVehicles();
   const { data: parts, isLoading: partsLoading } = useAllParts();
   const [nav, setNav] = useState<NavState>({ page: "dashboard" });
@@ -67,6 +79,11 @@ function AppContent() {
 
   const navigate = (page: Page, params?: Record<string, unknown>) => {
     setNav({ page, params });
+  };
+
+  const handleSignUp = () => {
+    sessionStorage.setItem(SIGNUP_INTENT_KEY, "1");
+    login();
   };
 
   // Seed vehicles + maintenance data on first load
@@ -109,10 +126,10 @@ function AppContent() {
   }
 
   if (!identity) {
-    return <LoginPage />;
+    return <LoginPage onSignUp={handleSignUp} />;
   }
 
-  if (profileLoading) {
+  if (profileLoading || companySettingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Skeleton className="h-8 w-48" />
@@ -120,13 +137,22 @@ function AppContent() {
     );
   }
 
+  // Sign-up intent: force onboarding if no company settings yet
+  if (
+    sessionStorage.getItem(SIGNUP_INTENT_KEY) === "1" &&
+    (isProfileEmpty(profile) || companySettings === null)
+  ) {
+    sessionStorage.removeItem(SIGNUP_INTENT_KEY);
+    return <OnboardingPage />;
+  }
+
   // Invited user — has token but no profile yet
-  if (inviteToken && (profile === null || profile === undefined)) {
+  if (inviteToken && isProfileEmpty(profile)) {
     return <InviteAcceptPage token={inviteToken} />;
   }
 
   // New user — no profile, no invite token → admin onboarding
-  if (profile === null || profile === undefined) {
+  if (isProfileEmpty(profile)) {
     return <OnboardingPage />;
   }
 

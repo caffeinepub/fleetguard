@@ -4,8 +4,20 @@ import { BarChart3, Shield, Truck, Wrench } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
-export function LoginPage() {
+interface LoginPageProps {
+  onSignUp?: () => void;
+}
+
+export function LoginPage({ onSignUp }: LoginPageProps) {
   const { login, isLoggingIn } = useInternetIdentity();
+
+  const handleSignUp = () => {
+    if (onSignUp) {
+      onSignUp();
+    } else {
+      login();
+    }
+  };
 
   return (
     <div
@@ -104,7 +116,7 @@ export function LoginPage() {
               data-ocid="login.secondary_button"
               variant="outline"
               className="w-full h-11 text-base font-medium"
-              onClick={() => login()}
+              onClick={handleSignUp}
               disabled={isLoggingIn}
             >
               Sign Up — New Company
