@@ -728,3 +728,84 @@ export function useRejectCompanyWithKey() {
     },
   });
 }
+
+// Discount codes
+export interface DiscountCodeRecord {
+  id: bigint;
+  code: string;
+  discountType: string; // "percent" | "months_free"
+  value: bigint;
+  description: string;
+  createdAt: bigint;
+  usedCount: bigint;
+}
+
+export function useAllDiscountCodesWithKey(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<DiscountCodeRecord[]>({
+    queryKey: ["discountCodes", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return (actor as any).getAllDiscountCodesWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useCreateDiscountCodeWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    bigint,
+    Error,
+    {
+      devKey: string;
+      discount: Omit<DiscountCodeRecord, "id" | "createdAt" | "usedCount">;
+    }
+  >({
+    mutationFn: ({ devKey, discount }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).createDiscountCodeWithKey(devKey, {
+        id: 0n,
+        createdAt: BigInt(Date.now()) * 1_000_000n,
+        usedCount: 0n,
+        ...discount,
+      });
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
+      qc.invalidateQueries({ queryKey: ["discountCodes", devKey] });
+    },
+  });
+}
+
+export function useDeleteDiscountCodeWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { devKey: string; id: bigint }>({
+    mutationFn: ({ devKey, id }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).deleteDiscountCodeWithKey(devKey, id);
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
+      qc.invalidateQueries({ queryKey: ["discountCodes", devKey] });
+    },
+  });
+}
+
+export function useStartTrialWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { devKey: string; companyName: string; trialDays?: bigint }
+  >({
+    mutationFn: ({ devKey, companyName, trialDays = 7n }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).startTrialWithKey(devKey, companyName, trialDays);
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
+      qc.invalidateQueries({ queryKey: ["allSubscriptions", devKey] });
+    },
+  });
+}

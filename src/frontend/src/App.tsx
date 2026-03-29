@@ -1,16 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Layout } from "./components/Layout";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
-import {
-  useAllParts,
-  useAllVehicles,
-  useCallerProfile,
-  useGetCompanySettings,
-} from "./hooks/useQueries";
-import { seedData, seedParts } from "./lib/seed";
+import { useCallerProfile, useGetCompanySettings } from "./hooks/useQueries";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DevPortalPage } from "./pages/DevPortalPage";
 import { GroupChatPage } from "./pages/GroupChatPage";
@@ -82,15 +76,11 @@ interface NavState {
 
 function AppContent() {
   const { identity, isInitializing, login } = useInternetIdentity();
-  const { actor, isFetching: actorFetching } = useActor();
+  const { isFetching: actorFetching } = useActor();
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
   const { data: companySettings, isLoading: companySettingsLoading } =
     useGetCompanySettings();
-  const { data: vehicles, isLoading: vehiclesLoading } = useAllVehicles();
-  const { data: parts, isLoading: partsLoading } = useAllParts();
   const [nav, setNav] = useState<NavState>({ page: "dashboard" });
-  const [seeded, setSeeded] = useState(false);
-  const [partsSeeded, setPartsSeeded] = useState(false);
   const [isDevPortal] = useState(() => checkDevAccess());
   const [inviteToken] = useState(() => getInviteToken());
 
@@ -102,28 +92,6 @@ function AppContent() {
     sessionStorage.setItem(SIGNUP_INTENT_KEY, "1");
     login();
   };
-
-  // Seed vehicles + maintenance data on first load
-  useEffect(() => {
-    if (!identity || !actor || seeded || vehiclesLoading) return;
-    if (vehicles && vehicles.length === 0) {
-      setSeeded(true);
-      seedData(actor).catch(console.error);
-    } else if (vehicles && vehicles.length > 0) {
-      setSeeded(true);
-    }
-  }, [identity, actor, vehicles, vehiclesLoading, seeded]);
-
-  // Seed parts data separately
-  useEffect(() => {
-    if (!identity || !actor || partsSeeded || partsLoading) return;
-    if (parts && parts.length === 0) {
-      setPartsSeeded(true);
-      seedParts(actor).catch(console.error);
-    } else if (parts && parts.length > 0) {
-      setPartsSeeded(true);
-    }
-  }, [identity, actor, parts, partsLoading, partsSeeded]);
 
   // Dev portal — no auth needed
   if (isDevPortal) {
@@ -147,8 +115,6 @@ function AppContent() {
   }
 
   // Wait for actor AND dependent queries before making routing decisions.
-  // Without actorFetching guard, profile is undefined (query disabled while actor
-  // loads) and returning users get incorrectly routed to onboarding.
   if (actorFetching || profileLoading || companySettingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">

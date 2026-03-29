@@ -33,6 +33,15 @@ export interface DashboardStats {
   'overdueCount' : bigint,
   'lowStockPartsCount' : bigint,
 }
+export interface DiscountCode {
+  'id' : bigint,
+  'value' : bigint,
+  'code' : string,
+  'createdAt' : Time,
+  'discountType' : string,
+  'usedCount' : bigint,
+  'description' : string,
+}
 export type FleetRole = { 'FleetManager' : null } |
   { 'Mechanic' : null } |
   { 'Admin' : null };
@@ -43,25 +52,21 @@ export interface InviteToken {
   'role' : FleetRole,
   'email' : string,
 }
-export interface PartQuantity {
-  'partId' : bigint,
-  'quantity' : bigint,
-}
 export interface MaintenanceRecordFull {
   'id' : bigint,
   'mileage' : bigint,
   'technicianName' : string,
+  'partQuantities' : Array<PartQuantity>,
   'nextServiceDate' : [] | [Time],
   'cost' : number,
   'date' : Time,
   'createdAt' : Time,
   'partsUsed' : Array<bigint>,
-  'partQuantities' : Array<PartQuantity>,
   'laborHours' : [] | [number],
-  'laborCost' : [] | [number],
   'description' : string,
   'workOrderId' : [] | [bigint],
   'maintenanceType' : MaintenanceType,
+  'laborCost' : [] | [number],
   'vehicleId' : bigint,
 }
 export type MaintenanceType = { 'OilChange' : null } |
@@ -83,6 +88,7 @@ export interface PartFull {
   'price' : [] | [number],
   'location' : string,
 }
+export interface PartQuantity { 'quantity' : bigint, 'partId' : bigint }
 export interface ServiceSchedule {
   'id' : bigint,
   'status' : string,
@@ -98,8 +104,10 @@ export type Status = { 'Inactive' : null } |
   { 'Active' : null };
 export interface SubscriptionRecord {
   'status' : string,
+  'plan' : string,
   'updatedAt' : Time,
   'companyName' : string,
+  'trialEndsAt' : [] | [Time],
   'startDate' : [] | [Time],
 }
 export type Time = bigint;
@@ -196,9 +204,12 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'applyDiscountCode' : ActorMethod<[string], undefined>,
+  'approveCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'bulkCreateVehicles' : ActorMethod<[Array<Vehicle>], Array<bigint>>,
   'completeWorkOrder' : ActorMethod<[bigint], bigint>,
+  'createDiscountCodeWithKey' : ActorMethod<[string, DiscountCode], bigint>,
   'createInviteToken' : ActorMethod<[string, FleetRole], string>,
   'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
   'createPart' : ActorMethod<[PartFull], bigint>,
@@ -207,17 +218,31 @@ export interface _SERVICE {
   'createVendor' : ActorMethod<[Vendor], bigint>,
   'createWarranty' : ActorMethod<[Warranty], bigint>,
   'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
+  'deleteDiscountCodeWithKey' : ActorMethod<[string, bigint], undefined>,
   'deletePart' : ActorMethod<[bigint], undefined>,
   'deleteServiceSchedule' : ActorMethod<[bigint], undefined>,
   'deleteVehicle' : ActorMethod<[bigint], undefined>,
   'deleteVendor' : ActorMethod<[bigint], undefined>,
   'deleteWarranty' : ActorMethod<[bigint], undefined>,
   'deleteWorkOrder' : ActorMethod<[bigint], undefined>,
+  'getAllCompanyApprovalsWithKey' : ActorMethod<
+    [string],
+    Array<[string, string]>
+  >,
   'getAllCompanyRegistrations' : ActorMethod<[], Array<CompanySettings>>,
+  'getAllCompanyRegistrationsWithKey' : ActorMethod<
+    [string],
+    Array<CompanySettings>
+  >,
+  'getAllDiscountCodesWithKey' : ActorMethod<[string], Array<DiscountCode>>,
   'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getAllParts' : ActorMethod<[], Array<PartFull>>,
   'getAllServiceSchedules' : ActorMethod<[], Array<ServiceSchedule>>,
   'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
+  'getAllSubscriptionsWithKey' : ActorMethod<
+    [string],
+    Array<SubscriptionRecord>
+  >,
   'getAllVehicles' : ActorMethod<[], Array<Vehicle>>,
   'getAllVendors' : ActorMethod<[], Array<Vendor>>,
   'getAllWarranties' : ActorMethod<[], Array<Warranty>>,
@@ -226,6 +251,7 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getChatMessages' : ActorMethod<[], Array<ChatMessage>>,
+  'getCompanyApprovalStatusWithKey' : ActorMethod<[string, string], string>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
@@ -251,11 +277,14 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'markScheduleComplete' : ActorMethod<[bigint], undefined>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
+  'rejectCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'sendChatMessage' : ActorMethod<[string, string], bigint>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
+  'startTrial' : ActorMethod<[string], undefined>,
+  'startTrialWithKey' : ActorMethod<[string, string, bigint], undefined>,
   'updateMaintenanceRecord' : ActorMethod<
     [bigint, MaintenanceRecordFull],
     undefined
@@ -266,10 +295,15 @@ export interface _SERVICE {
     [string, string, [] | [Time]],
     undefined
   >,
+  'updateSubscriptionStatusWithKey' : ActorMethod<
+    [string, string, string, [] | [Time]],
+    undefined
+  >,
   'updateVehicle' : ActorMethod<[bigint, Vehicle], undefined>,
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,
   'updateWorkOrder' : ActorMethod<[bigint, WorkOrder], undefined>,
+  'validateDiscountCode' : ActorMethod<[string], [] | [DiscountCode]>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

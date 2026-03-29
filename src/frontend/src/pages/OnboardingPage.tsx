@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +13,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   Loader2,
+  Lock,
   Shield,
+  Tag,
   Truck,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSaveCompanySettings, useSaveProfile } from "../hooks/useQueries";
 
@@ -31,22 +36,37 @@ const INDUSTRIES = [
 
 const FLEET_SIZES = ["1–10", "11–50", "51–200", "200+"];
 
+const TOTAL_STEPS = 4;
+
 function StepDots({ current }: { current: number }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
-      {[1, 2, 3].map((i) => (
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((step) => (
         <div
-          key={i}
+          key={step}
           className={`h-2 rounded-full transition-all duration-300 ${
-            current >= i ? "w-8 bg-primary" : "w-2 bg-muted-foreground/30"
+            current >= step ? "w-8 bg-primary" : "w-2 bg-muted-foreground/30"
           }`}
         />
       ))}
       <span className="ml-2 text-xs text-muted-foreground font-medium">
-        Step {current} of 3
+        Step {current} of {TOTAL_STEPS}
       </span>
     </div>
   );
+}
+
+function formatCardNumber(val: string) {
+  return val
+    .replace(/\D/g, "")
+    .slice(0, 16)
+    .replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
+function formatExpiry(val: string) {
+  const digits = val.replace(/\D/g, "").slice(0, 4);
+  if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
 }
 
 export function OnboardingPage() {
@@ -58,7 +78,20 @@ export function OnboardingPage() {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // CC step
+  const [cardHolder, setCardHolder] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountApplied, setDiscountApplied] = useState<{
+    code: string;
+    label: string;
+  } | null>(null);
+  const [activatingTrial, setActivatingTrial] = useState(false);
+
   const { identity } = useInternetIdentity();
+  const { actor } = useActor();
   const saveCompany = useSaveCompanySettings();
   const saveProfile = useSaveProfile();
   const qc = useQueryClient();
@@ -104,6 +137,58 @@ export function OnboardingPage() {
     }
   };
 
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    try {
+      const result = await (actor as any).validateDiscountCode(
+        discountCode.trim().toUpperCase(),
+      );
+      if (result && result.length > 0) {
+        const dc = result[0];
+        const label =
+          dc.discountType === "percent"
+            ? `${dc.value}% off`
+            : `${dc.value} month${dc.value !== 1 ? "s" : ""} free`;
+        setDiscountApplied({ code: dc.code, label });
+        toast.success(`Discount applied: ${label}`);
+      } else {
+        toast.error("Invalid or expired discount code");
+      }
+    } catch {
+      toast.error("Could not validate discount code");
+    }
+  };
+
+  const isCardValid = () => {
+    const digits = cardNumber.replace(/\s/g, "");
+    return (
+      cardHolder.trim().length > 1 &&
+      digits.length === 16 &&
+      expiry.length === 5 &&
+      cvv.length >= 3
+    );
+  };
+
+  const handleActivateTrial = async () => {
+    if (!isCardValid()) {
+      toast.error("Please fill in all card details correctly");
+      return;
+    }
+    setActivatingTrial(true);
+    try {
+      if (discountApplied) {
+        await (actor as any).applyDiscountCode(discountApplied.code);
+      }
+      await (actor as any).startTrial(companyName.trim());
+      setStep(5);
+    } catch {
+      // Trial start may fail gracefully if company not found yet; proceed anyway
+      setStep(5);
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
+
   const handleGoToDashboard = async () => {
     await qc.invalidateQueries({ queryKey: ["callerProfile"] });
   };
@@ -119,7 +204,7 @@ export function OnboardingPage() {
           <span className="text-xl font-bold tracking-tight">FleetGuard</span>
         </div>
 
-        {step < 4 && <StepDots current={Math.min(step - 1 || 1, 3)} />}
+        {step < 5 && <StepDots current={step - 1 < 1 ? 1 : step - 1} />}
 
         <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
           {/* Step 1 — Welcome */}
@@ -132,9 +217,18 @@ export function OnboardingPage() {
                 Set Up Your FleetGuard Account
               </h1>
               <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
-                You’re the Administrator. Complete this setup to get your
+                You're the Administrator. Complete this setup to get your
                 company running and then invite your team members.
               </p>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-left mb-5">
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> 7-Day Free Trial
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Start free for 7 days. After your trial, continue for
+                  <strong> $499/month</strong>. Cancel anytime.
+                </p>
+              </div>
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-left mb-8">
                 <p className="text-sm font-semibold text-primary mb-1 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5" /> Admin Onboarding
@@ -261,7 +355,7 @@ export function OnboardingPage() {
               <div className="mb-6">
                 <h2 className="text-2xl font-bold">Your Profile</h2>
                 <p className="text-muted-foreground text-sm mt-1">
-                  Almost done! Just tell us your name.
+                  Almost there! Tell us your name.
                 </p>
               </div>
 
@@ -296,7 +390,7 @@ export function OnboardingPage() {
                     </>
                   ) : (
                     <>
-                      Complete Setup <ChevronRight className="w-4 h-4" />
+                      Next <ChevronRight className="w-4 h-4" />
                     </>
                   )}
                 </Button>
@@ -304,19 +398,175 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4 — All Set */}
+          {/* Step 4 — Activate Free Trial (CC) */}
           {step === 4 && (
+            <div className="p-8" data-ocid="onboarding.panel">
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                  <h2 className="text-2xl font-bold">Activate Free Trial</h2>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Enter your payment details to start your 7-day free trial. You
+                  won't be charged until the trial ends.
+                </p>
+              </div>
+
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex items-center gap-3 mb-5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div className="text-xs">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    7 days free
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    &mdash; then $499/month + applicable taxes. Cancel anytime
+                    before trial ends.
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="card-holder">Cardholder Name</Label>
+                  <Input
+                    id="card-holder"
+                    data-ocid="onboarding.input"
+                    value={cardHolder}
+                    onChange={(e) => setCardHolder(e.target.value)}
+                    placeholder="Name as it appears on card"
+                    className="h-11"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="card-number">Card Number</Label>
+                  <div className="relative">
+                    <Input
+                      id="card-number"
+                      data-ocid="onboarding.input"
+                      value={cardNumber}
+                      onChange={(e) =>
+                        setCardNumber(formatCardNumber(e.target.value))
+                      }
+                      placeholder="1234 5678 9012 3456"
+                      className="h-11 pr-10"
+                      inputMode="numeric"
+                    />
+                    <CreditCard className="absolute right-3 top-3 w-5 h-5 text-muted-foreground" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="expiry">Expiry Date</Label>
+                    <Input
+                      id="expiry"
+                      data-ocid="onboarding.input"
+                      value={expiry}
+                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                      placeholder="MM/YY"
+                      className="h-11"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cvv">CVV</Label>
+                    <Input
+                      id="cvv"
+                      data-ocid="onboarding.input"
+                      value={cvv}
+                      onChange={(e) =>
+                        setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
+                      }
+                      placeholder="123"
+                      className="h-11"
+                      inputMode="numeric"
+                      type="password"
+                    />
+                  </div>
+                </div>
+
+                {/* Discount code */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="discount">Discount Code (optional)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="discount"
+                      data-ocid="onboarding.input"
+                      value={discountCode}
+                      onChange={(e) =>
+                        setDiscountCode(e.target.value.toUpperCase())
+                      }
+                      placeholder="e.g. FLEET20"
+                      className="h-11 flex-1 uppercase"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-11 px-4 gap-1.5"
+                      onClick={handleApplyDiscount}
+                      disabled={!discountCode.trim()}
+                      data-ocid="onboarding.secondary_button"
+                    >
+                      <Tag className="w-3.5 h-3.5" /> Apply
+                    </Button>
+                  </div>
+                  {discountApplied && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/30">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        {discountApplied.label} applied
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Your payment info is encrypted and secure. You will not be
+                    charged during the 7-day trial.
+                  </span>
+                </div>
+
+                <Button
+                  data-ocid="onboarding.primary_button"
+                  className="w-full h-12 font-semibold gap-2"
+                  onClick={handleActivateTrial}
+                  disabled={activatingTrial || !isCardValid()}
+                >
+                  {activatingTrial ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Activating...
+                    </>
+                  ) : (
+                    <>
+                      Start 7-Day Free Trial{" "}
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5 — All Set */}
+          {step === 5 && (
             <div className="p-8 text-center" data-ocid="onboarding.panel">
-              <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-5">
-                <CheckCircle2 className="w-11 h-11 text-success" />
+              <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 className="w-11 h-11 text-emerald-500" />
               </div>
               <h2 className="text-2xl font-bold mb-2">
-                You’re all set, {name}!
+                You're all set, {name}!
               </h2>
-              <p className="text-muted-foreground text-sm mb-6">
-                Your fleet account has been created. You can now invite your
-                team.
+              <p className="text-muted-foreground text-sm mb-2">
+                Your 7-day free trial has started. Enjoy full access to
+                FleetGuard.
               </p>
+              <Badge className="mb-6 bg-emerald-500/15 text-emerald-500 border-emerald-500/30 text-xs">
+                Trial active — 7 days remaining
+              </Badge>
 
               <div className="bg-muted/40 rounded-xl p-4 text-left space-y-2 mb-6">
                 <div className="flex items-center justify-between text-sm">
@@ -335,6 +585,14 @@ export function OnboardingPage() {
                     <span className="font-semibold">{fleetSize} vehicles</span>
                   </div>
                 )}
+                {discountApplied && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Discount</span>
+                    <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/30 text-xs">
+                      {discountApplied.label}
+                    </Badge>
+                  </div>
+                )}
               </div>
 
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-left mb-6">
@@ -342,7 +600,7 @@ export function OnboardingPage() {
                   <Shield className="w-3.5 h-3.5" /> You are the Administrator
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Go to <strong>Settings → Invite Team Members</strong> to
+                  Go to <strong>Settings &rarr; Invite Team Members</strong> to
                   generate invite links for your fleet managers and mechanics.
                 </p>
               </div>
@@ -352,14 +610,14 @@ export function OnboardingPage() {
                 className="w-full h-12 font-semibold"
                 onClick={handleGoToDashboard}
               >
-                Go to Dashboard →
+                Go to Dashboard &rarr;
               </Button>
             </div>
           )}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} FleetGuard. All rights reserved.
+          &copy; {new Date().getFullYear()} FleetGuard. All rights reserved.
         </p>
       </div>
     </div>

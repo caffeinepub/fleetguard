@@ -9,12 +9,13 @@ import Array "mo:core/Array";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
-
+import Migration "migration";
 
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -250,6 +251,8 @@ actor {
     companyName : Text;
     status : Text;
     startDate : ?Time.Time;
+    trialEndsAt : ?Time.Time;
+    plan : Text;
     updatedAt : Time.Time;
   };
 
@@ -258,6 +261,117 @@ actor {
 
   // Company approval status store (separate to avoid migration issues)
   var companyApprovalStore = Map.empty<Text, Text>(); // companyName -> status: "pending"|"approved"|"rejected"
+
+  // Discount Codes
+  public type DiscountCode = {
+    id : Nat;
+    code : Text;
+    discountType : Text; // "percent" or "months_free"
+    value : Nat;
+    description : Text;
+    createdAt : Time.Time;
+    usedCount : Nat;
+  };
+
+  var discountCodes = Map.empty<Nat, DiscountCode>();
+  var nextDiscountCodeId = 1;
+
+  let discountCodeMap = Map.empty<Text, Nat>();
+
+  // Create discount code with devKey
+  public shared func createDiscountCodeWithKey(devKey : Text, discount : DiscountCode) : async Nat {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    let id = nextDiscountCodeId;
+    nextDiscountCodeId += 1;
+    let d : DiscountCode = {
+      id;
+      code = discount.code;
+      discountType = discount.discountType;
+      value = discount.value;
+      description = discount.description;
+      createdAt = Time.now();
+      usedCount = 0;
+    };
+    discountCodes.add(id, d);
+    discountCodeMap.add(discount.code, id);
+    id;
+  };
+
+  public query func getAllDiscountCodesWithKey(devKey : Text) : async [DiscountCode] {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    discountCodes.values().toArray();
+  };
+
+  public shared func deleteDiscountCodeWithKey(devKey : Text, id : Nat) : async () {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    let discount = switch (discountCodes.get(id)) {
+      case (null) { Runtime.trap("Discount code not found") };
+      case (?d) { d };
+    };
+    discountCodes.remove(id);
+    discountCodeMap.remove(discount.code);
+  };
+
+  public query func validateDiscountCode(code : Text) : async ?DiscountCode {
+    switch (discountCodeMap.get(code)) {
+      case (null) { null };
+      case (?id) { discountCodes.get(id) };
+    };
+  };
+
+  public shared ({ caller }) func applyDiscountCode(code : Text) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Authentication required to apply discount code");
+    };
+    switch (discountCodeMap.get(code)) {
+      case (null) { Runtime.trap("Invalid discount code") };
+      case (?id) {
+        let discount = switch (discountCodes.get(id)) {
+          case (null) { Runtime.trap("Discount code not found") };
+          case (?d) { d };
+        };
+        let updated : DiscountCode = {
+          discount with usedCount = discount.usedCount + 1;
+        };
+        discountCodes.add(id, updated);
+      };
+    };
+  };
+
+  // Trial support
+  public shared func startTrialWithKey(devKey : Text, companyName : Text, trialDays : Nat) : async () {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    updateTrial(companyName, trialDays, "standard");
+  };
+
+  public shared ({ caller }) func startTrial(companyName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only admins and developers can start trial");
+    };
+    updateTrial(companyName, 7, "standard");
+  };
+
+  func updateTrial(companyName : Text, days : Nat, plan : Text) {
+    let now = Time.now();
+    let trialEndsAt = now + (days * 24 * 60 * 60 * 1000000000);
+    let rec : SubscriptionRecord = {
+      companyName;
+      status = "trial";
+      startDate = ?now;
+      trialEndsAt = ?trialEndsAt;
+      plan;
+      updatedAt = now;
+    };
+    subscriptionRecords.add(companyName, rec);
+  };
 
   // WorkOrder types
   public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
@@ -607,7 +721,7 @@ actor {
   };
 
   public query ({ caller }) func getDashboardStats() : async DashboardStats {
-    if (caller.isAnonymous()) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       return { totalVehicles = 0; activeVehicles = 0; upcomingMaintenanceCount = 0; overdueCount = 0; lowStockPartsCount = 0 };
     };
     let currentTime = Time.now();
@@ -973,6 +1087,8 @@ actor {
       companyName;
       status;
       startDate;
+      trialEndsAt = null;
+      plan = "standard";
       updatedAt = Time.now();
     };
     subscriptionRecords.add(companyName, rec);
@@ -986,6 +1102,8 @@ actor {
       companyName;
       status;
       startDate;
+      trialEndsAt = null;
+      plan = "standard";
       updatedAt = Time.now();
     };
     subscriptionRecords.add(companyName, rec);
@@ -1072,7 +1190,7 @@ actor {
 
   public shared ({ caller }) func createServiceSchedule(schedule : ServiceSchedule) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Authentication required");
+      Runtime.trap("Unauthorized: Only users can create service schedules");
     };
     let id = nextServiceScheduleId;
     nextServiceScheduleId += 1;
@@ -1093,14 +1211,14 @@ actor {
 
   public query ({ caller }) func getAllServiceSchedules() : async [ServiceSchedule] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Authentication required");
+      Runtime.trap("Unauthorized: Only users can view service schedules");
     };
     serviceSchedules.values().toArray();
   };
 
   public shared ({ caller }) func updateServiceSchedule(id : Nat, schedule : ServiceSchedule) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Authentication required");
+      Runtime.trap("Unauthorized: Only users can update service schedules");
     };
     switch (serviceSchedules.get(id)) {
       case null { Runtime.trap("Service schedule not found") };
@@ -1123,14 +1241,14 @@ actor {
 
   public shared ({ caller }) func deleteServiceSchedule(id : Nat) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Authentication required");
+      Runtime.trap("Unauthorized: Only users can delete service schedules");
     };
     serviceSchedules.remove(id);
   };
 
   public shared ({ caller }) func markScheduleComplete(id : Nat) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Authentication required");
+      Runtime.trap("Unauthorized: Only users can mark schedules complete");
     };
     switch (serviceSchedules.get(id)) {
       case null { Runtime.trap("Service schedule not found") };
