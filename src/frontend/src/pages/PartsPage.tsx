@@ -51,12 +51,28 @@ import {
 import { exportCSV, exportPDF } from "../lib/exportUtils";
 import { nowNs } from "../lib/helpers";
 
+const PART_CATEGORIES = [
+  "Engine",
+  "Brakes",
+  "Electrical",
+  "Suspension",
+  "Transmission",
+  "Exhaust",
+  "Tires & Wheels",
+  "Filters",
+  "Body & Frame",
+  "Hydraulics",
+  "HVAC",
+  "Safety",
+  "Other",
+];
+
 const defaultForm = {
   name: "",
   partNumber: "",
   quantityInStock: "",
   minStockLevel: "",
-  location: "",
+  location: "Engine",
   price: "",
 };
 
@@ -77,6 +93,7 @@ export function PartsPage() {
   const deletePart = useDeletePart();
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("name-asc");
   const [modalOpen, setModalOpen] = useState(false);
   const [editPart, setEditPart] = useState<Part | null>(null);
@@ -96,7 +113,9 @@ export function PartsPage() {
         (stockFilter === "in-stock" && qty > min) ||
         (stockFilter === "low-stock" && qty <= min && qty > 0) ||
         (stockFilter === "out-of-stock" && qty === 0);
-      return matchSearch && matchStock;
+      const matchCategory =
+        categoryFilter === "all" || p.location === categoryFilter;
+      return matchSearch && matchStock && matchCategory;
     }) ?? []
   ).sort((a, b) => {
     if (sortOrder === "name-asc") return a.name.localeCompare(b.name);
@@ -129,7 +148,7 @@ export function PartsPage() {
       partNumber: p.partNumber,
       quantityInStock: p.quantityInStock.toString(),
       minStockLevel: p.minStockLevel.toString(),
-      location: p.location,
+      location: p.location || "Engine",
       price: getPartPrice(p) > 0 ? getPartPrice(p).toString() : "",
     });
     setModalOpen(true);
@@ -192,7 +211,7 @@ export function PartsPage() {
       "Unit Price",
       "Qty In Stock",
       "Min Stock",
-      "Location",
+      "Category",
       "Status",
     ];
     const rows = (parts ?? []).map((p: Part) => [
@@ -214,7 +233,7 @@ export function PartsPage() {
       "Unit Price",
       "Qty In Stock",
       "Min Stock",
-      "Location",
+      "Category",
       "Status",
     ];
     const rows = (parts ?? []).map((p: Part) => [
@@ -291,6 +310,19 @@ export function PartsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-44" data-ocid="parts.category.select">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {PART_CATEGORIES.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={stockFilter} onValueChange={setStockFilter}>
           <SelectTrigger className="w-40" data-ocid="parts.stock.select">
             <SelectValue placeholder="Stock Status" />
@@ -350,7 +382,7 @@ export function PartsPage() {
                     "Unit Price",
                     "Quantity",
                     "Min Stock",
-                    "Location",
+                    "Category",
                     "Status",
                     "Actions",
                   ].map((h) => (
@@ -395,7 +427,9 @@ export function PartsPage() {
                         {p.minStockLevel.toString()}
                       </td>
                       <td className="px-5 py-4 text-muted-foreground">
-                        {p.location}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-medium">
+                          {p.location || "—"}
+                        </span>
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -534,13 +568,22 @@ export function PartsPage() {
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="p-loc">Location *</Label>
-                <Input
-                  id="p-loc"
+                <Label htmlFor="p-cat">Category *</Label>
+                <Select
                   value={form.location}
-                  onChange={(e) => set("location", e.target.value)}
-                  placeholder="Shelf A-3"
-                />
+                  onValueChange={(v) => set("location", v)}
+                >
+                  <SelectTrigger id="p-cat" data-ocid="parts.select">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PART_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

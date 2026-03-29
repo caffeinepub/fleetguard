@@ -6,10 +6,20 @@ import { MessageSquare, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ChatMessage } from "../backend";
-import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useChatMessages, useSendChatMessage } from "../hooks/useQueries";
 import { useCallerProfile } from "../hooks/useQueries";
+
+function markAllRead() {
+  try {
+    localStorage.setItem(
+      "fleetguard_chat_last_read",
+      String(BigInt(Date.now()) * 1_000_000n),
+    );
+  } catch {
+    // ignore
+  }
+}
 
 function formatTime(ns: bigint): string {
   const ms = Number(ns / 1_000_000n);
@@ -38,6 +48,27 @@ export function GroupChatPage() {
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const myPrincipal = identity?.getPrincipal().toString();
+
+  // Mark all messages as read when this page is active
+  useEffect(() => {
+    markAllRead();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        markAllRead();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+  // Also mark read whenever new messages arrive while on this page
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      markAllRead();
+    }
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

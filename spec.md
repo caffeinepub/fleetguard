@@ -1,36 +1,24 @@
 # FleetGuard
 
 ## Current State
-FleetGuard is a full-stack fleet maintenance app with vehicles, maintenance records, work orders, service schedules, parts inventory, vendors, warranties, reports, and a developer portal. Role-based access (Admin, Fleet Manager, Mechanic). Backend in Motoko, frontend in React/TypeScript.
+FleetGuard is a fleet maintenance app with sidebar navigation, parts inventory, work orders, and service schedules. The backend has `ServiceSchedule` with `lastCompletedDate: ?Time` (Candid optional), `PartFull` with a `location` field, and a collapsible sidebar in Layout.tsx.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Filters & sorting on Equipment list, Maintenance History, Work Orders, Parts Inventory (search, type/status filters, sort by multiple columns)
-- Print/export single asset's full maintenance record (print dialog, print-friendly layout)
-- Dashboard widget: Top Reasons for Repair (bar chart of maintenance types from all records)
-- Dashboard widget: Monthly Repair Cost chart (bar chart of repair costs grouped by month)
-- Service Schedule scope selector: apply to All Assets, By Category (Truck/Trailer/etc.), or Individual vehicles — frontend creates one schedule per matching vehicle
-- Corporate Group Chat page: all authenticated users can send/view messages in a company-wide group chat
-- Backend: ChatMessage type with CRUD (sendChatMessage, getChatMessages)
+- Sidebar collapse/hide toggle button so users can view data full-width. State persists in localStorage.
+- Part categories: predefined list of categories in parts form (repurpose the existing `location` field in the UI as "Category" with a dropdown of common part categories). Add category filter on the parts list page.
+- Category search/filter in parts page: a dropdown to filter visible parts by category.
 
 ### Modify
-- Fix company settings save bug: ensure buildSavePayload produces a correctly typed CompanySettings object; add console.error logging on failure
-- Fleet Manager permissions: ensure isAdmin OR isFleetManager check gates WO creation, Service Schedules, Vendors, Parts, Vehicles add-buttons (not just Admin)
-- Add GroupChat to sidebar navigation and App.tsx routing
+- **Service schedule save fix**: The save in `ServiceSchedulesPage.tsx` uses `(actor as any).createServiceSchedule(data)`. The `lastCompletedDate` field must always be passed as `[] | [bigint]` (Candid optional array format), never `undefined`. Ensure the data object passed exactly matches the Candid did.d.ts shape for `ServiceSchedule`. Also ensure `createServiceSchedule` and `updateServiceSchedule` are called directly on the actor (using the Candid-typed actor, not `actor as any`) to ensure proper encoding. If needed, cast data to `ServiceSchedule` type from did.d.ts.
+- **Layout.tsx**: Add a collapse toggle button (chevron icon) to the sidebar. When collapsed, the sidebar shows only icons (or hides entirely). Add a floating toggle button visible when sidebar is hidden. Store collapse state in localStorage.
+- **PartsPage.tsx**: Replace the text `location` input with a category dropdown. Add a category filter at the top of the parts list. Keep the field name `location` when storing data (maps to backend `location` field) but label it "Category" in the UI. Pre-defined categories: Engine, Brakes, Electrical, Suspension, Transmission, Exhaust, Tires & Wheels, Filters, Body & Frame, Hydraulics, HVAC, Safety, Other.
 
 ### Remove
-- Nothing removed
+- Nothing removed.
 
 ## Implementation Plan
-1. Add ChatMessage Motoko type + sendChatMessage/getChatMessages backend functions
-2. Update backend.d.ts with chat interface methods
-3. Add useQueries hooks for chat: useChatMessages, useSendChatMessage
-4. Fix SettingsPage buildSavePayload type safety and error logging
-5. Add filter/sort bars to VehiclesPage, MaintenancePage, WorkOrdersPage, PartsPage (local state filtering, no backend changes)
-6. Add Print Asset Record button to VehicleDetailPage (window.print() with print-friendly CSS)
-7. Add Top Repair Reasons widget and Monthly Repair Cost chart to DashboardPage using recharts
-8. Update ServiceSchedulesPage create modal to include scope selector; on submit, iterate matching vehicles and create one schedule each
-9. Ensure Fleet Manager role (isAdmin || fleetRole === FleetManager) can see add-buttons on all pages
-10. Create GroupChatPage.tsx with message list, auto-scroll, send input
-11. Add 'group-chat' page to App.tsx and Layout.tsx sidebar
+1. Fix `ServiceSchedulesPage.tsx` save: import `ServiceSchedule` from `../declarations/backend.did.d.ts`, cast data to that type, remove `(actor as any)` casts for createServiceSchedule/updateServiceSchedule, ensure `lastCompletedDate` is always `[] | [bigint]`.
+2. Update `Layout.tsx`: add `sidebarCollapsed` state (localStorage), add a toggle button, render a collapsed sidebar (icon-only or hidden) when collapsed, add a floating expand button when fully hidden.
+3. Update `PartsPage.tsx`: change location input to a Select dropdown with part categories, add a category filter select above the table, filter displayed parts by selected category.

@@ -315,11 +315,33 @@ export function useUpdateMaintenance() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       id,
       record,
-    }: { id: bigint; record: MaintenanceRecordFull }) => {
+      previousPartIds = [] as bigint[],
+    }: {
+      id: bigint;
+      record: MaintenanceRecordFull;
+      previousPartIds?: bigint[];
+    }) => {
       if (!actor) throw new Error("Not connected");
+      // Find newly added parts (in record.partsUsed but not in previousPartIds)
+      const newParts = (record.partsUsed ?? []).filter(
+        (pid) => !previousPartIds.some((prev) => prev === pid),
+      );
+      // Decrement each new part in inventory
+      if (newParts.length > 0) {
+        const allParts = await actor.getAllParts();
+        for (const partId of newParts) {
+          const part = allParts.find((p) => p.id === partId);
+          if (part && part.quantityInStock > 0n) {
+            await actor.updatePart(partId, {
+              ...part,
+              quantityInStock: part.quantityInStock - 1n,
+            });
+          }
+        }
+      }
       return actor.updateMaintenanceRecord(id, record);
     },
     onSuccess: () => {

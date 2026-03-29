@@ -43,7 +43,8 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { FleetRole, WorkOrderPriority, WorkOrderStatus } from "../backend";
-import type { Vehicle, WorkOrder } from "../backend";
+import type { MaintenanceRecordFull, Vehicle, WorkOrder } from "../backend";
+import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useActor } from "../hooks/useActor";
 import {
   useAllVehicles,
@@ -130,6 +131,9 @@ export function WorkOrdersPage() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState<bigint | null>(null);
+  const [editMaintenanceRecord, setEditMaintenanceRecord] =
+    useState<MaintenanceRecordFull | null>(null);
+  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
 
   const canCreate =
     isAdmin ||
@@ -243,18 +247,31 @@ export function WorkOrdersPage() {
     }
   };
 
-  const handleComplete = async (id: bigint) => {
+  const handleComplete = async (wo: WorkOrder) => {
     if (!actor) return;
-    setCompleting(id);
+    setCompleting(wo.id);
     try {
-      await actor.completeWorkOrder(id);
+      await actor.completeWorkOrder(wo.id);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["workOrders"] }),
         qc.invalidateQueries({ queryKey: ["maintenanceRecords"] }),
       ]);
-      toast.success(
-        "Work order completed and maintenance record created automatically",
+      // Fetch fresh maintenance records to find the newly created one
+      const freshRecords = await actor.getAllMaintenanceRecords();
+      const sorted = [...freshRecords].sort(
+        (a, b) => Number(b.createdAt) - Number(a.createdAt),
       );
+      const newRecord =
+        sorted.find((r) => r.vehicleId === wo.vehicleId) ?? sorted[0];
+      if (newRecord) {
+        setEditMaintenanceRecord(newRecord);
+        setMaintenanceModalOpen(true);
+        toast.info(
+          "Work order completed! Add cost and parts to the maintenance record.",
+        );
+      } else {
+        toast.success("Work order completed and maintenance record created.");
+      }
     } catch {
       toast.error("Failed to complete work order");
     } finally {
@@ -603,7 +620,7 @@ export function WorkOrdersPage() {
                       variant="outline"
                       data-ocid={`workorders.confirm_button.${idx + 1}`}
                       disabled={completing === wo.id}
-                      onClick={() => handleComplete(wo.id)}
+                      onClick={() => handleComplete(wo)}
                       className="gap-1.5 text-success border-success/40 hover:bg-success/10"
                     >
                       {completing === wo.id ? (
@@ -672,6 +689,19 @@ export function WorkOrdersPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Maintenance Record Modal (opened after completing a work order) */}
+      {maintenanceModalOpen && editMaintenanceRecord && (
+        <MaintenanceModal
+          open={maintenanceModalOpen}
+          onClose={() => {
+            setMaintenanceModalOpen(false);
+            setEditMaintenanceRecord(null);
+          }}
+          record={editMaintenanceRecord}
+          vehicles={vehicles ?? []}
+        />
       )}
 
       {/* Create / Edit Modal */}

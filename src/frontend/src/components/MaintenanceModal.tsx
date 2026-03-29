@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Package } from "lucide-react";
+import { Info, Loader2, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { MaintenanceRecordFull, Vehicle } from "../backend";
@@ -108,9 +108,20 @@ export function MaintenanceModal({
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const togglePart = (id: bigint) => {
-    setSelectedPartIds((prev) =>
-      prev.some((p) => p === id) ? prev.filter((p) => p !== id) : [...prev, id],
-    );
+    setSelectedPartIds((prev) => {
+      const isRemoving = prev.some((p) => p === id);
+      const next = isRemoving ? prev.filter((p) => p !== id) : [...prev, id];
+      // Auto-update cost based on sum of selected part prices
+      const totalCost = next.reduce((sum, partId) => {
+        const part = parts.find((p) => p.id === partId);
+        return sum + (part ? getPartPrice(part) : 0);
+      }, 0);
+      setForm((f) => ({
+        ...f,
+        cost: totalCost > 0 ? totalCost.toFixed(2) : f.cost,
+      }));
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -141,7 +152,11 @@ export function MaintenanceModal({
     };
     try {
       if (record) {
-        await updateM.mutateAsync({ id: record.id, record: data });
+        await updateM.mutateAsync({
+          id: record.id,
+          record: data,
+          previousPartIds: record.partsUsed ?? [],
+        });
         toast.success("Maintenance record updated");
       } else {
         await createM.mutateAsync(data);
@@ -329,6 +344,14 @@ export function MaintenanceModal({
                         </div>
                       );
                     })}
+                  </div>
+                )}
+                {selectedPartIds.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                    <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>
+                      Cost is auto-calculated from parts selected above
+                    </span>
                   </div>
                 )}
               </div>

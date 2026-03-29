@@ -57,7 +57,7 @@ import {
   useIsAdmin,
 } from "../hooks/useQueries";
 
-// ─── Local type (not yet in generated backend.ts) ─────────────────────────────
+// ─── Local type ───────────────────────────────────────────────────────────────
 
 interface ServiceSchedule {
   id: bigint;
@@ -65,7 +65,7 @@ interface ServiceSchedule {
   serviceType: string;
   intervalDays: bigint;
   nextDueDate: bigint;
-  lastCompletedDate?: bigint;
+  lastCompletedDate: [] | [bigint];
   notes: string;
   status: string;
   createdAt: bigint;
@@ -78,7 +78,7 @@ function nsToDate(ns: bigint): Date {
 }
 
 function dateToNs(dateStr: string): bigint {
-  return BigInt(new Date(dateStr).getTime()) * 1_000_000n;
+  return BigInt(new Date(`${dateStr}T12:00:00`).getTime()) * 1_000_000n;
 }
 
 function formatDate(ns: bigint): string {
@@ -105,9 +105,17 @@ function deriveStatus(s: ServiceSchedule): "Upcoming" | "Overdue" {
 }
 
 function isJustCompleted(s: ServiceSchedule): boolean {
-  if (!s.lastCompletedDate) return false;
-  const last = Number(s.lastCompletedDate) / 1_000_000;
+  const lcd = s.lastCompletedDate;
+  if (!Array.isArray(lcd) || lcd.length === 0) return false;
+  const last = Number(lcd[0]) / 1_000_000;
   return Date.now() - last < 24 * 60 * 60 * 1000;
+}
+
+function getLastCompletedDate(s: ServiceSchedule): bigint | null {
+  if (Array.isArray(s.lastCompletedDate) && s.lastCompletedDate.length > 0) {
+    return s.lastCompletedDate[0] ?? null;
+  }
+  return null;
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -305,9 +313,16 @@ export function ServiceSchedulesPage() {
     queryKey: ["serviceSchedules"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllServiceSchedules() as Promise<
-        ServiceSchedule[]
-      >;
+      const raw = await (actor as any).getAllServiceSchedules();
+      // Normalize lastCompletedDate to always be [] | [bigint]
+      return (raw as any[]).map((s) => ({
+        ...s,
+        lastCompletedDate: Array.isArray(s.lastCompletedDate)
+          ? s.lastCompletedDate
+          : s.lastCompletedDate != null
+            ? [s.lastCompletedDate]
+            : [],
+      })) as ServiceSchedule[];
     },
     enabled: !!actor,
   });
@@ -415,7 +430,6 @@ export function ServiceSchedulesPage() {
       } else if (form.scope === "category") {
         if (!form.categoryScope) {
           toast.error("Select a vehicle category");
-          setSaving(false);
           return;
         }
         targetVehicleIds = (vehicles ?? [])
@@ -423,14 +437,12 @@ export function ServiceSchedulesPage() {
           .map((v: Vehicle) => v.id.toString());
         if (targetVehicleIds.length === 0) {
           toast.error("No vehicles found in that category");
-          setSaving(false);
           return;
         }
       } else {
         targetVehicleIds = form.vehicleIds;
         if (targetVehicleIds.length === 0) {
           toast.error("Select at least one vehicle");
-          setSaving(false);
           return;
         }
       }
@@ -439,18 +451,24 @@ export function ServiceSchedulesPage() {
     setSaving(true);
     try {
       if (editSchedule) {
-        // Edit: update existing single schedule
-        const existingLastCompleted = (editSchedule as any).lastCompletedDate;
-        const lastCompletedDate: [] | [bigint] = Array.isArray(
-          existingLastCompleted,
-        )
-          ? existingLastCompleted.length > 0
-            ? [existingLastCompleted[0] as bigint]
-            : []
-          : existingLastCompleted != null
-            ? [existingLastCompleted as bigint]
+        // Preserve existing lastCompletedDate as [] | [bigint]
+        const existingLcd = editSchedule.lastCompletedDate;
+        const lastCompletedDate: [] | [bigint] =
+          Array.isArray(existingLcd) && existingLcd.length > 0
+            ? [existingLcd[0] as bigint]
             : [];
-        const data = {
+
+        const data: {
+          id: bigint;
+          vehicleId: bigint;
+          serviceType: string;
+          intervalDays: bigint;
+          nextDueDate: bigint;
+          lastCompletedDate: [] | [bigint];
+          notes: string;
+          status: string;
+          createdAt: bigint;
+        } = {
           id: editSchedule.id,
           vehicleId: BigInt(form.vehicleId),
           serviceType: svcType,
@@ -461,23 +479,38 @@ export function ServiceSchedulesPage() {
           status: form.status,
           createdAt: editSchedule.createdAt,
         };
+        console.log("[ServiceSchedules] updateServiceSchedule payload:", data);
         await (actor as any).updateServiceSchedule(editSchedule.id, data);
         toast.success("Schedule updated");
       } else {
         // Create: one schedule per target vehicle
         await Promise.all(
           targetVehicleIds.map((vid) => {
-            const data = {
+            const data: {
+              id: bigint;
+              vehicleId: bigint;
+              serviceType: string;
+              intervalDays: bigint;
+              nextDueDate: bigint;
+              lastCompletedDate: [] | [bigint];
+              notes: string;
+              status: string;
+              createdAt: bigint;
+            } = {
               id: 0n,
               vehicleId: BigInt(vid),
               serviceType: svcType,
               intervalDays: BigInt(days),
               nextDueDate: dateToNs(form.nextDueDate),
-              lastCompletedDate: [] as [] | [bigint],
+              lastCompletedDate: [],
               notes: form.notes,
               status: form.status,
               createdAt: 0n,
             };
+            console.log(
+              "[ServiceSchedules] createServiceSchedule payload:",
+              data,
+            );
             return (actor as any).createServiceSchedule(data);
           }),
         );
@@ -489,8 +522,10 @@ export function ServiceSchedulesPage() {
       await qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
       setModalOpen(false);
     } catch (err) {
-      console.error("Service schedule save error:", err);
-      toast.error("Failed to save schedule");
+      console.error("[ServiceSchedules] save error:", err);
+      toast.error(
+        "Failed to save schedule — check browser console for details",
+      );
     } finally {
       setSaving(false);
     }
@@ -653,6 +688,7 @@ export function ServiceSchedulesPage() {
                           : `Vehicle #${s.vehicleId}`;
                         const isActive =
                           s.status === "Active" && !isJustCompleted(s);
+                        const lastDone = getLastCompletedDate(s);
                         return (
                           <tr
                             key={s.id.toString()}
@@ -672,17 +708,7 @@ export function ServiceSchedulesPage() {
                               {intervalLabel(s.intervalDays)}
                             </td>
                             <td className="px-5 py-3.5 text-muted-foreground">
-                              {(
-                                Array.isArray((s as any).lastCompletedDate)
-                                  ? (s as any).lastCompletedDate.length > 0
-                                  : !!s.lastCompletedDate
-                              )
-                                ? formatDate(
-                                    Array.isArray((s as any).lastCompletedDate)
-                                      ? (s as any).lastCompletedDate[0]
-                                      : s.lastCompletedDate!,
-                                  )
-                                : "—"}
+                              {lastDone != null ? formatDate(lastDone) : "—"}
                             </td>
                             <td className="px-5 py-3.5">
                               <StatusBadge schedule={s} />
