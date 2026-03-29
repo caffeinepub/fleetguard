@@ -40,11 +40,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { FleetRole } from "../backend";
 import type { Vehicle, Warranty } from "../backend";
 import { useActor } from "../hooks/useActor";
 import {
   useAllVehicles,
   useAllWarranties,
+  useCallerFleetRole,
   useIsAdmin,
 } from "../hooks/useQueries";
 import { nowNs } from "../lib/helpers";
@@ -87,6 +89,9 @@ export function WarrantiesPage() {
   const { data: warranties, isLoading } = useAllWarranties();
   const { data: vehicles } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
+  const { data: fleetRole } = useCallerFleetRole();
+  const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
+  const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
   const { actor } = useActor();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -223,13 +228,15 @@ export function WarrantiesPage() {
             )}
           </div>
         </div>
-        <Button
-          data-ocid="warranties.primary_button"
-          onClick={openAdd}
-          className="gap-2"
-        >
-          <Plus size={16} /> Add Warranty
-        </Button>
+        {canCreate && (
+          <Button
+            data-ocid="warranties.primary_button"
+            onClick={openAdd}
+            className="gap-2"
+          >
+            <Plus size={16} /> Add Warranty
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -299,14 +306,16 @@ export function WarrantiesPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    data-ocid={`warranties.edit_button.${idx + 1}`}
-                    onClick={() => openEdit(w)}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-ocid={`warranties.edit_button.${idx + 1}`}
+                      onClick={() => openEdit(w)}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

@@ -27,8 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import {
   Download,
+  History,
   Loader2,
   Package,
   Pencil,
@@ -38,17 +40,20 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { PartFull as Part } from "../backend";
+import type { MaintenanceRecordFull, PartFull as Part } from "../backend";
 import { FleetRole } from "../backend";
+import { MaintenanceModal } from "../components/MaintenanceModal";
+import { useActor } from "../hooks/useActor";
 import {
   useAllParts,
+  useAllVehicles,
   useCallerFleetRole,
   useCreatePart,
   useDeletePart,
   useIsAdmin,
   useUpdatePart,
 } from "../hooks/useQueries";
-import { exportCSV, exportPDF } from "../lib/exportUtils";
+import { exportCSV } from "../lib/exportUtils";
 import { nowNs } from "../lib/helpers";
 
 const PART_CATEGORIES = [
@@ -85,9 +90,13 @@ function getPartPrice(p: { price?: number | null | number[] | [] }): number {
 
 export function PartsPage() {
   const { data: parts, isLoading } = useAllParts();
+  const { data: vehicles } = useAllVehicles();
+  const { actor } = useActor();
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
   const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
+  const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
+
   const createPart = useCreatePart();
   const updatePart = useUpdatePart();
   const deletePart = useDeletePart();
@@ -97,6 +106,29 @@ export function PartsPage() {
   const [sortOrder, setSortOrder] = useState("name-asc");
   const [modalOpen, setModalOpen] = useState(false);
   const [editPart, setEditPart] = useState<Part | null>(null);
+  const [usageHistoryPart, setUsageHistoryPart] = useState<Part | null>(null);
+  const [usageRecordToView, setUsageRecordToView] =
+    useState<MaintenanceRecordFull | null>(null);
+  const [usageMaintenanceModalOpen, setUsageMaintenanceModalOpen] =
+    useState(false);
+  const { data: allMaintenanceRecords } = useQuery<MaintenanceRecordFull[]>({
+    queryKey: ["maintenanceRecords"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllMaintenanceRecords();
+    },
+    enabled: !!actor && !!usageHistoryPart,
+  });
+
+  const { data: allWorkOrders } = useQuery<any[]>({
+    queryKey: ["workOrders"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllWorkOrders();
+    },
+    enabled: !!actor && !!usageHistoryPart,
+  });
+
   const [form, setForm] = useState(defaultForm);
 
   const filtered = (
@@ -227,28 +259,6 @@ export function PartsPage() {
     exportCSV("parts-inventory", headers, rows);
   };
 
-  const handleExportPDF = () => {
-    const headers = [
-      "Part Name",
-      "Part Number",
-      "Unit Price",
-      "Qty In Stock",
-      "Min Stock",
-      "Category",
-      "Status",
-    ];
-    const rows = (parts ?? []).map((p: Part) => [
-      p.name,
-      p.partNumber,
-      `$${getPartPrice(p).toFixed(2)}`,
-      p.quantityInStock.toString(),
-      p.minStockLevel.toString(),
-      p.location,
-      p.quantityInStock <= p.minStockLevel ? "Low Stock" : "In Stock",
-    ]);
-    exportPDF("Parts Inventory Report", headers, rows);
-  };
-
   const isPending = createPart.isPending || updatePart.isPending;
 
   return (
@@ -278,14 +288,6 @@ export function PartsPage() {
             onClick={handleExportCSV}
           >
             <Download size={15} /> CSV
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            data-ocid="parts.toggle"
-            onClick={handleExportPDF}
-          >
-            <Download size={15} /> PDF
           </Button>
           {canCreate && (
             <Button
@@ -453,12 +455,24 @@ export function PartsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0"
-                            data-ocid={`parts.edit_button.${i + 1}`}
-                            onClick={() => openEdit(p)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                            title="Usage History"
+                            data-ocid={`parts.secondary_button.${i + 1}`}
+                            onClick={() => setUsageHistoryPart(p)}
                           >
-                            <Pencil size={14} />
+                            <History size={14} />
                           </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              data-ocid={`parts.edit_button.${i + 1}`}
+                              onClick={() => openEdit(p)}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                          )}
                           {isAdmin && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -607,6 +621,141 @@ export function PartsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Usage History Dialog */}
+      <Dialog
+        open={!!usageHistoryPart}
+        onOpenChange={(o) => {
+          if (!o) setUsageHistoryPart(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl" data-ocid="parts.dialog">
+          <DialogHeader>
+            <DialogTitle>Usage History — {usageHistoryPart?.name}</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const usageRecords = (allMaintenanceRecords ?? [])
+              .filter((r) =>
+                r.partsUsed?.some((id) => id === usageHistoryPart?.id),
+              )
+              .sort((a, b) => Number(b.date) - Number(a.date));
+
+            if (usageRecords.length === 0) {
+              return (
+                <div
+                  data-ocid="parts.empty_state"
+                  className="text-center py-10 text-muted-foreground"
+                >
+                  No usage records found for this part.
+                </div>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-ocid="parts.table">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      {["Work Order #", "Date", "Mechanic", "Qty Used"].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground"
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {usageRecords.map((r, idx) => {
+                      const rawWoId = (r as any).workOrderId;
+                      const woId: bigint | undefined = Array.isArray(rawWoId)
+                        ? rawWoId.length > 0
+                          ? rawWoId[0]
+                          : undefined
+                        : rawWoId && rawWoId !== 0n
+                          ? rawWoId
+                          : undefined;
+                      const wo = woId
+                        ? (allWorkOrders ?? []).find((w: any) => w.id === woId)
+                        : undefined;
+                      const woNum = wo
+                        ? `WO-${String(Number(wo.id)).padStart(4, "0")}`
+                        : woId
+                          ? `WO-${String(Number(woId)).padStart(4, "0")}`
+                          : "Manual";
+                      const qty = r.partQuantities
+                        ? ((r.partQuantities as any[]).find(
+                            (pq: any) => pq.partId === usageHistoryPart?.id,
+                          )?.quantity ?? 1)
+                        : 1;
+                      const dateMs = Number(r.date) / 1_000_000;
+                      const dateStr = new Date(dateMs).toLocaleDateString(
+                        "en-CA",
+                        { year: "numeric", month: "short", day: "numeric" },
+                      );
+                      return (
+                        <tr
+                          key={r.id.toString()}
+                          data-ocid={`parts.item.${idx + 1}`}
+                          className="hover:bg-muted/20 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setUsageRecordToView(r);
+                            setUsageMaintenanceModalOpen(true);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              setUsageRecordToView(r);
+                              setUsageMaintenanceModalOpen(true);
+                            }
+                          }}
+                        >
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5">
+                              {woNum}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {dateStr}
+                          </td>
+                          <td className="px-4 py-3">{r.technicianName}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {String(qty)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              data-ocid="parts.close_button"
+              onClick={() => setUsageHistoryPart(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View maintenance record from usage history */}
+      {usageMaintenanceModalOpen && usageRecordToView && (
+        <MaintenanceModal
+          open={usageMaintenanceModalOpen}
+          onClose={() => {
+            setUsageMaintenanceModalOpen(false);
+            setUsageRecordToView(null);
+          }}
+          record={usageRecordToView}
+          vehicles={vehicles ?? []}
+        />
+      )}
     </div>
   );
 }

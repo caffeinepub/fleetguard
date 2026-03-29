@@ -45,7 +45,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { FleetRole } from "../backend";
 import type { Vehicle } from "../backend";
@@ -118,6 +118,11 @@ function getLastCompletedDate(s: ServiceSchedule): bigint | null {
     return s.lastCompletedDate[0] ?? null;
   }
   return null;
+}
+
+// Helper to convert Candid optional array [] | [bigint] → bigint | undefined
+function lcdToOptional(lcd: [] | [bigint]): bigint | undefined {
+  return Array.isArray(lcd) && lcd.length > 0 ? lcd[0] : undefined;
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -340,6 +345,18 @@ export function ServiceSchedulesPage() {
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [completionRecord, setCompletionRecord] = useState<any>(null);
   const [completedByName, setCompletedByName] = useState("");
+  const completionSavedRef = useRef(false);
+  const [completionSnapshot, setCompletionSnapshot] = useState<null | {
+    id: bigint;
+    nextDueDate: bigint;
+    lastCompletedDate: [] | [bigint];
+    status: string;
+    intervalDays: bigint;
+    serviceType: string;
+    notes: string;
+    vehicleId: bigint;
+    createdAt: bigint;
+  }>(null);
 
   const canCreate =
     isAdmin ||
@@ -458,11 +475,9 @@ export function ServiceSchedulesPage() {
     try {
       if (editSchedule) {
         // Preserve existing lastCompletedDate as bigint | undefined
-        const existingLcd = editSchedule.lastCompletedDate;
-        const lastCompletedDate: bigint | undefined =
-          Array.isArray(existingLcd) && existingLcd.length > 0
-            ? (existingLcd[0] as bigint)
-            : undefined;
+        const lastCompletedDate: bigint | undefined = lcdToOptional(
+          editSchedule.lastCompletedDate,
+        );
 
         const data: {
           id: bigint;
@@ -542,6 +557,20 @@ export function ServiceSchedulesPage() {
     setCompleting(id);
     try {
       const schedule = schedules?.find((s) => s.id === id);
+      if (schedule) {
+        setCompletionSnapshot({
+          id: schedule.id,
+          nextDueDate: schedule.nextDueDate,
+          lastCompletedDate: schedule.lastCompletedDate,
+          status: schedule.status,
+          intervalDays: schedule.intervalDays,
+          serviceType: schedule.serviceType,
+          notes: schedule.notes,
+          vehicleId: schedule.vehicleId,
+          createdAt: schedule.createdAt,
+        });
+      }
+      completionSavedRef.current = false;
       await (actor as any).markScheduleComplete(id);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["serviceSchedules"] }),
@@ -1101,9 +1130,56 @@ export function ServiceSchedulesPage() {
       {/* Maintenance Record Modal (opened after completing a schedule) */}
       <MaintenanceModal
         open={maintenanceModalOpen}
+        onSaved={() => {
+          completionSavedRef.current = true;
+        }}
         onClose={() => {
+          if (!completionSavedRef.current && completionSnapshot) {
+            // Revert the schedule back to its pre-completion state.
+            // Convert lastCompletedDate from Candid [] | [bigint] → bigint | undefined
+            // so the Candid encoder doesn't get a type mismatch.
+            const revertLcd: bigint | undefined = lcdToOptional(
+              completionSnapshot.lastCompletedDate,
+            );
+            const revertData: {
+              id: bigint;
+              vehicleId: bigint;
+              serviceType: string;
+              intervalDays: bigint;
+              nextDueDate: bigint;
+              lastCompletedDate?: bigint;
+              notes: string;
+              status: string;
+              createdAt: bigint;
+            } = {
+              id: completionSnapshot.id,
+              vehicleId: completionSnapshot.vehicleId,
+              serviceType: completionSnapshot.serviceType,
+              intervalDays: completionSnapshot.intervalDays,
+              nextDueDate: completionSnapshot.nextDueDate,
+              lastCompletedDate: revertLcd,
+              notes: completionSnapshot.notes,
+              status: completionSnapshot.status,
+              createdAt: completionSnapshot.createdAt,
+            };
+            console.log(
+              "[ServiceSchedules] reverting schedule to pre-completion state:",
+              revertData,
+            );
+            (actor as any)
+              .updateServiceSchedule(completionSnapshot.id, revertData)
+              .then(() => {
+                qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
+                toast.info("Service schedule reverted to Open.");
+              })
+              .catch((err: unknown) => {
+                console.error("[ServiceSchedules] revert failed:", err);
+              });
+          }
           setMaintenanceModalOpen(false);
           setCompletionRecord(null);
+          setCompletionSnapshot(null);
+          completionSavedRef.current = false;
         }}
         record={completionRecord}
         vehicles={vehicles ?? []}

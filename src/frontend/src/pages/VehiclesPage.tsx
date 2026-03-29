@@ -44,7 +44,7 @@ import {
   useDeleteVehicle,
   useIsAdmin,
 } from "../hooks/useQueries";
-import { exportCSV, exportPDF } from "../lib/exportUtils";
+import { exportCSV } from "../lib/exportUtils";
 import { nowNs, vehicleTypeLabel } from "../lib/helpers";
 
 interface Props {
@@ -84,6 +84,7 @@ export function VehiclesPage({ onNavigate }: Props) {
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
   const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
+  const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
   const deleteVehicle = useDeleteVehicle();
   const bulkCreate = useBulkCreateVehicles();
   const [search, setSearch] = useState("");
@@ -227,28 +228,6 @@ export function VehiclesPage({ onNavigate }: Props) {
     exportCSV("fleet-equipment-list", headers, rows);
   };
 
-  const handleExportPDF = () => {
-    const headers = [
-      "Name",
-      "Make",
-      "Model",
-      "Year",
-      "Type",
-      "License Plate",
-      "Status",
-    ];
-    const rows = (vehicles ?? []).map((v: Vehicle) => [
-      v.name,
-      v.make,
-      v.model,
-      v.year.toString(),
-      vehicleTypeLabel[v.vehicleType],
-      v.licensePlate,
-      v.status,
-    ]);
-    exportPDF("Fleet Equipment List", headers, rows);
-  };
-
   return (
     <div className="p-6 space-y-5 animate-fade-in" data-ocid="vehicles.page">
       <div className="flex items-center justify-between">
@@ -266,14 +245,6 @@ export function VehiclesPage({ onNavigate }: Props) {
             onClick={handleExportCSV}
           >
             <Download size={15} /> CSV
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            data-ocid="vehicles.toggle"
-            onClick={handleExportPDF}
-          >
-            <Download size={15} /> PDF
           </Button>
           {canCreate && (
             <>
@@ -455,15 +426,17 @@ export function VehiclesPage({ onNavigate }: Props) {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          data-ocid={`vehicles.edit_button.${i + 1}`}
-                          onClick={() => openEdit(v)}
-                        >
-                          <Pencil size={14} />
-                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            data-ocid={`vehicles.edit_button.${i + 1}`}
+                            onClick={() => openEdit(v)}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

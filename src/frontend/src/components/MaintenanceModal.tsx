@@ -50,6 +50,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCancel?: () => void;
+  onSaved?: () => void;
   record?: MaintenanceRecordFull | null;
   vehicles: Vehicle[];
   defaultVehicleId?: bigint;
@@ -84,6 +85,7 @@ export function MaintenanceModal({
   open,
   onClose,
   onCancel,
+  onSaved,
   record,
   vehicles,
   defaultVehicleId,
@@ -295,6 +297,7 @@ export function MaintenanceModal({
         await createM.mutateAsync(data);
         toast.success("Maintenance record added");
       }
+      if (onSaved) onSaved();
       onClose();
     } catch (err) {
       console.error("Maintenance save error:", err);

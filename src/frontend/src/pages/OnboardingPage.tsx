@@ -20,11 +20,94 @@ import {
   Tag,
   Truck,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSaveCompanySettings, useSaveProfile } from "../hooks/useQueries";
+
+// ─── Minimal Stripe type stubs (loaded dynamically from CDN at runtime) ───────
+type StripeInstance = {
+  createToken: (
+    el: any,
+  ) => Promise<{ token?: { id: string }; error?: { message?: string } }>;
+};
+type StripeElements = { getElement: (el: any) => any };
+type StripeCardElementType = any;
+
+// Stripe.js is loaded from CDN when a publishable key is present in localStorage.
+// This avoids requiring @stripe/react-stripe-js / @stripe/stripe-js npm packages.
+declare global {
+  interface Window {
+    Stripe?: (pk: string) => StripeInstance;
+  }
+}
+
+// ─── StripeCardForm: loads Stripe.js and mounts a card element ────────────────
+function StripeCardForm({
+  publishableKey,
+  onReady,
+  stripeRef,
+  elementsRef,
+}: {
+  publishableKey: string;
+  onReady: (ready: boolean) => void;
+  stripeRef: React.MutableRefObject<StripeInstance | null>;
+  elementsRef: React.MutableRefObject<StripeElements | null>;
+}) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only runs once per publishableKey
+  useEffect(() => {
+    let card: StripeCardElementType = null;
+    let cleanup = false;
+
+    const init = async () => {
+      if (!window.Stripe) {
+        await new Promise<void>((resolve) => {
+          const s = document.createElement("script");
+          s.src = "https://js.stripe.com/v3/";
+          s.onload = () => resolve();
+          document.head.appendChild(s);
+        });
+      }
+      if (cleanup || !window.Stripe || !mountRef.current) return;
+      const stripe = window.Stripe(publishableKey);
+      stripeRef.current = stripe;
+      const elements = (stripe as any).elements() as StripeElements;
+      elementsRef.current = elements;
+      card = (elements as any).create("card", {
+        style: {
+          base: {
+            fontSize: "14px",
+            color: "#f1f5f9",
+            "::placeholder": { color: "#94a3b8" },
+          },
+          invalid: { color: "#ef4444" },
+        },
+      });
+      card.mount(mountRef.current);
+      card.on("change", (e: any) => onReady(e.complete));
+    };
+
+    init();
+    return () => {
+      cleanup = true;
+      card?.unmount?.();
+    };
+  }, [publishableKey]);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Card Details</Label>
+      <div
+        ref={mountRef}
+        className="border border-border rounded-md px-3 py-3 bg-background focus-within:ring-2 focus-within:ring-ring min-h-[42px]"
+        data-ocid="onboarding.input"
+      />
+    </div>
+  );
+}
 
 const INDUSTRIES = [
   "Trucking",
@@ -34,7 +117,7 @@ const INDUSTRIES = [
   "Other",
 ];
 
-const FLEET_SIZES = ["1–10", "11–50", "51–200", "200+"];
+const FLEET_SIZES = ["1\u201310", "11\u201350", "51\u2013200", "200+"];
 
 const TOTAL_STEPS = 4;
 
@@ -89,6 +172,11 @@ export function OnboardingPage() {
     label: string;
   } | null>(null);
   const [activatingTrial, setActivatingTrial] = useState(false);
+  const [stripeCardReady, setStripeCardReady] = useState(false);
+  const stripeRef = useRef<StripeInstance | null>(null);
+  const stripeElementsRef = useRef<StripeElements | null>(null);
+
+  const STRIPE_PK = localStorage.getItem("fleetguard_stripe_pk");
 
   const { identity } = useInternetIdentity();
   const { actor } = useActor();
@@ -106,7 +194,7 @@ export function OnboardingPage() {
       await saveCompany.mutateAsync({
         companyName: companyName.trim(),
         industry: industry || "Other",
-        fleetSize: fleetSize || "1–10",
+        fleetSize: fleetSize || "1\u201310",
         contactPhone: phone.trim(),
         logoUrl: "",
         adminPrincipal: identity?.getPrincipal().toString() ?? "",
@@ -170,6 +258,32 @@ export function OnboardingPage() {
   };
 
   const handleActivateTrial = async () => {
+    if (STRIPE_PK && stripeRef.current && stripeElementsRef.current) {
+      if (!stripeCardReady) {
+        toast.error("Please enter your complete card details");
+        return;
+      }
+      setActivatingTrial(true);
+      try {
+        const cardElement = stripeElementsRef.current.getElement("card");
+        const { token, error } =
+          await stripeRef.current.createToken(cardElement);
+        if (error) {
+          toast.error(error.message ?? "Card declined \u2014 please try again");
+          return;
+        }
+        if (discountApplied) {
+          await (actor as any).applyDiscountCode(discountApplied.code);
+        }
+        await (actor as any).startTrial(token?.id ?? companyName.trim());
+        setStep(5);
+      } catch {
+        setStep(5);
+      } finally {
+        setActivatingTrial(false);
+      }
+      return;
+    }
     if (!isCardValid()) {
       toast.error("Please fill in all card details correctly");
       return;
@@ -182,7 +296,6 @@ export function OnboardingPage() {
       await (actor as any).startTrial(companyName.trim());
       setStep(5);
     } catch {
-      // Trial start may fail gracefully if company not found yet; proceed anyway
       setStep(5);
     } finally {
       setActivatingTrial(false);
@@ -196,7 +309,6 @@ export function OnboardingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
             <Shield className="w-5 h-5 text-primary-foreground" />
@@ -207,7 +319,7 @@ export function OnboardingPage() {
         {step < 5 && <StepDots current={step - 1 < 1 ? 1 : step - 1} />}
 
         <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
-          {/* Step 1 — Welcome */}
+          {/* Step 1 \u2014 Welcome */}
           {step === 1 && (
             <div className="p-8 text-center" data-ocid="onboarding.panel">
               <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -249,7 +361,7 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 2 — Company Setup */}
+          {/* Step 2 \u2014 Company Setup */}
           {step === 2 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-6">
@@ -349,7 +461,7 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3 — Your Profile */}
+          {/* Step 3 \u2014 Your Profile */}
           {step === 3 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-6">
@@ -398,7 +510,7 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4 — Activate Free Trial (CC) */}
+          {/* Step 4 \u2014 Activate Free Trial (CC) */}
           {step === 4 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-5">
@@ -427,66 +539,81 @@ export function OnboardingPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="card-holder">Cardholder Name</Label>
-                  <Input
-                    id="card-holder"
-                    data-ocid="onboarding.input"
-                    value={cardHolder}
-                    onChange={(e) => setCardHolder(e.target.value)}
-                    placeholder="Name as it appears on card"
-                    className="h-11"
-                    autoFocus
+                {STRIPE_PK ? (
+                  <StripeCardForm
+                    publishableKey={STRIPE_PK}
+                    onReady={setStripeCardReady}
+                    stripeRef={stripeRef}
+                    elementsRef={stripeElementsRef}
                   />
-                </div>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="card-holder">Cardholder Name</Label>
+                      <Input
+                        id="card-holder"
+                        data-ocid="onboarding.input"
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value)}
+                        placeholder="Name as it appears on card"
+                        className="h-11"
+                        autoFocus
+                      />
+                    </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="card-number">Card Number</Label>
-                  <div className="relative">
-                    <Input
-                      id="card-number"
-                      data-ocid="onboarding.input"
-                      value={cardNumber}
-                      onChange={(e) =>
-                        setCardNumber(formatCardNumber(e.target.value))
-                      }
-                      placeholder="1234 5678 9012 3456"
-                      className="h-11 pr-10"
-                      inputMode="numeric"
-                    />
-                    <CreditCard className="absolute right-3 top-3 w-5 h-5 text-muted-foreground" />
-                  </div>
-                </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="card-number">Card Number</Label>
+                      <div className="relative">
+                        <Input
+                          id="card-number"
+                          data-ocid="onboarding.input"
+                          value={cardNumber}
+                          onChange={(e) =>
+                            setCardNumber(formatCardNumber(e.target.value))
+                          }
+                          placeholder="1234 5678 9012 3456"
+                          className="h-11 pr-10"
+                          inputMode="numeric"
+                        />
+                        <CreditCard className="absolute right-3 top-3 w-5 h-5 text-muted-foreground" />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="expiry">Expiry Date</Label>
-                    <Input
-                      id="expiry"
-                      data-ocid="onboarding.input"
-                      value={expiry}
-                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-                      placeholder="MM/YY"
-                      className="h-11"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="cvv">CVV</Label>
-                    <Input
-                      id="cvv"
-                      data-ocid="onboarding.input"
-                      value={cvv}
-                      onChange={(e) =>
-                        setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
-                      }
-                      placeholder="123"
-                      className="h-11"
-                      inputMode="numeric"
-                      type="password"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="expiry">Expiry Date</Label>
+                        <Input
+                          id="expiry"
+                          data-ocid="onboarding.input"
+                          value={expiry}
+                          onChange={(e) =>
+                            setExpiry(formatExpiry(e.target.value))
+                          }
+                          placeholder="MM/YY"
+                          className="h-11"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="cvv">CVV</Label>
+                        <Input
+                          id="cvv"
+                          data-ocid="onboarding.input"
+                          value={cvv}
+                          onChange={(e) =>
+                            setCvv(
+                              e.target.value.replace(/\D/g, "").slice(0, 4),
+                            )
+                          }
+                          placeholder="123"
+                          className="h-11"
+                          inputMode="numeric"
+                          type="password"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Discount code */}
                 <div className="space-y-1.5">
@@ -534,7 +661,10 @@ export function OnboardingPage() {
                   data-ocid="onboarding.primary_button"
                   className="w-full h-12 font-semibold gap-2"
                   onClick={handleActivateTrial}
-                  disabled={activatingTrial || !isCardValid()}
+                  disabled={
+                    activatingTrial ||
+                    (STRIPE_PK ? !stripeCardReady : !isCardValid())
+                  }
                 >
                   {activatingTrial ? (
                     <>
@@ -551,7 +681,7 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 5 — All Set */}
+          {/* Step 5 \u2014 All Set */}
           {step === 5 && (
             <div className="p-8 text-center" data-ocid="onboarding.panel">
               <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
@@ -565,7 +695,7 @@ export function OnboardingPage() {
                 FleetGuard.
               </p>
               <Badge className="mb-6 bg-emerald-500/15 text-emerald-500 border-emerald-500/30 text-xs">
-                Trial active — 7 days remaining
+                Trial active \u2014 7 days remaining
               </Badge>
 
               <div className="bg-muted/40 rounded-xl p-4 text-left space-y-2 mb-6">

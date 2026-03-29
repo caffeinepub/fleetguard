@@ -29,6 +29,7 @@ import {
   Loader2,
   Settings,
   Shield,
+  Tag,
   Upload,
   User,
   UserPlus,
@@ -37,6 +38,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FleetRole } from "../backend";
 import type { CompanySettings } from "../backend";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
@@ -98,6 +100,45 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const [taxLabel, setTaxLabel] = useState(taxSettings.taxLabel);
   const [taxRate, setTaxRate] = useState(String(taxSettings.taxRate));
   const [taxEnabled, setTaxEnabled] = useState(taxSettings.enabled);
+
+  // Promo code
+  const { actor } = useActor();
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplying, setPromoApplying] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountType: string;
+    value: bigint;
+  } | null>(null);
+
+  const handleApplyPromoCode = async () => {
+    if (!actor || !promoCode.trim()) return;
+    setPromoApplying(true);
+    try {
+      const result = await actor.validateDiscountCode(
+        promoCode.trim().toUpperCase(),
+      );
+      if (result && Array.isArray(result) && result.length > 0 && result[0]) {
+        const dc = result[0];
+        await actor.applyDiscountCode(promoCode.trim().toUpperCase());
+        setAppliedPromo({
+          code: dc.code,
+          discountType: dc.discountType,
+          value: dc.value,
+        });
+        setPromoCode("");
+        toast.success(
+          `Promo code applied! ${dc.discountType === "percent" ? `${dc.value}% off` : `${dc.value} months free`}`,
+        );
+      } else {
+        toast.error("Invalid or expired promo code");
+      }
+    } catch {
+      toast.error("Failed to apply code — please try again");
+    } finally {
+      setPromoApplying(false);
+    }
+  };
   const { identity } = useInternetIdentity();
   const saveSettings = useSaveCompanySettings();
   const saveCurrency = useSaveDefaultCurrency();
@@ -608,6 +649,55 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
           </CardContent>
         </Card>
       )}
+
+      {/* Promotions */}
+      <Card className="shadow-card border-0">
+        <CardHeader>
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Tag size={16} /> Promotions &amp; Discounts
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Have a promotional code? Enter it below to apply a discount to your
+            subscription.
+          </p>
+          {appliedPromo && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+              <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                Code <strong>{appliedPromo.code}</strong> applied —{" "}
+                {appliedPromo.discountType === "percent"
+                  ? `${appliedPromo.value}% off`
+                  : `${appliedPromo.value} month${appliedPromo.value !== 1n ? "s" : ""} free`}
+              </p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              placeholder="Enter promo code (e.g. FLEET20)"
+              className="font-mono uppercase"
+              onKeyDown={(e) => e.key === "Enter" && handleApplyPromoCode()}
+              data-ocid="settings.promo.input"
+            />
+            <Button
+              onClick={handleApplyPromoCode}
+              disabled={promoApplying || !promoCode.trim()}
+              className="shrink-0 gap-2"
+              data-ocid="settings.promo.apply_button"
+            >
+              {promoApplying ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Tag className="w-4 h-4" />
+              )}
+              Apply
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Your Account */}
       <Card className="shadow-card border-0">

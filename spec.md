@@ -1,51 +1,31 @@
 # FleetGuard
 
 ## Current State
-FleetGuard is a production fleet maintenance SaaS. The app has:
-- Full backend: vehicles, maintenance records, parts, work orders, service schedules, vendors, warranties, group chat, company settings, subscriptions, approvals
-- Onboarding wizard (multi-step) for new companies
-- Developer portal (devKey-protected) for viewing companies, approvals, subscriptions
-- Sample/seed data auto-loaded on first login (vehicles + parts)
-- No trial period tracking
-- No discount codes
-- No CC collection during signup
-- DevPortalPage has company table with subscription/approval management but no discount codes and no promo email section
+FleetGuard is a fleet maintenance SaaS app with:
+- Service Schedules page with mark-complete flow that opens MaintenanceModal
+- Cancel-revert logic using completionSnapshot and completionSavedRef
+- Parts page with usage history dialog
+- Role-based access (Admin/FleetManager/Mechanic)
+- CSV export on all list pages (PDF already removed from UI buttons)
+- exportPDF function exists in exportUtils.ts but is unused
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `DiscountCode` type with id, code (text), discountType ("percent" | "months_free"), value (nat), description, createdAt, usedCount; stored in `discountCodes` map
-- Backend: `createDiscountCodeWithKey(devKey, code)` mutation
-- Backend: `getAllDiscountCodesWithKey(devKey)` query
-- Backend: `deleteDiscountCodeWithKey(devKey, id)` mutation
-- Backend: `validateDiscountCode(code)` public query — returns discount info or null
-- Backend: `applyDiscountCode(code)` increments usedCount
-- Backend: `SubscriptionRecord` extended with `trialEndsAt?: Time` and `plan: string` fields
-- Backend: `startTrial(companyName, trialDays)` - sets subscription to "trial" status with trialEndsAt = now + 7 days
-- Backend: `startTrialWithKey(devKey, companyName)` for dev-initiated trial
-- Onboarding: final step "Activate Free Trial" — collects card holder name + card number/expiry/CVV (UI only, stored as intent), shows 7-day trial terms, calls startTrial on completion
-- DevPortalPage: "Discount Codes" tab/section — list all codes, create new code form (code text, type, value, description), delete button per code
-- DevPortalPage: "Send Email" button per company (shows compose modal with subject/body, simulates send with toast since email is disabled)
-- DevPortalPage: trial status badge ("Trial" in blue) in addition to active/inactive/cancelled
-- DevPortalPage: show trialEndsAt date when status is "trial"
+- Parts Usage History: ensure each entry shows Work Order #, Date, Mechanic name, Qty used, and is clickable to open full maintenance record (already partially implemented — verify and complete)
 
 ### Modify
-- App.tsx: Remove both `useEffect` blocks that call `seedData` and `seedParts`. Remove `seedData` and `seedParts` imports. Remove `seeded`, `partsSeeded` state variables. Remove `vehiclesLoading`/`partsLoading` and related `useAllVehicles`/`useAllParts` imports used only for seeding (keep if used elsewhere).
-- `SubscriptionRecord` in backend.d.ts: add optional `trialEndsAt?: Time` and `plan?: string`
-- SubBadge in DevPortalPage: add "trial" variant (blue badge)
-- `updateSubscriptionStatusWithKey`: accept new "trial" status
+- Service Schedule Completion: when user marks schedule complete, auto-open the MaintenanceModal with `requireCompletion=true`; record must be saved to Maintenance History with all costs (parts + labor); if user cancels, revert schedule back to Open status using updateServiceSchedule with original snapshot data. **Critical bug to fix**: the `updateServiceSchedule` call in the cancel-revert passes `lastCompletedDate` as `[] | [bigint]` array but the backend type expects `Time | undefined`. Fix the Candid encoding of the revert call so it uses the correct format — pass `lastCompletedDate` as `undefined` when the array is empty, or unwrap the first element.
+- User Role Permissions: confirm and enforce — all roles EXCEPT Mechanic (Admin + FleetManager) can add/edit/delete Fleet/Vehicles, Parts, Vendors, Warranties. Mechanics can only log maintenance and view data. Add canCreate/canEdit guards on all Add/Edit buttons in VehiclesPage, PartsPage, VendorsPage, WarrantiesPage.
+- Export: remove the `exportPDF` function from exportUtils.ts and ensure no PDF export buttons exist anywhere in the app.
 
 ### Remove
-- `src/frontend/src/lib/seed.ts` contents: replace with empty exports (keep file to avoid import errors, but make functions no-ops)
-- All sample data seeding from App.tsx
+- `exportPDF` function from `src/frontend/src/lib/exportUtils.ts`
+- Any remaining PDF export buttons or options in any page
 
 ## Implementation Plan
-1. Generate new Motoko backend with DiscountCode type + CRUD + trial tracking
-2. Update backend.d.ts and backend.did.js to include new types/methods
-3. Strip seed.ts to empty no-op functions
-4. Remove seed useEffects and imports from App.tsx
-5. Add CC/trial step to OnboardingPage (last step before completion)
-6. Add Discount Codes section to DevPortalPage
-7. Add promotional email compose modal to DevPortalPage
-8. Update SubBadge to handle "trial" status
-9. Validate and deploy
+1. Fix the cancel-revert in ServiceSchedulesPage.tsx: in the `onClose` handler's `updateServiceSchedule` call, convert `lastCompletedDate` from `[] | [bigint]` to `bigint | undefined` before sending
+2. Verify role guards (canCreate/canEdit) are present in VehiclesPage, PartsPage, VendorsPage, WarrantiesPage — all should check `isAdmin || fleetRole === FleetRole.FleetManager`
+3. Remove exportPDF from exportUtils.ts
+4. Verify Parts Usage History dialog: shows WO#, date, mechanic, qty; rows are clickable; opens maintenance record modal
+5. Validate and build

@@ -38,7 +38,12 @@ import {
   CheckCircle,
   ChevronDown,
   Code2,
+  Copy,
+  CreditCard,
   DollarSign,
+  ExternalLink,
+  Eye,
+  EyeOff,
   LogOut,
   Mail,
   Percent,
@@ -141,7 +146,7 @@ function ApprovalBadge({ status }: { status: string }) {
   );
 }
 
-type ActiveTab = "companies" | "discounts";
+type ActiveTab = "companies" | "discounts" | "stripe";
 
 export function DevPortalPage() {
   const DEV_KEY = localStorage.getItem("devKey") ?? "FLEETGUARD_DEV_2026";
@@ -179,6 +184,36 @@ export function DevPortalPage() {
   const [newType, setNewType] = useState("percent");
   const [newValue, setNewValue] = useState("");
   const [newDesc, setNewDesc] = useState("");
+
+  // Stripe settings
+  const [stripePk, setStripePk] = useState(
+    () => localStorage.getItem("fleetguard_stripe_pk") ?? "",
+  );
+  const [stripeSk, setStripeSk] = useState(
+    () => localStorage.getItem("fleetguard_stripe_sk") ?? "",
+  );
+  const [showPk, setShowPk] = useState(false);
+  const [showSk, setShowSk] = useState(false);
+  const stripeConfigured =
+    stripePk.startsWith("pk_") && stripeSk.startsWith("sk_");
+
+  const handleSaveStripeKeys = () => {
+    if (!stripePk.trim() || !stripeSk.trim()) {
+      toast.error("Please enter both Publishable Key and Secret Key");
+      return;
+    }
+    if (!stripePk.startsWith("pk_")) {
+      toast.error("Publishable Key must start with pk_");
+      return;
+    }
+    if (!stripeSk.startsWith("sk_")) {
+      toast.error("Secret Key must start with sk_");
+      return;
+    }
+    localStorage.setItem("fleetguard_stripe_pk", stripePk.trim());
+    localStorage.setItem("fleetguard_stripe_sk", stripeSk.trim());
+    toast.success("Stripe keys saved successfully");
+  };
 
   // Email compose
   const [emailTarget, setEmailTarget] = useState<{
@@ -354,6 +389,7 @@ export function DevPortalPage() {
   const tabs: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
     { id: "companies", label: "Companies", icon: Building2 },
     { id: "discounts", label: "Discount Codes", icon: Tag },
+    { id: "stripe", label: "Stripe Settings", icon: CreditCard },
   ];
 
   return (
@@ -940,6 +976,182 @@ export function DevPortalPage() {
                   </TableBody>
                 </Table>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Stripe Settings tab */}
+        {activeTab === "stripe" && (
+          <div className="space-y-6 max-w-2xl">
+            {/* Status banner */}
+            <div
+              className={`flex items-center gap-3 px-5 py-3 rounded-xl text-sm ${stripeConfigured ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-amber-500/10 border border-amber-500/20"}`}
+            >
+              <CreditCard
+                className={`w-4 h-4 shrink-0 ${stripeConfigured ? "text-emerald-400" : "text-amber-400"}`}
+              />
+              <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                Stripe Integration:{" "}
+                <strong
+                  className={
+                    stripeConfigured ? "text-emerald-400" : "text-amber-400"
+                  }
+                >
+                  {stripeConfigured ? "Connected & Ready" : "Not Configured"}
+                </strong>
+              </span>
+              {stripeConfigured && (
+                <Badge
+                  variant="outline"
+                  className="ml-auto border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs"
+                >
+                  <CheckCircle className="w-3 h-3 mr-1" /> Live
+                </Badge>
+              )}
+            </div>
+
+            {/* Keys form */}
+            <div
+              className="rounded-xl p-6 space-y-5"
+              style={{
+                background: "oklch(0.17 0.02 240)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
+              <div>
+                <h2 className="text-sm font-semibold text-white mb-1">
+                  API Keys
+                </h2>
+                <p
+                  className="text-xs"
+                  style={{ color: "rgba(255,255,255,0.4)" }}
+                >
+                  Enter your Stripe API keys to enable real payment processing
+                  for the $499/month subscription.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label
+                    className="text-xs font-medium"
+                    style={{ color: "rgba(255,255,255,0.6)" }}
+                  >
+                    Publishable Key{" "}
+                    <span className="text-white/30">(starts with pk_)</span>
+                  </Label>
+                  <div className="relative">
+                    <input
+                      type={showPk ? "text" : "password"}
+                      value={stripePk}
+                      onChange={(e) => setStripePk(e.target.value)}
+                      placeholder="pk_live_..."
+                      className="w-full h-10 px-3 pr-10 rounded-md text-sm bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/40 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPk(!showPk)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    >
+                      {showPk ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    className="text-xs font-medium"
+                    style={{ color: "rgba(255,255,255,0.6)" }}
+                  >
+                    Secret Key{" "}
+                    <span className="text-white/30">(starts with sk_)</span>
+                  </Label>
+                  <div className="relative">
+                    <input
+                      type={showSk ? "text" : "password"}
+                      value={stripeSk}
+                      onChange={(e) => setStripeSk(e.target.value)}
+                      placeholder="sk_live_..."
+                      className="w-full h-10 px-3 pr-10 rounded-md text-sm bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/40 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSk(!showSk)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    >
+                      {showSk ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  onClick={handleSaveStripeKeys}
+                  className="gap-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30"
+                  data-ocid="devportal.primary_button"
+                >
+                  <CreditCard className="w-4 h-4" /> Save Keys
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="gap-2 text-white/50 hover:text-white"
+                  onClick={() =>
+                    window.open(
+                      "https://dashboard.stripe.com/apikeys",
+                      "_blank",
+                    )
+                  }
+                  data-ocid="devportal.secondary_button"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Stripe Dashboard
+                </Button>
+              </div>
+            </div>
+
+            {/* Info box */}
+            <div
+              className="rounded-xl p-4 space-y-2"
+              style={{
+                background: "oklch(0.17 0.02 240)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
+              <h3 className="text-xs font-semibold text-white/60 uppercase tracking-wider">
+                How It Works
+              </h3>
+              <ul
+                className="space-y-2 text-xs"
+                style={{ color: "rgba(255,255,255,0.5)" }}
+              >
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{" "}
+                  New companies enter card details during signup. Stripe
+                  tokenizes the card securely.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{" "}
+                  A 7-day free trial starts automatically. No charge until the
+                  trial ends.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{" "}
+                  After the trial, $499 + applicable tax is charged monthly.
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{" "}
+                  Keys are stored locally in this browser. For production,
+                  integrate a secure backend webhook handler.
+                </li>
+              </ul>
             </div>
           </div>
         )}

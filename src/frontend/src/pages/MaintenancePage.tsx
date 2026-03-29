@@ -16,7 +16,7 @@ import type { MaintenanceRecordFull, Vehicle } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useAllMaintenanceRecords, useAllVehicles } from "../hooks/useQueries";
 import { useTaxSettings } from "../hooks/useTaxSettings";
-import { exportCSV, exportPDF } from "../lib/exportUtils";
+import { exportCSV } from "../lib/exportUtils";
 import {
   formatCurrency,
   formatDate,
@@ -114,32 +114,6 @@ export function MaintenancePage() {
     exportCSV("maintenance-history", headers, rows);
   };
 
-  const handleExportPDF = () => {
-    const headers = [
-      "Vehicle",
-      "Type",
-      "Work Order #",
-      "Date",
-      "Description",
-      "Cost",
-      "Technician",
-    ];
-    const rows = (records ?? []).map((r: MaintenanceRecordFull) => {
-      const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
-      const woId = getWorkOrderId(r);
-      return [
-        vehicle?.name ?? "Unknown",
-        maintenanceTypeLabel[r.maintenanceType],
-        woId ? formatWONumber(woId) : "—",
-        formatDate(r.date),
-        r.description,
-        formatCurrency(r.cost),
-        r.technicianName,
-      ];
-    });
-    exportPDF("Maintenance History Report", headers, rows);
-  };
-
   return (
     <div className="p-6 space-y-5 animate-fade-in" data-ocid="maintenance.page">
       <div className="flex items-center justify-between">
@@ -172,14 +146,6 @@ export function MaintenancePage() {
             onClick={handleExportCSV}
           >
             <Download size={15} /> CSV
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            data-ocid="maintenance.toggle"
-            onClick={handleExportPDF}
-          >
-            <Download size={15} /> PDF
           </Button>
           <Button
             data-ocid="maintenance.primary_button"

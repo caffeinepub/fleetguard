@@ -86,6 +86,7 @@ export function VendorsPage() {
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
   const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
+  const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
   const { actor } = useActor();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -253,14 +254,16 @@ export function VendorsPage() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    data-ocid={`vendors.edit_button.${idx + 1}`}
-                    onClick={() => openEdit(v)}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-ocid={`vendors.edit_button.${idx + 1}`}
+                      onClick={() => openEdit(v)}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
