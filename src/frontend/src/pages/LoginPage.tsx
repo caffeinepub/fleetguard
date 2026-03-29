@@ -102,7 +102,7 @@ export function LoginPage({ onSignUp }: LoginPageProps) {
                   Connecting...
                 </>
               ) : (
-                "Sign in with Internet Identity"
+                "Sign in"
               )}
             </Button>
 
@@ -126,7 +126,7 @@ export function LoginPage({ onSignUp }: LoginPageProps) {
             </p>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Secured by the Internet Computer blockchain
+              Secured by Advanced Cryptography - 100% onchain
             </p>
           </div>
         </div>

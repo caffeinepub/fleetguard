@@ -49,6 +49,7 @@ import {
   useAllVehicles,
   useAllWorkOrders,
   useCallerFleetRole,
+  useGetCompanySettings,
   useIsAdmin,
 } from "../hooks/useQueries";
 import { nowNs } from "../lib/helpers";
@@ -117,6 +118,7 @@ export function WorkOrdersPage() {
   const { data: vehicles } = useAllVehicles();
   const { data: fleetRole } = useCallerFleetRole();
   const { data: isAdmin } = useIsAdmin();
+  const { data: companySettings } = useGetCompanySettings();
   const { actor } = useActor();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -158,15 +160,7 @@ export function WorkOrdersPage() {
 
   const openEdit = (wo: WorkOrder) => {
     setEditOrder(wo);
-    const scheduledDateRaw = wo.scheduledDate as unknown as
-      | bigint[]
-      | bigint
-      | undefined;
-    const scheduledDateVal = Array.isArray(scheduledDateRaw)
-      ? scheduledDateRaw.length > 0
-        ? scheduledDateRaw[0]
-        : undefined
-      : scheduledDateRaw;
+    const scheduledDateVal = wo.scheduledDate;
     setForm({
       title: wo.title,
       vehicleId: wo.vehicleId.toString(),
@@ -192,7 +186,7 @@ export function WorkOrdersPage() {
     if (!actor) return;
     setSaving(true);
     try {
-      const data = {
+      const data: WorkOrder = {
         id: editOrder?.id ?? 0n,
         title: form.title,
         vehicleId: BigInt(form.vehicleId),
@@ -200,17 +194,14 @@ export function WorkOrdersPage() {
         assignedMechanic: form.assignedMechanic,
         priority: form.priority as WorkOrderPriority,
         status: form.status as WorkOrderStatus,
+        // Pass undefined (not []) so the Candid converter uses candid_none()
         scheduledDate: form.scheduledDate
-          ? ([
-              BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n,
-            ] as unknown as bigint)
-          : ([] as unknown as bigint),
-        completedDate: editOrder
-          ? (editOrder.completedDate ?? ([] as unknown as bigint))
-          : ([] as unknown as bigint),
+          ? BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n
+          : undefined,
+        completedDate: editOrder ? editOrder.completedDate : undefined,
         notes: form.notes,
         createdAt: editOrder?.createdAt ?? nowNs(),
-      } as WorkOrder;
+      };
       if (editOrder) {
         await actor.updateWorkOrder(editOrder.id, data);
         toast.success("Work order updated");
@@ -259,14 +250,16 @@ export function WorkOrdersPage() {
   };
 
   const getScheduledDate = (wo: WorkOrder): bigint | undefined => {
-    const raw = wo.scheduledDate as unknown as bigint[] | bigint | undefined;
-    if (Array.isArray(raw)) return raw.length > 0 ? raw[0] : undefined;
-    return raw;
+    return wo.scheduledDate as bigint | undefined;
   };
 
-  const handlePrint = () => {
+  const handlePrintAll = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
+    const logoHtml = companySettings?.logoUrl
+      ? `<img src="${companySettings.logoUrl}" alt="Logo" style="height:50px;object-fit:contain;" />`
+      : "";
+    const companyName = companySettings?.companyName ?? "FleetGuard";
     const rows = filtered
       .map(
         (wo: WorkOrder) => `
@@ -274,22 +267,23 @@ export function WorkOrdersPage() {
         <td>${formatWONumber(wo.id)}</td>
         <td>${wo.title}</td>
         <td>${vehicleMap[wo.vehicleId.toString()] ?? "Unknown"}</td>
-        <td>${wo.assignedMechanic || "—"}</td>
+        <td>${wo.assignedMechanic || "\u2014"}</td>
         <td>${priorityConfig[wo.priority].label}</td>
         <td>${statusConfig[wo.status].label}</td>
-        <td>${getScheduledDate(wo) ? new Date(Number(getScheduledDate(wo)) / 1_000_000).toLocaleDateString() : "—"}</td>
-        <td>${wo.description || "—"}</td>
+        <td>${getScheduledDate(wo) ? new Date(Number(getScheduledDate(wo)) / 1_000_000).toLocaleDateString() : "\u2014"}</td>
+        <td>${wo.description || "\u2014"}</td>
       </tr>
     `,
       )
       .join("");
     printWindow.document.write(`
       <!DOCTYPE html><html><head>
-      <title>Work Orders - FleetGuard</title>
+      <title>Work Orders - ${companyName}</title>
       <style>
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
-        h1 { font-size: 18px; margin-bottom: 4px; }
-        .subtitle { color: #666; margin-bottom: 16px; font-size: 11px; }
+        .header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; border-bottom: 2px solid #1e3a5f; padding-bottom: 12px; }
+        .header-text h1 { font-size: 18px; margin: 0 0 2px; }
+        .header-text p { color: #666; font-size: 11px; margin: 0; }
         table { width: 100%; border-collapse: collapse; }
         th { background: #1e3a5f; color: white; padding: 8px; text-align: left; font-size: 11px; }
         td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
@@ -297,8 +291,13 @@ export function WorkOrdersPage() {
         @media print { body { padding: 0; } }
       </style>
       </head><body>
-      <h1>Work Orders Report</h1>
-      <div class="subtitle">FleetGuard &bull; Printed ${new Date().toLocaleDateString()} &bull; ${filtered.length} work order(s)</div>
+      <div class="header">
+        ${logoHtml}
+        <div class="header-text">
+          <h1>Work Orders Report</h1>
+          <p>${companyName} &bull; Printed ${new Date().toLocaleDateString()} &bull; ${filtered.length} work order(s)</p>
+        </div>
+      </div>
       <table>
         <thead><tr>
           <th>WO #</th><th>Title</th><th>Vehicle</th><th>Mechanic</th>
@@ -306,6 +305,96 @@ export function WorkOrdersPage() {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
+  const handlePrintSingle = (wo: WorkOrder) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const logoHtml = companySettings?.logoUrl
+      ? `<img src="${companySettings.logoUrl}" alt="Logo" style="height:60px;object-fit:contain;" />`
+      : "";
+    const companyName = companySettings?.companyName ?? "FleetGuard";
+    const vName = vehicleMap[wo.vehicleId.toString()] ?? "Unknown Vehicle";
+    const scheduledDate = getScheduledDate(wo);
+    printWindow.document.write(`
+      <!DOCTYPE html><html><head>
+      <title>${formatWONumber(wo.id)} - ${companyName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 13px; padding: 30px; max-width: 800px; margin: 0 auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #1e3a5f; padding-bottom: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .company-name { font-size: 20px; font-weight: bold; color: #1e3a5f; }
+        .wo-number { font-size: 22px; font-weight: bold; color: #1e3a5f; text-align: right; }
+        .wo-number span { display: block; font-size: 11px; font-weight: normal; color: #666; }
+        .section { margin-bottom: 20px; }
+        .section-title { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; letter-spacing: 0.05em; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .field label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px; }
+        .field span { font-size: 13px; font-weight: 500; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-open { background: #dbeafe; color: #1d4ed8; }
+        .badge-inprogress { background: #fef3c7; color: #92400e; }
+        .badge-completed { background: #d1fae5; color: #065f46; }
+        .badge-cancelled { background: #f3f4f6; color: #6b7280; }
+        .badge-low { background: #f3f4f6; color: #6b7280; }
+        .badge-medium { background: #dbeafe; color: #1d4ed8; }
+        .badge-high { background: #ffedd5; color: #9a3412; }
+        .badge-critical { background: #fee2e2; color: #991b1b; }
+        .notes-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; min-height: 60px; font-size: 13px; white-space: pre-wrap; }
+        .footer { margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 10px; font-size: 10px; color: #999; text-align: center; }
+        @media print { body { padding: 20px; } }
+      </style>
+      </head><body>
+      <div class="header">
+        <div class="header-left">
+          ${logoHtml}
+          <div class="company-name">${companyName}</div>
+        </div>
+        <div class="wo-number">${formatWONumber(wo.id)}<span>WORK ORDER</span></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Work Order Details</div>
+        <div class="grid">
+          <div class="field"><label>Title</label><span>${wo.title}</span></div>
+          <div class="field"><label>Vehicle</label><span>${vName}</span></div>
+          <div class="field"><label>Assigned Mechanic</label><span>${wo.assignedMechanic || "\u2014"}</span></div>
+          <div class="field"><label>Scheduled Date</label><span>${scheduledDate ? new Date(Number(scheduledDate) / 1_000_000).toLocaleDateString() : "\u2014"}</span></div>
+          <div class="field"><label>Priority</label><span class="badge badge-${wo.priority.toLowerCase()}">${priorityConfig[wo.priority].label}</span></div>
+          <div class="field"><label>Status</label><span class="badge badge-${wo.status.toLowerCase()}">${statusConfig[wo.status].label}</span></div>
+          <div class="field"><label>Created</label><span>${new Date(Number(wo.createdAt) / 1_000_000).toLocaleDateString()}</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Description</div>
+        <div class="notes-box">${wo.description || "No description provided."}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Notes</div>
+        <div class="notes-box">${wo.notes || "No additional notes."}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Sign-Off</div>
+        <div class="grid">
+          <div class="field"><label>Mechanic Signature</label><div style="height:40px;border-bottom:1px solid #999;"></div></div>
+          <div class="field"><label>Supervisor Signature</label><div style="height:40px;border-bottom:1px solid #999;"></div></div>
+          <div class="field"><label>Date Completed</label><div style="height:40px;border-bottom:1px solid #999;"></div></div>
+          <div class="field"><label>Authorized By</label><div style="height:40px;border-bottom:1px solid #999;"></div></div>
+        </div>
+      </div>
+
+      <div class="footer">Printed ${new Date().toLocaleString()} &bull; ${companyName} &bull; Powered by FleetGuard</div>
       </body></html>
     `);
     printWindow.document.close();
@@ -341,10 +430,10 @@ export function WorkOrdersPage() {
           <Button
             variant="outline"
             data-ocid="workorders.secondary_button"
-            onClick={handlePrint}
+            onClick={handlePrintAll}
             className="gap-2"
           >
-            <Printer size={16} /> Print
+            <Printer size={16} /> Print All
           </Button>
           {canCreate && (
             <Button
@@ -471,6 +560,15 @@ export function WorkOrdersPage() {
                       Complete
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    data-ocid={`workorders.print_button.${idx + 1}`}
+                    onClick={() => handlePrintSingle(wo)}
+                    title="Print this work order"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
