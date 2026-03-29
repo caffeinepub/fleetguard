@@ -43,6 +43,10 @@ export interface InviteToken {
   'role' : FleetRole,
   'email' : string,
 }
+export interface PartQuantity {
+  'partId' : bigint,
+  'quantity' : bigint,
+}
 export interface MaintenanceRecordFull {
   'id' : bigint,
   'mileage' : bigint,
@@ -52,6 +56,9 @@ export interface MaintenanceRecordFull {
   'date' : Time,
   'createdAt' : Time,
   'partsUsed' : Array<bigint>,
+  'partQuantities' : Array<PartQuantity>,
+  'laborHours' : [] | [number],
+  'laborCost' : [] | [number],
   'description' : string,
   'workOrderId' : [] | [bigint],
   'maintenanceType' : MaintenanceType,

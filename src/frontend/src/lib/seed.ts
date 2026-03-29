@@ -71,6 +71,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "James Carter",
     nextServiceDate: daysFromNowNs(30),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -84,6 +85,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "Maria Lopez",
     nextServiceDate: daysFromNowNs(180),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -97,6 +99,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "James Carter",
     nextServiceDate: daysFromNowNs(90),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -110,6 +113,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "Robert Kim",
     nextServiceDate: daysFromNowNs(5),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -123,6 +127,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "Robert Kim",
     nextServiceDate: daysFromNowNs(15),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -135,6 +140,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 31500n,
     technicianName: "Sarah Patel",
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -148,6 +154,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     technicianName: "Sarah Patel",
     nextServiceDate: daysFromNowNs(60),
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
   await actor.createMaintenanceRecord({
@@ -160,6 +167,7 @@ export async function seedData(actor: backendInterface): Promise<void> {
     mileage: 0n,
     technicianName: "Carlos Ruiz",
     partsUsed: [],
+    partQuantities: [],
     createdAt: now,
   });
 }

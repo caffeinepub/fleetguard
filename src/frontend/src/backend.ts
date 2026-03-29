@@ -89,6 +89,10 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface PartQuantity {
+    partId: bigint;
+    quantity: bigint;
+}
 export interface MaintenanceRecordFull {
     id: bigint;
     mileage: bigint;
@@ -98,6 +102,9 @@ export interface MaintenanceRecordFull {
     date: Time;
     createdAt: Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<PartQuantity>;
+    laborHours?: number;
+    laborCost?: number;
     description: string;
     workOrderId?: bigint;
     maintenanceType: MaintenanceType;
@@ -1434,6 +1441,9 @@ function from_candid_record_n35(_uploadFile: (file: ExternalBlob) => Promise<Uin
     date: _Time;
     createdAt: _Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<{ partId: bigint, quantity: bigint }>;
+    laborHours: [] | [number];
+    laborCost: [] | [number];
     description: string;
     workOrderId: [] | [bigint];
     maintenanceType: _MaintenanceType;
@@ -1447,6 +1457,9 @@ function from_candid_record_n35(_uploadFile: (file: ExternalBlob) => Promise<Uin
     date: Time;
     createdAt: Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<PartQuantity>;
+    laborHours?: number;
+    laborCost?: number;
     description: string;
     workOrderId?: bigint;
     maintenanceType: MaintenanceType;
@@ -1461,6 +1474,9 @@ function from_candid_record_n35(_uploadFile: (file: ExternalBlob) => Promise<Uin
         date: value.date,
         createdAt: value.createdAt,
         partsUsed: value.partsUsed,
+        partQuantities: (value.partQuantities ?? []).map(pq => ({ partId: pq.partId, quantity: pq.quantity })),
+        laborHours: record_opt_to_undefined(value.laborHours),
+        laborCost: record_opt_to_undefined(value.laborCost),
         description: value.description,
         workOrderId: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.workOrderId)),
         maintenanceType: from_candid_MaintenanceType_n37(_uploadFile, _downloadFile, value.maintenanceType),
@@ -1848,6 +1864,9 @@ function to_candid_record_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     date: Time;
     createdAt: Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<PartQuantity>;
+    laborHours?: number;
+    laborCost?: number;
     description: string;
     workOrderId?: bigint;
     maintenanceType: MaintenanceType;
@@ -1861,6 +1880,9 @@ function to_candid_record_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     date: _Time;
     createdAt: _Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<{ partId: bigint, quantity: bigint }>;
+    laborHours: [] | [number];
+    laborCost: [] | [number];
     description: string;
     workOrderId: [] | [bigint];
     maintenanceType: _MaintenanceType;
@@ -1875,6 +1897,9 @@ function to_candid_record_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         date: value.date,
         createdAt: value.createdAt,
         partsUsed: value.partsUsed,
+        partQuantities: (value.partQuantities ?? []).map(pq => ({ partId: pq.partId, quantity: pq.quantity })),
+        laborHours: value.laborHours != null ? [value.laborHours] : [],
+        laborCost: value.laborCost != null ? [value.laborCost] : [],
         description: value.description,
         workOrderId: value.workOrderId ? candid_some(value.workOrderId) : candid_none(),
         maintenanceType: to_candid_MaintenanceType_n21(_uploadFile, _downloadFile, value.maintenanceType),
