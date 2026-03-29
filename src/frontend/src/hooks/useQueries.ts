@@ -546,3 +546,32 @@ export function useAllWarranties() {
     enabled: !!actor && !isFetching,
   });
 }
+
+// Chat
+export function useChatMessages() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["chatMessages"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getChatMessages();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 5000,
+  });
+}
+
+export function useSendChatMessage() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      senderName,
+      message,
+    }: { senderName: string; message: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.sendChatMessage(senderName, message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chatMessages"] }),
+  });
+}

@@ -19,6 +19,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Download,
@@ -32,8 +39,10 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import type { PartFull as Part } from "../backend";
+import { FleetRole } from "../backend";
 import {
   useAllParts,
+  useCallerFleetRole,
   useCreatePart,
   useDeletePart,
   useIsAdmin,
@@ -61,23 +70,45 @@ function getPartPrice(p: { price?: number | null | number[] | [] }): number {
 export function PartsPage() {
   const { data: parts, isLoading } = useAllParts();
   const { data: isAdmin } = useIsAdmin();
+  const { data: fleetRole } = useCallerFleetRole();
+  const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
   const createPart = useCreatePart();
   const updatePart = useUpdatePart();
   const deletePart = useDeletePart();
   const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("name-asc");
   const [modalOpen, setModalOpen] = useState(false);
   const [editPart, setEditPart] = useState<Part | null>(null);
   const [form, setForm] = useState(defaultForm);
 
-  const filtered =
+  const filtered = (
     parts?.filter((p: Part) => {
       const q = search.toLowerCase();
-      return (
+      const matchSearch =
         p.name.toLowerCase().includes(q) ||
         p.partNumber.toLowerCase().includes(q) ||
-        p.location.toLowerCase().includes(q)
-      );
-    }) ?? [];
+        p.location.toLowerCase().includes(q);
+      const qty = Number(p.quantityInStock);
+      const min = Number(p.minStockLevel);
+      const matchStock =
+        stockFilter === "all" ||
+        (stockFilter === "in-stock" && qty > min) ||
+        (stockFilter === "low-stock" && qty <= min && qty > 0) ||
+        (stockFilter === "out-of-stock" && qty === 0);
+      return matchSearch && matchStock;
+    }) ?? []
+  ).sort((a, b) => {
+    if (sortOrder === "name-asc") return a.name.localeCompare(b.name);
+    if (sortOrder === "name-desc") return b.name.localeCompare(a.name);
+    if (sortOrder === "price-desc") return getPartPrice(b) - getPartPrice(a);
+    if (sortOrder === "price-asc") return getPartPrice(a) - getPartPrice(b);
+    if (sortOrder === "stock-desc")
+      return Number(b.quantityInStock - a.quantityInStock);
+    if (sortOrder === "stock-asc")
+      return Number(a.quantityInStock - b.quantityInStock);
+    return 0;
+  });
 
   const totalInventoryValue = (parts ?? []).reduce((sum: number, p: Part) => {
     return sum + getPartPrice(p) * Number(p.quantityInStock);
@@ -236,26 +267,57 @@ export function PartsPage() {
           >
             <Download size={15} /> PDF
           </Button>
-          <Button
-            data-ocid="parts.primary_button"
-            onClick={openAdd}
-            className="gap-2"
-          >
-            <Plus size={16} /> Add Part
-          </Button>
+          {canCreate && (
+            <Button
+              data-ocid="parts.primary_button"
+              onClick={openAdd}
+              className="gap-2"
+            >
+              <Plus size={16} /> Add Part
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          data-ocid="parts.search_input"
-          className="pl-9"
-          placeholder="Search parts..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            data-ocid="parts.search_input"
+            className="pl-9"
+            placeholder="Search parts..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={stockFilter} onValueChange={setStockFilter}>
+          <SelectTrigger className="w-40" data-ocid="parts.stock.select">
+            <SelectValue placeholder="Stock Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Stock</SelectItem>
+            <SelectItem value="in-stock">In Stock</SelectItem>
+            <SelectItem value="low-stock">Low Stock</SelectItem>
+            <SelectItem value="out-of-stock">Out of Stock</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortOrder} onValueChange={setSortOrder}>
+          <SelectTrigger className="w-44" data-ocid="parts.sort.select">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-asc">Name A-Z</SelectItem>
+            <SelectItem value="name-desc">Name Z-A</SelectItem>
+            <SelectItem value="price-desc">Price: High to Low</SelectItem>
+            <SelectItem value="price-asc">Price: Low to High</SelectItem>
+            <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
+            <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground self-center whitespace-nowrap">
+          {filtered.length} part{filtered.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {/* Table */}

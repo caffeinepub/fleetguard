@@ -10,6 +10,13 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface ChatMessage {
+  'id' : bigint,
+  'createdAt' : Time,
+  'senderPrincipal' : string,
+  'message' : string,
+  'senderName' : string,
+}
 export interface CompanySettings {
   'adminPrincipal' : string,
   'createdAt' : Time,
@@ -45,8 +52,8 @@ export interface MaintenanceRecordFull {
   'date' : Time,
   'createdAt' : Time,
   'partsUsed' : Array<bigint>,
-  'workOrderId' : [] | [bigint],
   'description' : string,
+  'workOrderId' : [] | [bigint],
   'maintenanceType' : MaintenanceType,
   'vehicleId' : bigint,
 }
@@ -71,14 +78,14 @@ export interface PartFull {
 }
 export interface ServiceSchedule {
   'id' : bigint,
-  'vehicleId' : bigint,
-  'serviceType' : string,
-  'intervalDays' : bigint,
-  'nextDueDate' : Time,
-  'lastCompletedDate' : [] | [Time],
-  'notes' : string,
   'status' : string,
+  'serviceType' : string,
+  'lastCompletedDate' : [] | [Time],
+  'nextDueDate' : Time,
   'createdAt' : Time,
+  'intervalDays' : bigint,
+  'notes' : string,
+  'vehicleId' : bigint,
 }
 export type Status = { 'Inactive' : null } |
   { 'Active' : null };
@@ -168,9 +175,18 @@ export interface _CaffeineStorageRefillResult {
 export interface _SERVICE {
   '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
   '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
-  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<[Array<Uint8Array>], undefined>,
-  '_caffeineStorageCreateCertificate' : ActorMethod<[string], _CaffeineStorageCreateCertificateResult>,
-  '_caffeineStorageRefillCashier' : ActorMethod<[[] | [_CaffeineStorageRefillInformation]], _CaffeineStorageRefillResult>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
@@ -202,13 +218,17 @@ export interface _SERVICE {
   'getCallerFleetRole' : ActorMethod<[], [] | [FleetRole]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getChatMessages' : ActorMethod<[], Array<ChatMessage>>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
   'getLowStockParts' : ActorMethod<[], Array<PartFull>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
-  'getMaintenanceRecordsByVehicle' : ActorMethod<[bigint], Array<MaintenanceRecordFull>>,
+  'getMaintenanceRecordsByVehicle' : ActorMethod<
+    [bigint],
+    Array<MaintenanceRecordFull>
+  >,
   'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getPart' : ActorMethod<[bigint], PartFull>,
   'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
@@ -227,11 +247,18 @@ export interface _SERVICE {
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
+  'sendChatMessage' : ActorMethod<[string, string], bigint>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
-  'updateMaintenanceRecord' : ActorMethod<[bigint, MaintenanceRecordFull], undefined>,
+  'updateMaintenanceRecord' : ActorMethod<
+    [bigint, MaintenanceRecordFull],
+    undefined
+  >,
   'updatePart' : ActorMethod<[bigint, PartFull], undefined>,
   'updateServiceSchedule' : ActorMethod<[bigint, ServiceSchedule], undefined>,
-  'updateSubscriptionStatus' : ActorMethod<[string, string, [] | [Time]], undefined>,
+  'updateSubscriptionStatus' : ActorMethod<
+    [string, string, [] | [Time]],
+    undefined
+  >,
   'updateVehicle' : ActorMethod<[bigint, Vehicle], undefined>,
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,

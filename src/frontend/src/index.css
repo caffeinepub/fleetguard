@@ -82,3 +82,15 @@
   background: oklch(0.75 0.01 250);
   border-radius: 3px;
 }
+
+/* Print styles for asset record */
+@media print {
+  aside,
+  nav.sidebar,
+  [data-ocid="nav.section"] {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+}

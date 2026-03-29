@@ -1,33 +1,36 @@
 # FleetGuard
 
 ## Current State
-- Work orders exist with auto-assigned `id` but no formatted number is displayed
-- Maintenance history has no reference to which work order created the record
-- Service schedules have a save bug (root cause: type issues with optional fields)
-- No print option for work orders
+FleetGuard is a full-stack fleet maintenance app with vehicles, maintenance records, work orders, service schedules, parts inventory, vendors, warranties, reports, and a developer portal. Role-based access (Admin, Fleet Manager, Mechanic). Backend in Motoko, frontend in React/TypeScript.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `workOrderId: ?Nat` field to `MaintenanceRecordFull` (via a new `workOrderLinkStore` map, not touching the stored internal type)
-- `workOrderLinkStore: Map<Nat, Nat>` in backend to map maintenanceRecordId -> workOrderId
-- Work order number column in Maintenance History table showing `WO-XXXX` badge when record came from a work order
-- Print button on Work Orders page that opens a print-friendly view
+- Filters & sorting on Equipment list, Maintenance History, Work Orders, Parts Inventory (search, type/status filters, sort by multiple columns)
+- Print/export single asset's full maintenance record (print dialog, print-friendly layout)
+- Dashboard widget: Top Reasons for Repair (bar chart of maintenance types from all records)
+- Dashboard widget: Monthly Repair Cost chart (bar chart of repair costs grouped by month)
+- Service Schedule scope selector: apply to All Assets, By Category (Truck/Trailer/etc.), or Individual vehicles — frontend creates one schedule per matching vehicle
+- Corporate Group Chat page: all authenticated users can send/view messages in a company-wide group chat
+- Backend: ChatMessage type with CRUD (sendChatMessage, getChatMessages)
 
 ### Modify
-- `completeWorkOrder` backend function: store the link in `workOrderLinkStore` after creating the maintenance record
-- `toFull` backend function: look up `workOrderLinkStore` to populate `workOrderId`
-- `WorkOrdersPage`: display `WO-XXXX` formatted number on each work order card
-- `MaintenancePage`: add "Work Order #" column showing `WO-XXXX` badge when applicable
-- Service schedule save: fix optional field handling — ensure `lastCompletedDate` and any optional bigint fields use `[] | [bigint]` Candid format, not `undefined`. Also fix work order `scheduledDate` and `completedDate` to use `[]` instead of `undefined`
-- `backend.did.d.ts` and `backend.d.ts`: add `workOrderId: [] | [bigint]` to `MaintenanceRecordFull`
+- Fix company settings save bug: ensure buildSavePayload produces a correctly typed CompanySettings object; add console.error logging on failure
+- Fleet Manager permissions: ensure isAdmin OR isFleetManager check gates WO creation, Service Schedules, Vendors, Parts, Vehicles add-buttons (not just Admin)
+- Add GroupChat to sidebar navigation and App.tsx routing
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Update `main.mo`: add `workOrderLinkStore`, update `toFull`, update `completeWorkOrder`
-2. Update `backend.did.d.ts` and `backend.d.ts`: add `workOrderId` to `MaintenanceRecordFull`
-3. Update `WorkOrdersPage.tsx`: show `WO-XXXX` number, add print functionality
-4. Update `MaintenancePage.tsx`: add Work Order # column
-5. Fix `ServiceSchedulesPage.tsx`: ensure all optional fields use Candid `[] | [bigint]` format
+1. Add ChatMessage Motoko type + sendChatMessage/getChatMessages backend functions
+2. Update backend.d.ts with chat interface methods
+3. Add useQueries hooks for chat: useChatMessages, useSendChatMessage
+4. Fix SettingsPage buildSavePayload type safety and error logging
+5. Add filter/sort bars to VehiclesPage, MaintenancePage, WorkOrdersPage, PartsPage (local state filtering, no backend changes)
+6. Add Print Asset Record button to VehicleDetailPage (window.print() with print-friendly CSS)
+7. Add Top Repair Reasons widget and Monthly Repair Cost chart to DashboardPage using recharts
+8. Update ServiceSchedulesPage create modal to include scope selector; on submit, iterate matching vehicles and create one schedule each
+9. Ensure Fleet Manager role (isAdmin || fleetRole === FleetManager) can see add-buttons on all pages
+10. Create GroupChatPage.tsx with message list, auto-scroll, send input
+11. Add 'group-chat' page to App.tsx and Layout.tsx sidebar

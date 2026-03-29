@@ -34,6 +34,7 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { FleetRole } from "../backend";
+import type { CompanySettings } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
@@ -147,7 +148,9 @@ export function SettingsPage() {
     }
   };
 
-  const buildSavePayload = (overrides: Record<string, unknown> = {}) => ({
+  const buildSavePayload = (
+    overrides: Partial<CompanySettings> = {},
+  ): CompanySettings => ({
     companyName: currentName,
     industry: companySettings?.industry ?? "",
     fleetSize: companySettings?.fleetSize ?? "",
@@ -165,7 +168,8 @@ export function SettingsPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("Principal ID copied to clipboard");
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to copy");
     }
   };
@@ -190,7 +194,8 @@ export function SettingsPage() {
       try {
         await saveSettings.mutateAsync(buildSavePayload({ logoUrl: base64 }));
         toast.success("Logo uploaded successfully");
-      } catch {
+      } catch (err) {
+        console.error(err);
         toast.error("Failed to save logo");
         setLogoPreview(null);
       } finally {
@@ -213,7 +218,8 @@ export function SettingsPage() {
         buildSavePayload({ companyName: companyName.trim() }),
       );
       toast.success("Company name saved");
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to save company name");
     }
   };
@@ -222,7 +228,8 @@ export function SettingsPage() {
     try {
       await saveCurrency.mutateAsync(val);
       toast.success(`Currency set to ${val}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to save currency");
     }
   };
@@ -252,7 +259,8 @@ export function SettingsPage() {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
       toast.success("Link copied to clipboard");
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to copy link");
     }
   };

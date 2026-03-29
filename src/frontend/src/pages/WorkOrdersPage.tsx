@@ -123,6 +123,8 @@ export function WorkOrdersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("date-desc");
   const [modalOpen, setModalOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<WorkOrder | null>(null);
   const [form, setForm] = useState(defaultForm);
@@ -138,17 +140,39 @@ export function WorkOrdersPage() {
     (vehicles ?? []).map((v: Vehicle) => [v.id.toString(), v.name]),
   );
 
-  const filtered = (workOrders ?? []).filter((wo: WorkOrder) => {
-    const vName = vehicleMap[wo.vehicleId.toString()] ?? "";
-    const q = search.toLowerCase();
-    const matchSearch =
-      wo.title.toLowerCase().includes(q) ||
-      wo.assignedMechanic.toLowerCase().includes(q) ||
-      vName.toLowerCase().includes(q) ||
-      formatWONumber(wo.id).toLowerCase().includes(q);
-    const matchStatus = statusFilter === "all" || wo.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const priorityOrder: Record<string, number> = {
+    Critical: 4,
+    High: 3,
+    Medium: 2,
+    Low: 1,
+  };
+  const filtered = (workOrders ?? [])
+    .filter((wo: WorkOrder) => {
+      const vName = vehicleMap[wo.vehicleId.toString()] ?? "";
+      const q = search.toLowerCase();
+      const matchSearch =
+        wo.title.toLowerCase().includes(q) ||
+        wo.assignedMechanic.toLowerCase().includes(q) ||
+        vName.toLowerCase().includes(q) ||
+        formatWONumber(wo.id).toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || wo.status === statusFilter;
+      const matchPriority =
+        priorityFilter === "all" || wo.priority === priorityFilter;
+      return matchSearch && matchStatus && matchPriority;
+    })
+    .sort((a, b) => {
+      if (sortOrder === "date-desc") return Number(b.createdAt - a.createdAt);
+      if (sortOrder === "date-asc") return Number(a.createdAt - b.createdAt);
+      if (sortOrder === "priority-desc")
+        return (
+          (priorityOrder[b.priority] ?? 0) - (priorityOrder[a.priority] ?? 0)
+        );
+      if (sortOrder === "priority-asc")
+        return (
+          (priorityOrder[a.priority] ?? 0) - (priorityOrder[b.priority] ?? 0)
+        );
+      return 0;
+    });
 
   const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -472,6 +496,36 @@ export function WorkOrdersPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger
+            className="w-40"
+            data-ocid="workorders.priority.select"
+          >
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Priorities</SelectItem>
+            {Object.values(WorkOrderPriority).map((p) => (
+              <SelectItem key={p} value={p}>
+                {priorityConfig[p].label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={sortOrder} onValueChange={setSortOrder}>
+          <SelectTrigger className="w-44" data-ocid="workorders.sort.select">
+            <SelectValue placeholder="Sort" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date-desc">Date: Newest First</SelectItem>
+            <SelectItem value="date-asc">Date: Oldest First</SelectItem>
+            <SelectItem value="priority-desc">Priority: Highest</SelectItem>
+            <SelectItem value="priority-asc">Priority: Lowest</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground self-center whitespace-nowrap">
+          {filtered.length} order{filtered.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {/* Content */}

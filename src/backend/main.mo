@@ -9,12 +9,11 @@ import Array "mo:core/Array";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
+import Migration "migration";
 
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
-
-
 
 actor {
   let accessControlState = AccessControl.initState();
@@ -1031,5 +1030,42 @@ actor {
         serviceSchedules.add(id, updated);
       };
     };
+  };
+
+  // Struct for Chat messages
+  public type ChatMessage = {
+    id : Nat;
+    senderPrincipal : Text;
+    senderName : Text;
+    message : Text;
+    createdAt : Time.Time;
+  };
+
+  var nextChatId = 1;
+  var chatMessages = List.empty<ChatMessage>();
+
+  public shared ({ caller }) func sendChatMessage(senderName : Text, message : Text) : async Nat {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    let chatMessage : ChatMessage = {
+      id = nextChatId;
+      senderPrincipal = caller.toText();
+      senderName;
+      message;
+      createdAt = Time.now();
+    };
+    chatMessages.add(chatMessage);
+    nextChatId += 1;
+    chatMessage.id;
+  };
+
+  public query ({ caller }) func getChatMessages() : async [ChatMessage] {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    chatMessages.toArray().sort(func(a : ChatMessage, b : ChatMessage) : Order.Order {
+      Int.compare(a.createdAt, b.createdAt)
+    });
   };
 };

@@ -9,6 +9,7 @@ import {
   History,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Package,
   Settings,
   Shield,
@@ -52,6 +53,7 @@ const topNavItemsAfter = [
   { id: "vendors" as Page, label: "Vendors", icon: Store },
   { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
   { id: "reports" as Page, label: "Reports", icon: FileBarChart },
+  { id: "group-chat" as Page, label: "Team Chat", icon: MessageSquare },
 ];
 
 const maintenanceSubItems = [

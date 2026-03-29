@@ -8,6 +8,7 @@ import {
   Hash,
   Pencil,
   Plus,
+  Printer,
   Truck,
   User,
 } from "lucide-react";
@@ -104,6 +105,15 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
                 />
                 {vehicle.status}
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => window.print()}
+                data-ocid="vehicle_detail.secondary_button"
+              >
+                <Printer size={14} /> Print Record
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

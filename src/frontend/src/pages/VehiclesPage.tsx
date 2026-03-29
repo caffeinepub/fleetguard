@@ -35,10 +35,12 @@ import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Vehicle } from "../backend";
 import { Status, VehicleType } from "../backend";
+import { FleetRole } from "../backend";
 import { VehicleModal } from "../components/VehicleModal";
 import {
   useAllVehicles,
   useBulkCreateVehicles,
+  useCallerFleetRole,
   useDeleteVehicle,
   useIsAdmin,
 } from "../hooks/useQueries";
@@ -80,16 +82,19 @@ function mapVehicleType(raw: string): VehicleType {
 export function VehiclesPage({ onNavigate }: Props) {
   const { data: vehicles, isLoading } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
+  const { data: fleetRole } = useCallerFleetRole();
+  const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
   const deleteVehicle = useDeleteVehicle();
   const bulkCreate = useBulkCreateVehicles();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("name-asc");
   const [modalOpen, setModalOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  const filtered =
+  const filtered = (
     vehicles?.filter((v: Vehicle) => {
       const matchSearch =
         v.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -98,7 +103,14 @@ export function VehiclesPage({ onNavigate }: Props) {
       const matchType = typeFilter === "all" || v.vehicleType === typeFilter;
       const matchStatus = statusFilter === "all" || v.status === statusFilter;
       return matchSearch && matchType && matchStatus;
-    }) ?? [];
+    }) ?? []
+  ).sort((a, b) => {
+    if (sortOrder === "name-asc") return a.name.localeCompare(b.name);
+    if (sortOrder === "name-desc") return b.name.localeCompare(a.name);
+    if (sortOrder === "year-desc") return Number(b.year - a.year);
+    if (sortOrder === "year-asc") return Number(a.year - b.year);
+    return 0;
+  });
 
   const handleDelete = async (id: bigint) => {
     try {
@@ -263,7 +275,7 @@ export function VehiclesPage({ onNavigate }: Props) {
           >
             <Download size={15} /> PDF
           </Button>
-          {isAdmin && (
+          {canCreate && (
             <>
               <input
                 ref={csvInputRef}
@@ -284,13 +296,15 @@ export function VehiclesPage({ onNavigate }: Props) {
               </Button>
             </>
           )}
-          <Button
-            data-ocid="vehicles.primary_button"
-            onClick={openAdd}
-            className="gap-2"
-          >
-            <Plus size={16} /> Add Vehicle
-          </Button>
+          {canCreate && (
+            <Button
+              data-ocid="vehicles.primary_button"
+              onClick={openAdd}
+              className="gap-2"
+            >
+              <Plus size={16} /> Add Vehicle
+            </Button>
+          )}
         </div>
       </div>
 
@@ -329,6 +343,20 @@ export function VehiclesPage({ onNavigate }: Props) {
             <SelectItem value={Status.Inactive}>Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={sortOrder} onValueChange={setSortOrder}>
+          <SelectTrigger data-ocid="vehicles.sort.select" className="w-40">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-asc">Name A-Z</SelectItem>
+            <SelectItem value="name-desc">Name Z-A</SelectItem>
+            <SelectItem value="year-desc">Year (Newest)</SelectItem>
+            <SelectItem value="year-asc">Year (Oldest)</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground self-center">
+          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {/* Table */}
@@ -348,9 +376,11 @@ export function VehiclesPage({ onNavigate }: Props) {
             <p className="text-muted-foreground/60 text-sm mt-1">
               Try adjusting your filters or add a new vehicle
             </p>
-            <Button className="mt-4 gap-2" onClick={openAdd}>
-              <Plus size={16} /> Add Vehicle
-            </Button>
+            {canCreate && (
+              <Button className="mt-4 gap-2" onClick={openAdd}>
+                <Plus size={16} /> Add Vehicle
+              </Button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

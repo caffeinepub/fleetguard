@@ -13,6 +13,15 @@ import {
   Truck,
 } from "lucide-react";
 import { useEffect, useMemo } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Vehicle } from "../backend";
@@ -150,6 +159,44 @@ export function DashboardPage({ onNavigate }: Props) {
       .slice(0, 5) ?? [];
 
   const lowStockCount = Number(stats?.lowStockPartsCount ?? 0n);
+
+  // Top repair reasons
+  const repairReasonData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of allRecords ?? []) {
+      const label =
+        maintenanceTypeLabel[r.maintenanceType] ?? r.maintenanceType;
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, count]) => ({ name, count }));
+  }, [allRecords]);
+
+  // Monthly repair cost (last 6 months)
+  const monthlyRepairData = useMemo(() => {
+    const now = new Date();
+    const months: { label: string; year: number; month: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        label: d.toLocaleString("default", { month: "short" }),
+        year: d.getFullYear(),
+        month: d.getMonth(),
+      });
+    }
+    return months.map(({ label, year, month }) => {
+      const total = (allRecords ?? []).reduce((sum, r) => {
+        const d = new Date(Number(r.date) / 1_000_000);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          return sum + r.cost;
+        }
+        return sum;
+      }, 0);
+      return { name: label, cost: Math.round(total) };
+    });
+  }, [allRecords]);
 
   const kpis = [
     {
@@ -582,6 +629,129 @@ export function DashboardPage({ onNavigate }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Analytics Row: Top Repair Reasons + Monthly Repair Cost */}
+      {(allRecords ?? []).length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Repair Reasons */}
+          <Card
+            className="shadow-card border-0"
+            data-ocid="dashboard.repair_reasons.card"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">
+                Top Repair Reasons
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {repairReasonData.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No data yet</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={repairReasonData}
+                    layout="vertical"
+                    margin={{ left: 10, right: 20, top: 4, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                      stroke="hsl(var(--border))"
+                    />
+                    <XAxis
+                      type="number"
+                      tick={{
+                        fontSize: 11,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={110}
+                      tick={{
+                        fontSize: 11,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill="hsl(var(--primary))"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Monthly Repair Cost */}
+          <Card
+            className="shadow-card border-0"
+            data-ocid="dashboard.monthly_cost.card"
+          >
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">
+                Monthly Repair Cost
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={monthlyRepairData}
+                  margin={{ left: 0, right: 10, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="hsl(var(--border))"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{
+                      fontSize: 12,
+                      fill: "hsl(var(--muted-foreground))",
+                    }}
+                  />
+                  <YAxis
+                    tick={{
+                      fontSize: 11,
+                      fill: "hsl(var(--muted-foreground))",
+                    }}
+                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [
+                      `$${value.toLocaleString()}`,
+                      "Cost",
+                    ]}
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="cost"
+                    fill="hsl(var(--success))"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

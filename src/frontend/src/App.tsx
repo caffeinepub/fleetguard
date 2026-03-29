@@ -13,6 +13,7 @@ import {
 import { seedData, seedParts } from "./lib/seed";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DevPortalPage } from "./pages/DevPortalPage";
+import { GroupChatPage } from "./pages/GroupChatPage";
 import { InviteAcceptPage } from "./pages/InviteAcceptPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
@@ -39,6 +40,7 @@ export type Page =
   | "vendors"
   | "warranties"
   | "reports"
+  | "group-chat"
   | "settings"
   | "invite-accept"
   | "dev-portal";
@@ -188,6 +190,8 @@ function AppContent() {
         return <WarrantiesPage />;
       case "reports":
         return <ReportsPage />;
+      case "group-chat":
+        return <GroupChatPage />;
       case "settings":
         return <SettingsPage />;
       case "vehicle-detail": {

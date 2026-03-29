@@ -32,28 +32,35 @@ export function MaintenancePage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<MaintenanceRecordFull | null>(
     null,
   );
 
-  const filtered =
-    records
-      ?.filter((r: MaintenanceRecordFull) => {
-        const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
-        const matchSearch =
-          r.description.toLowerCase().includes(search.toLowerCase()) ||
-          r.technicianName.toLowerCase().includes(search.toLowerCase()) ||
-          (vehicle?.name ?? "").toLowerCase().includes(search.toLowerCase());
-        const matchType =
-          typeFilter === "all" || r.maintenanceType === typeFilter;
-        return matchSearch && matchType;
-      })
-      .sort((a, b) =>
-        sortOrder === "desc"
-          ? Number(b.date - a.date)
-          : Number(a.date - b.date),
-      ) ?? [];
+  const filtered = (
+    records?.filter((r: MaintenanceRecordFull) => {
+      const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
+      const matchSearch =
+        r.description.toLowerCase().includes(search.toLowerCase()) ||
+        r.technicianName.toLowerCase().includes(search.toLowerCase()) ||
+        (vehicle?.name ?? "").toLowerCase().includes(search.toLowerCase());
+      const matchType =
+        typeFilter === "all" || r.maintenanceType === typeFilter;
+      const recordMs = Number(r.date) / 1_000_000;
+      const matchFrom = !dateFrom || recordMs >= new Date(dateFrom).getTime();
+      const matchTo =
+        !dateTo || recordMs <= new Date(dateTo).getTime() + 86400000;
+      return matchSearch && matchType && matchFrom && matchTo;
+    }) ?? []
+  ).sort((a, b) => {
+    if (sortOrder === "desc") return Number(b.date - a.date);
+    if (sortOrder === "asc") return Number(a.date - b.date);
+    if (sortOrder === "cost-desc") return b.cost - a.cost;
+    if (sortOrder === "cost-asc") return a.cost - b.cost;
+    return 0;
+  });
 
   const totalRepairCost = (records ?? []).reduce(
     (sum: number, r: MaintenanceRecordFull) => sum + Number(r.cost),
@@ -204,10 +211,31 @@ export function MaintenancePage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="desc">Newest First</SelectItem>
-            <SelectItem value="asc">Oldest First</SelectItem>
+            <SelectItem value="desc">Date: Newest First</SelectItem>
+            <SelectItem value="asc">Date: Oldest First</SelectItem>
+            <SelectItem value="cost-desc">Cost: High to Low</SelectItem>
+            <SelectItem value="cost-asc">Cost: Low to High</SelectItem>
           </SelectContent>
         </Select>
+        <Input
+          type="date"
+          data-ocid="maintenance.date_from.input"
+          className="w-36"
+          placeholder="From"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+        />
+        <Input
+          type="date"
+          data-ocid="maintenance.date_to.input"
+          className="w-36"
+          placeholder="To"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+        />
+        <span className="text-sm text-muted-foreground self-center whitespace-nowrap">
+          {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       <div className="bg-card rounded-xl shadow-card border-0 overflow-hidden">

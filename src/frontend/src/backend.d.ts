@@ -16,8 +16,8 @@ export interface MaintenanceRecordFull {
     date: Time;
     createdAt: Time;
     partsUsed: Array<bigint>;
-    workOrderId?: bigint;
     description: string;
+    workOrderId?: bigint;
     maintenanceType: MaintenanceType;
     vehicleId: bigint;
 }
@@ -52,6 +52,17 @@ export interface Vehicle {
     createdAt: Time;
     year: bigint;
     notes: string;
+}
+export interface ServiceSchedule {
+    id: bigint;
+    status: string;
+    serviceType: string;
+    lastCompletedDate?: Time;
+    nextDueDate: Time;
+    createdAt: Time;
+    intervalDays: bigint;
+    notes: string;
+    vehicleId: bigint;
 }
 export interface DashboardStats {
     activeVehicles: bigint;
@@ -98,6 +109,13 @@ export interface CompanySettings {
     industry: string;
     contactPhone: string;
 }
+export interface ChatMessage {
+    id: bigint;
+    createdAt: Time;
+    senderPrincipal: string;
+    message: string;
+    senderName: string;
+}
 export interface Vendor {
     id: bigint;
     contactName: string;
@@ -111,17 +129,6 @@ export interface Vendor {
 }
 export interface UserProfile {
     name: string;
-}
-export interface ServiceSchedule {
-    id: bigint;
-    vehicleId: bigint;
-    serviceType: string;
-    intervalDays: bigint;
-    nextDueDate: Time;
-    lastCompletedDate?: Time;
-    notes: string;
-    status: string;
-    createdAt: Time;
 }
 export enum FleetRole {
     FleetManager = "FleetManager",
@@ -197,6 +204,7 @@ export interface backendInterface {
     getCallerFleetRole(): Promise<FleetRole | null>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getChatMessages(): Promise<Array<ChatMessage>>;
     getCompanySettings(): Promise<CompanySettings | null>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
@@ -222,6 +230,7 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
+    sendChatMessage(senderName: string, message: string): Promise<bigint>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
     updatePart(id: bigint, part: PartFull): Promise<void>;

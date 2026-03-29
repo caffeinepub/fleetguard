@@ -46,8 +46,13 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Vendor } from "../backend";
+import { FleetRole } from "../backend";
 import { useActor } from "../hooks/useActor";
-import { useAllVendors, useIsAdmin } from "../hooks/useQueries";
+import {
+  useAllVendors,
+  useCallerFleetRole,
+  useIsAdmin,
+} from "../hooks/useQueries";
 import { nowNs } from "../lib/helpers";
 
 const CATEGORIES = [
@@ -79,6 +84,8 @@ const defaultForm = {
 export function VendorsPage() {
   const { data: vendors, isLoading } = useAllVendors();
   const { data: isAdmin } = useIsAdmin();
+  const { data: fleetRole } = useCallerFleetRole();
+  const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
   const { actor } = useActor();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -178,13 +185,15 @@ export function VendorsPage() {
             {vendors?.length ?? 0} vendors in directory
           </p>
         </div>
-        <Button
-          data-ocid="vendors.primary_button"
-          onClick={openAdd}
-          className="gap-2"
-        >
-          <Plus size={16} /> Add Vendor
-        </Button>
+        {canCreate && (
+          <Button
+            data-ocid="vendors.primary_button"
+            onClick={openAdd}
+            className="gap-2"
+          >
+            <Plus size={16} /> Add Vendor
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -252,7 +261,7 @@ export function VendorsPage() {
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
-                  {isAdmin && (
+                  {canCreate && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

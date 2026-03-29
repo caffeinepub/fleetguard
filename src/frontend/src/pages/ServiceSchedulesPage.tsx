@@ -49,6 +49,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { FleetRole } from "../backend";
 import type { Vehicle } from "../backend";
+import { VehicleType } from "../backend";
 import { useActor } from "../hooks/useActor";
 import {
   useAllVehicles,
@@ -280,6 +281,8 @@ const INTERVAL_OPTIONS = [
 const defaultForm = {
   vehicleId: "",
   vehicleIds: [] as string[],
+  scope: "individual" as "individual" | "category" | "all",
+  categoryScope: "" as string,
   serviceType: "",
   customServiceType: "",
   intervalPreset: "90",
@@ -359,6 +362,8 @@ export function ServiceSchedulesPage() {
     setForm({
       vehicleId: s.vehicleId.toString(),
       vehicleIds: [],
+      scope: "individual",
+      categoryScope: "",
       serviceType: SERVICE_TYPES.includes(s.serviceType)
         ? s.serviceType
         : "Custom",
@@ -376,10 +381,6 @@ export function ServiceSchedulesPage() {
 
   const handleSubmit = async () => {
     const isEditing = !!editSchedule;
-    if (!isEditing && form.vehicleIds.length === 0) {
-      toast.error("Select at least one vehicle");
-      return;
-    }
     if (isEditing && !form.vehicleId) {
       toast.error("Vehicle is required");
       return;
@@ -403,6 +404,37 @@ export function ServiceSchedulesPage() {
       return;
     }
     if (!actor) return;
+
+    // Determine target vehicle IDs based on scope
+    let targetVehicleIds: string[] = [];
+    if (!editSchedule) {
+      if (form.scope === "all") {
+        targetVehicleIds = (vehicles ?? []).map((v: Vehicle) =>
+          v.id.toString(),
+        );
+      } else if (form.scope === "category") {
+        if (!form.categoryScope) {
+          toast.error("Select a vehicle category");
+          setSaving(false);
+          return;
+        }
+        targetVehicleIds = (vehicles ?? [])
+          .filter((v: Vehicle) => v.vehicleType === form.categoryScope)
+          .map((v: Vehicle) => v.id.toString());
+        if (targetVehicleIds.length === 0) {
+          toast.error("No vehicles found in that category");
+          setSaving(false);
+          return;
+        }
+      } else {
+        targetVehicleIds = form.vehicleIds;
+        if (targetVehicleIds.length === 0) {
+          toast.error("Select at least one vehicle");
+          setSaving(false);
+          return;
+        }
+      }
+    }
 
     setSaving(true);
     try {
@@ -432,9 +464,9 @@ export function ServiceSchedulesPage() {
         await (actor as any).updateServiceSchedule(editSchedule.id, data);
         toast.success("Schedule updated");
       } else {
-        // Create: one schedule per selected vehicle
+        // Create: one schedule per target vehicle
         await Promise.all(
-          form.vehicleIds.map((vid) => {
+          targetVehicleIds.map((vid) => {
             const data = {
               id: 0n,
               vehicleId: BigInt(vid),
@@ -449,7 +481,7 @@ export function ServiceSchedulesPage() {
             return (actor as any).createServiceSchedule(data);
           }),
         );
-        const count = form.vehicleIds.length;
+        const count = targetVehicleIds.length;
         toast.success(
           count > 1 ? `${count} schedules created` : "Schedule created",
         );
@@ -751,10 +783,42 @@ export function ServiceSchedulesPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Scope selector (new schedules only) */}
+            {!editSchedule && (
+              <div className="space-y-1.5">
+                <Label>Apply Schedule To *</Label>
+                <Select
+                  value={form.scope}
+                  onValueChange={(v) => setF("scope", v)}
+                >
+                  <SelectTrigger data-ocid="service-schedules.scope.select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">
+                      Individual Vehicles
+                    </SelectItem>
+                    <SelectItem value="category">
+                      All Vehicles in a Category
+                    </SelectItem>
+                    <SelectItem value="all">
+                      All Vehicles ({(vehicles ?? []).length})
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Vehicle */}
             <div className="space-y-1.5">
               <Label>
-                {editSchedule ? "Vehicle *" : "Vehicles * (select one or more)"}
+                {editSchedule
+                  ? "Vehicle *"
+                  : form.scope === "individual"
+                    ? "Vehicles * (select one or more)"
+                    : form.scope === "category"
+                      ? "Vehicle Category *"
+                      : null}
               </Label>
               {editSchedule ? (
                 <Select
@@ -773,6 +837,32 @@ export function ServiceSchedulesPage() {
                         {v.name} — {v.licensePlate}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              ) : form.scope === "all" ? (
+                <p className="text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
+                  Will apply to all {(vehicles ?? []).length} vehicle
+                  {(vehicles ?? []).length !== 1 ? "s" : ""} in the fleet.
+                </p>
+              ) : form.scope === "category" ? (
+                <Select
+                  value={form.categoryScope}
+                  onValueChange={(v) => setF("categoryScope", v)}
+                >
+                  <SelectTrigger data-ocid="service-schedules.category.select">
+                    <SelectValue placeholder="Select vehicle category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(VehicleType).map((t) => {
+                      const count = (vehicles ?? []).filter(
+                        (v: Vehicle) => v.vehicleType === t,
+                      ).length;
+                      return (
+                        <SelectItem key={t} value={t}>
+                          {t} ({count})
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               ) : (
@@ -810,12 +900,14 @@ export function ServiceSchedulesPage() {
                   )}
                 </div>
               )}
-              {!editSchedule && form.vehicleIds.length > 0 && (
-                <p className="text-xs text-primary font-medium">
-                  {form.vehicleIds.length} vehicle
-                  {form.vehicleIds.length > 1 ? "s" : ""} selected
-                </p>
-              )}
+              {!editSchedule &&
+                form.scope === "individual" &&
+                form.vehicleIds.length > 0 && (
+                  <p className="text-xs text-primary font-medium">
+                    {form.vehicleIds.length} vehicle
+                    {form.vehicleIds.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
             </div>
 
             {/* Service type */}
