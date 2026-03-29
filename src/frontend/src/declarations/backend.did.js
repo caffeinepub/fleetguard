@@ -64,6 +64,10 @@ export const MaintenanceType = IDL.Variant({
   'Other' : IDL.Null,
   'EngineCheck' : IDL.Null,
 });
+export const PartQuantity = IDL.Record({
+  'partId' : IDL.Nat,
+  'quantity' : IDL.Nat,
+});
 export const MaintenanceRecordFull = IDL.Record({
   'id' : IDL.Nat,
   'mileage' : IDL.Nat,
@@ -73,6 +77,9 @@ export const MaintenanceRecordFull = IDL.Record({
   'date' : Time,
   'createdAt' : Time,
   'partsUsed' : IDL.Vec(IDL.Nat),
+  'partQuantities' : IDL.Vec(PartQuantity),
+  'laborHours' : IDL.Opt(IDL.Float64),
+  'laborCost' : IDL.Opt(IDL.Float64),
   'description' : IDL.Text,
   'workOrderId' : IDL.Opt(IDL.Nat),
   'maintenanceType' : MaintenanceType,
@@ -405,6 +412,9 @@ export const idlFactory = ({ IDL }) => {
     'date' : Time,
     'createdAt' : Time,
     'partsUsed' : IDL.Vec(IDL.Nat),
+    'partQuantities' : IDL.Vec(PartQuantity),
+    'laborHours' : IDL.Opt(IDL.Float64),
+    'laborCost' : IDL.Opt(IDL.Float64),
     'description' : IDL.Text,
     'workOrderId' : IDL.Opt(IDL.Nat),
     'maintenanceType' : MaintenanceType,
