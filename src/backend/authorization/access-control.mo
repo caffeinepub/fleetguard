@@ -41,7 +41,9 @@ module {
     if (caller.isAnonymous()) { return #guest };
     switch (state.userRoles.get(caller)) {
       case (?role) { role };
-      case (null) { #guest }; // Unregistered users are treated as guests
+      case (null) {
+        Runtime.trap("User is not registered");
+      };
     };
   };
 
@@ -50,14 +52,6 @@ module {
       Runtime.trap("Unauthorized: Only admins can assign user roles");
     };
     state.userRoles.add(user, role);
-  };
-
-  // Directly register a user without requiring admin — used for self-registration flows
-  public func registerUser(state : AccessControlState, user : Principal) {
-    switch (state.userRoles.get(user)) {
-      case (null) { state.userRoles.add(user, #user) };
-      case (?_) {};
-    };
   };
 
   public func hasPermission(state : AccessControlState, caller : Principal, requiredRole : UserRole) : Bool {

@@ -22,6 +22,10 @@ import {
   maintenanceTypeLabel,
 } from "../lib/helpers";
 
+function formatWONumber(id: bigint): string {
+  return `WO-${String(Number(id)).padStart(4, "0")}`;
+}
+
 export function MaintenancePage() {
   const { data: records, isLoading: rLoading } = useAllMaintenanceRecords();
   const { data: vehicles } = useAllVehicles();
@@ -65,10 +69,17 @@ export function MaintenancePage() {
     setModalOpen(true);
   };
 
+  const getWorkOrderId = (r: MaintenanceRecordFull): bigint | undefined => {
+    const raw = (r as any).workOrderId as bigint[] | bigint | undefined;
+    if (Array.isArray(raw)) return raw.length > 0 ? raw[0] : undefined;
+    return raw && raw !== 0n ? raw : undefined;
+  };
+
   const handleExportCSV = () => {
     const headers = [
       "Vehicle",
       "Type",
+      "Work Order #",
       "Date",
       "Description",
       "Mileage",
@@ -78,9 +89,11 @@ export function MaintenancePage() {
     ];
     const rows = (records ?? []).map((r: MaintenanceRecordFull) => {
       const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
+      const woId = getWorkOrderId(r);
       return [
         vehicle?.name ?? "Unknown",
         maintenanceTypeLabel[r.maintenanceType],
+        woId ? formatWONumber(woId) : "",
         formatDate(r.date),
         r.description,
         `${r.mileage.toString()} mi`,
@@ -96,6 +109,7 @@ export function MaintenancePage() {
     const headers = [
       "Vehicle",
       "Type",
+      "Work Order #",
       "Date",
       "Description",
       "Cost",
@@ -103,9 +117,11 @@ export function MaintenancePage() {
     ];
     const rows = (records ?? []).map((r: MaintenanceRecordFull) => {
       const vehicle = vehicles?.find((v: Vehicle) => v.id === r.vehicleId);
+      const woId = getWorkOrderId(r);
       return [
         vehicle?.name ?? "Unknown",
         maintenanceTypeLabel[r.maintenanceType],
+        woId ? formatWONumber(woId) : "—",
         formatDate(r.date),
         r.description,
         formatCurrency(r.cost),
@@ -221,6 +237,7 @@ export function MaintenancePage() {
                   {[
                     "Vehicle",
                     "Type",
+                    "Work Order #",
                     "Date",
                     "Description",
                     "Mileage",
@@ -243,6 +260,7 @@ export function MaintenancePage() {
                   const vehicle = vehicles?.find(
                     (v: Vehicle) => v.id === r.vehicleId,
                   );
+                  const woId = getWorkOrderId(r);
                   return (
                     <tr
                       key={r.id.toString()}
@@ -259,6 +277,15 @@ export function MaintenancePage() {
                         >
                           {maintenanceTypeLabel[r.maintenanceType]}
                         </Badge>
+                      </td>
+                      <td className="px-5 py-4">
+                        {woId ? (
+                          <span className="font-mono text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5 whitespace-nowrap">
+                            {formatWONumber(woId)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                         {formatDate(r.date)}

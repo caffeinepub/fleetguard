@@ -1,31 +1,33 @@
-# FleetGuard — Reports
+# FleetGuard
 
 ## Current State
-The app has a sidebar with Dashboard, Maintenance (expandable), Fleet, Parts, Vendors, Warranties, and Settings. There is no Reports section. The app tracks vehicles, maintenance records, parts inventory, work orders, and service schedules.
+- Work orders exist with auto-assigned `id` but no formatted number is displayed
+- Maintenance history has no reference to which work order created the record
+- Service schedules have a save bug (root cause: type issues with optional fields)
+- No print option for work orders
 
 ## Requested Changes (Diff)
 
 ### Add
-- `ReportsPage` component with multiple printable/exportable report types
-- "Reports" nav item in sidebar (between Warranties and Settings)
-- `Page` type entry `"reports"` in App.tsx
-- Route and import wired in App.tsx
+- `workOrderId: ?Nat` field to `MaintenanceRecordFull` (via a new `workOrderLinkStore` map, not touching the stored internal type)
+- `workOrderLinkStore: Map<Nat, Nat>` in backend to map maintenanceRecordId -> workOrderId
+- Work order number column in Maintenance History table showing `WO-XXXX` badge when record came from a work order
+- Print button on Work Orders page that opens a print-friendly view
 
 ### Modify
-- `Layout.tsx`: add Reports nav item (use `BarChart2` or `FileText` icon) between Warranties and Settings
-- `App.tsx`: add `"reports"` to Page type, import ReportsPage, render it in switch
+- `completeWorkOrder` backend function: store the link in `workOrderLinkStore` after creating the maintenance record
+- `toFull` backend function: look up `workOrderLinkStore` to populate `workOrderId`
+- `WorkOrdersPage`: display `WO-XXXX` formatted number on each work order card
+- `MaintenancePage`: add "Work Order #" column showing `WO-XXXX` badge when applicable
+- Service schedule save: fix optional field handling — ensure `lastCompletedDate` and any optional bigint fields use `[] | [bigint]` Candid format, not `undefined`. Also fix work order `scheduledDate` and `completedDate` to use `[]` instead of `undefined`
+- `backend.did.d.ts` and `backend.d.ts`: add `workOrderId: [] | [bigint]` to `MaintenanceRecordFull`
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Create `src/frontend/src/pages/ReportsPage.tsx` with these report tabs/sections:
-   - **Fleet Summary**: Total vehicles, active/inactive, vehicles by type, table of all vehicles with status
-   - **Maintenance Report**: Total records, total repair cost, breakdown by maintenance type (chart or table), top reasons for repair, records table filterable by vehicle
-   - **Parts Inventory Report**: Total inventory value (qty × price), low stock parts list, parts table with value column
-   - **Work Orders Report**: Total work orders, counts by status (Open/In Progress/Completed/Cancelled), list table
-   - Export buttons: "Print" (window.print) and "Export CSV" for each report section
-2. Update `Layout.tsx` to add Reports nav item
-3. Update `App.tsx` to add the page type and render
-
-Data comes from existing hooks: `useAllVehicles`, `useAllMaintenanceRecords`, `useAllParts`, `useAllWorkOrders`, `useGetCompanySettings`, `useGetDefaultCurrency`.
+1. Update `main.mo`: add `workOrderLinkStore`, update `toFull`, update `completeWorkOrder`
+2. Update `backend.did.d.ts` and `backend.d.ts`: add `workOrderId` to `MaintenanceRecordFull`
+3. Update `WorkOrdersPage.tsx`: show `WO-XXXX` number, add print functionality
+4. Update `MaintenancePage.tsx`: add Work Order # column
+5. Fix `ServiceSchedulesPage.tsx`: ensure all optional fields use Candid `[] | [bigint]` format

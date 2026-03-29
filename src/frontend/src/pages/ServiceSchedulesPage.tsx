@@ -398,7 +398,7 @@ export function ServiceSchedulesPage() {
       form.intervalPreset === "custom"
         ? Number(form.customIntervalDays)
         : Number(form.intervalPreset);
-    if (!days || days < 1) {
+    if (Number.isNaN(days) || days < 1) {
       toast.error("Interval must be at least 1 day");
       return;
     }
@@ -456,7 +456,8 @@ export function ServiceSchedulesPage() {
       }
       await qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
       setModalOpen(false);
-    } catch {
+    } catch (err) {
+      console.error("Service schedule save error:", err);
       toast.error("Failed to save schedule");
     } finally {
       setSaving(false);

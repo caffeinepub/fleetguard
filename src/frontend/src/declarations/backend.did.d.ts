@@ -45,6 +45,7 @@ export interface MaintenanceRecordFull {
   'date' : Time,
   'createdAt' : Time,
   'partsUsed' : Array<bigint>,
+  'workOrderId' : [] | [bigint],
   'description' : string,
   'maintenanceType' : MaintenanceType,
   'vehicleId' : bigint,

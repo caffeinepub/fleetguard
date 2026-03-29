@@ -36,6 +36,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Printer,
   Search,
   Trash2,
 } from "lucide-react";
@@ -51,6 +52,10 @@ import {
   useIsAdmin,
 } from "../hooks/useQueries";
 import { nowNs } from "../lib/helpers";
+
+function formatWONumber(id: bigint): string {
+  return `WO-${String(Number(id)).padStart(4, "0")}`;
+}
 
 const priorityConfig: Record<
   WorkOrderPriority,
@@ -137,7 +142,8 @@ export function WorkOrdersPage() {
     const matchSearch =
       wo.title.toLowerCase().includes(q) ||
       wo.assignedMechanic.toLowerCase().includes(q) ||
-      vName.toLowerCase().includes(q);
+      vName.toLowerCase().includes(q) ||
+      formatWONumber(wo.id).toLowerCase().includes(q);
     const matchStatus = statusFilter === "all" || wo.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -186,7 +192,7 @@ export function WorkOrdersPage() {
     if (!actor) return;
     setSaving(true);
     try {
-      const data: WorkOrder = {
+      const data = {
         id: editOrder?.id ?? 0n,
         title: form.title,
         vehicleId: BigInt(form.vehicleId),
@@ -195,12 +201,16 @@ export function WorkOrdersPage() {
         priority: form.priority as WorkOrderPriority,
         status: form.status as WorkOrderStatus,
         scheduledDate: form.scheduledDate
-          ? BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n
-          : undefined,
-        completedDate: editOrder?.completedDate,
+          ? ([
+              BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n,
+            ] as unknown as bigint)
+          : ([] as unknown as bigint),
+        completedDate: editOrder
+          ? (editOrder.completedDate ?? ([] as unknown as bigint))
+          : ([] as unknown as bigint),
         notes: form.notes,
         createdAt: editOrder?.createdAt ?? nowNs(),
-      };
+      } as WorkOrder;
       if (editOrder) {
         await actor.updateWorkOrder(editOrder.id, data);
         toast.success("Work order updated");
@@ -210,7 +220,8 @@ export function WorkOrdersPage() {
       }
       await qc.invalidateQueries({ queryKey: ["workOrders"] });
       setModalOpen(false);
-    } catch {
+    } catch (err) {
+      console.error("Work order save error:", err);
       toast.error("Failed to save work order");
     } finally {
       setSaving(false);
@@ -253,6 +264,58 @@ export function WorkOrdersPage() {
     return raw;
   };
 
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const rows = filtered
+      .map(
+        (wo: WorkOrder) => `
+      <tr>
+        <td>${formatWONumber(wo.id)}</td>
+        <td>${wo.title}</td>
+        <td>${vehicleMap[wo.vehicleId.toString()] ?? "Unknown"}</td>
+        <td>${wo.assignedMechanic || "—"}</td>
+        <td>${priorityConfig[wo.priority].label}</td>
+        <td>${statusConfig[wo.status].label}</td>
+        <td>${getScheduledDate(wo) ? new Date(Number(getScheduledDate(wo)) / 1_000_000).toLocaleDateString() : "—"}</td>
+        <td>${wo.description || "—"}</td>
+      </tr>
+    `,
+      )
+      .join("");
+    printWindow.document.write(`
+      <!DOCTYPE html><html><head>
+      <title>Work Orders - FleetGuard</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+        h1 { font-size: 18px; margin-bottom: 4px; }
+        .subtitle { color: #666; margin-bottom: 16px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1e3a5f; color: white; padding: 8px; text-align: left; font-size: 11px; }
+        td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        tr:nth-child(even) td { background: #f9fafb; }
+        @media print { body { padding: 0; } }
+      </style>
+      </head><body>
+      <h1>Work Orders Report</h1>
+      <div class="subtitle">FleetGuard &bull; Printed ${new Date().toLocaleDateString()} &bull; ${filtered.length} work order(s)</div>
+      <table>
+        <thead><tr>
+          <th>WO #</th><th>Title</th><th>Vehicle</th><th>Mechanic</th>
+          <th>Priority</th><th>Status</th><th>Scheduled</th><th>Description</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
   return (
     <div className="p-6 space-y-5 animate-fade-in" data-ocid="workorders.page">
       {/* Header */}
@@ -274,15 +337,25 @@ export function WorkOrdersPage() {
             open
           </p>
         </div>
-        {canCreate && (
+        <div className="flex items-center gap-2">
           <Button
-            data-ocid="workorders.primary_button"
-            onClick={openAdd}
+            variant="outline"
+            data-ocid="workorders.secondary_button"
+            onClick={handlePrint}
             className="gap-2"
           >
-            <Plus size={16} /> New Work Order
+            <Printer size={16} /> Print
           </Button>
-        )}
+          {canCreate && (
+            <Button
+              data-ocid="workorders.primary_button"
+              onClick={openAdd}
+              className="gap-2"
+            >
+              <Plus size={16} /> New Work Order
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -347,6 +420,9 @@ export function WorkOrdersPage() {
               >
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5">
+                      {formatWONumber(wo.id)}
+                    </span>
                     <span className="font-semibold text-foreground">
                       {wo.title}
                     </span>
@@ -454,7 +530,9 @@ export function WorkOrdersPage() {
         >
           <DialogHeader>
             <DialogTitle>
-              {editOrder ? "Edit Work Order" : "New Work Order"}
+              {editOrder
+                ? `Edit Work Order ${formatWONumber(editOrder.id)}`
+                : "New Work Order"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">

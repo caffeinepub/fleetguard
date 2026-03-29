@@ -101,7 +101,9 @@ actor {
     inviteTokens.add(token, updatedToken);
     setFleetRoleInternal(caller, existing.role);
     // Register the caller as a user without requiring admin permission
-    AccessControl.registerUser(accessControlState, caller);
+    if (accessControlState.userRoles.get(caller) == null) {
+      accessControlState.userRoles.add(caller, #user);
+    };
     existing.role;
   };
 
@@ -194,6 +196,7 @@ actor {
     technicianName : Text;
     nextServiceDate : ?Time.Time;
     partsUsed : [Nat];
+    workOrderId : ?Nat;
     createdAt : Time.Time;
   };
 
@@ -302,6 +305,7 @@ actor {
   let partStore = Map.empty<Nat, Part.Part>();
   let partPriceStore = Map.empty<Nat, Float>();
   let maintenancePartsStore = Map.empty<Nat, [Nat]>();
+  let workOrderLinkStore = Map.empty<Nat, Nat>(); // maintenanceId -> workOrderId
 
   let workOrderStore = Map.empty<Nat, WorkOrder>();
   let vendorStore = Map.empty<Nat, Vendor>();
@@ -350,6 +354,7 @@ actor {
       technicianName = record.technicianName;
       nextServiceDate = record.nextServiceDate;
       partsUsed = parts;
+      workOrderId = workOrderLinkStore.get(record.id);
       createdAt = record.createdAt;
     };
   };
@@ -754,6 +759,7 @@ actor {
     };
     maintenanceStore.add(nextMaintenanceId, newRecord);
     maintenanceRecords.add(newRecord);
+    workOrderLinkStore.add(nextMaintenanceId, id);
     nextMaintenanceId += 1;
     newRecord.id;
   };
@@ -874,7 +880,9 @@ actor {
       Runtime.trap("Unauthorized: Authentication required");
     };
     // Auto-register caller as a user if not yet registered (supports initial onboarding)
-    AccessControl.registerUser(accessControlState, caller);
+    if (accessControlState.userRoles.get(caller) == null) {
+      accessControlState.userRoles.add(caller, #user);
+    };
     companySettings := ?settings;
     switch (allCompanyRegistrations.filter(func(s) { s.companyName == settings.companyName }).isEmpty()) {
       case (true) { allCompanyRegistrations.add(settings) };
@@ -997,7 +1005,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Authentication required");
     };
-    ignore (serviceSchedules.remove(id));
+    serviceSchedules.remove(id);
   };
 
   public shared ({ caller }) func markScheduleComplete(id : Nat) : async () {
