@@ -15,6 +15,7 @@ import { MaintenanceType } from "../backend";
 import type { MaintenanceRecordFull, Vehicle } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useAllMaintenanceRecords, useAllVehicles } from "../hooks/useQueries";
+import { useTaxSettings } from "../hooks/useTaxSettings";
 import { exportCSV, exportPDF } from "../lib/exportUtils";
 import {
   formatCurrency,
@@ -29,6 +30,7 @@ function formatWONumber(id: bigint): string {
 export function MaintenancePage() {
   const { data: records, isLoading: rLoading } = useAllMaintenanceRecords();
   const { data: vehicles } = useAllVehicles();
+  const { taxSettings } = useTaxSettings();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -150,6 +152,15 @@ export function MaintenancePage() {
             <span className="text-muted-foreground text-sm">•</span>
             <p className="text-sm font-semibold text-primary">
               Total Repair Cost: {formatCurrency(totalRepairCost)}
+              {taxSettings.enabled && taxSettings.taxRate > 0 && (
+                <span className="text-muted-foreground font-normal ml-1 text-xs">
+                  (incl. {taxSettings.taxLabel} {taxSettings.taxRate}% ={" "}
+                  {formatCurrency(
+                    totalRepairCost * (taxSettings.taxRate / 100),
+                  )}{" "}
+                  tax)
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -272,6 +283,7 @@ export function MaintenancePage() {
                     "Cost",
                     "Labor",
                     "Technician",
+                    "Completed By",
                     "Next Service",
                   ].map((h) => (
                     <th
@@ -363,6 +375,15 @@ export function MaintenancePage() {
                       </td>
                       <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                         {r.technicianName}
+                      </td>
+                      <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                        {(r as any).completedBy ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded px-2 py-0.5">
+                            {(r as any).completedBy}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">&mdash;</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                         {r.nextServiceDate ? (

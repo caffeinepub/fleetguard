@@ -178,7 +178,7 @@ export function PartsPage() {
       quantityInStock: BigInt(form.quantityInStock),
       minStockLevel: BigInt(form.minStockLevel),
       location: form.location,
-      price: [priceVal] as unknown as number,
+      price: priceVal,
       createdAt: editPart?.createdAt ?? nowNs(),
     };
     try {
@@ -190,7 +190,8 @@ export function PartsPage() {
         toast.success("Part added");
       }
       setModalOpen(false);
-    } catch {
+    } catch (err) {
+      console.error("Failed to save part:", err);
       toast.error("Failed to save part");
     }
   };

@@ -6,9 +6,10 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 interface LoginPageProps {
   onSignUp?: () => void;
+  onNavigate?: (page: import("../App").Page) => void;
 }
 
-export function LoginPage({ onSignUp }: LoginPageProps) {
+export function LoginPage({ onSignUp, onNavigate }: LoginPageProps) {
   const { login, isLoggingIn } = useInternetIdentity();
 
   const handleSignUp = () => {
@@ -128,6 +129,24 @@ export function LoginPage({ onSignUp }: LoginPageProps) {
             <p className="text-center text-xs text-muted-foreground mt-6">
               Secured by Advanced Cryptography - 100% onchain
             </p>
+
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => onNavigate?.("privacy-policy")}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors"
+              >
+                Privacy Policy
+              </button>
+              <span className="text-muted-foreground text-xs">&bull;</span>
+              <button
+                type="button"
+                onClick={() => onNavigate?.("terms")}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors"
+              >
+                Terms of Service
+              </button>
+            </div>
           </div>
         </div>
       </div>

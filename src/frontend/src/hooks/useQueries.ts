@@ -295,8 +295,33 @@ export function useCreateMaintenance() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (r: MaintenanceRecordFull) => {
+    mutationFn: async (r: MaintenanceRecordFull) => {
       if (!actor) throw new Error("Not connected");
+      // Decrement inventory for each part used
+      const partsUsed = r.partsUsed ?? [];
+      if (partsUsed.length > 0) {
+        const allParts = await actor.getAllParts();
+        const partQuantities: Record<string, number> = {};
+        if ((r as any).partQuantities && (r as any).partQuantities.length > 0) {
+          for (const pq of (r as any).partQuantities) {
+            partQuantities[pq.partId.toString()] = Number(pq.quantity);
+          }
+        }
+        for (const partId of partsUsed) {
+          const part = allParts.find((p) => p.id === partId);
+          if (part && part.quantityInStock > 0n) {
+            const decrementQty = BigInt(partQuantities[partId.toString()] ?? 1);
+            const newQty =
+              part.quantityInStock >= decrementQty
+                ? part.quantityInStock - decrementQty
+                : 0n;
+            await actor.updatePart(partId, {
+              ...part,
+              quantityInStock: newQty,
+            });
+          }
+        }
+      }
       return actor.createMaintenanceRecord(r);
     },
     onSuccess: () => {
@@ -332,12 +357,26 @@ export function useUpdateMaintenance() {
       // Decrement each new part in inventory
       if (newParts.length > 0) {
         const allParts = await actor.getAllParts();
+        const partQuantities: Record<string, number> = {};
+        if (
+          (record as any).partQuantities &&
+          (record as any).partQuantities.length > 0
+        ) {
+          for (const pq of (record as any).partQuantities) {
+            partQuantities[pq.partId.toString()] = Number(pq.quantity);
+          }
+        }
         for (const partId of newParts) {
           const part = allParts.find((p) => p.id === partId);
           if (part && part.quantityInStock > 0n) {
+            const decrementQty = BigInt(partQuantities[partId.toString()] ?? 1);
+            const newQty =
+              part.quantityInStock >= decrementQty
+                ? part.quantityInStock - decrementQty
+                : 0n;
             await actor.updatePart(partId, {
               ...part,
-              quantityInStock: part.quantityInStock - 1n,
+              quantityInStock: newQty,
             });
           }
         }

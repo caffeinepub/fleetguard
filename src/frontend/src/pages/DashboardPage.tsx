@@ -18,8 +18,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  LabelList,
-  ReferenceLine,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -650,85 +650,79 @@ export function DashboardPage({ onNavigate }: Props) {
               {repairReasonData.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No data yet</p>
               ) : (
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart
-                    data={repairReasonData}
-                    layout="vertical"
-                    margin={{ left: 10, right: 50, top: 4, bottom: 4 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      horizontal={false}
-                      stroke="hsl(var(--border))"
-                      opacity={0.5}
-                    />
-                    <XAxis
-                      type="number"
-                      tick={{
-                        fontSize: 11,
-                        fill: "hsl(var(--muted-foreground))",
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={115}
-                      tick={{
-                        fontSize: 11,
-                        fill: "hsl(var(--foreground))",
-                        fontWeight: 500,
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 10,
-                        fontSize: 12,
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                      }}
-                      labelStyle={{
-                        color: "hsl(var(--foreground))",
-                        fontWeight: 600,
-                      }}
-                      formatter={(value: number) => [
-                        `${value} records`,
-                        "Count",
-                      ]}
-                    />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
-                      {repairReasonData.map((entry, index) => (
-                        <Cell
-                          key={entry.name}
-                          fill={
-                            [
+                <div className="flex items-center gap-4">
+                  <div className="shrink-0">
+                    <ResponsiveContainer width={140} height={140}>
+                      <PieChart>
+                        <Pie
+                          data={repairReasonData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={38}
+                          outerRadius={62}
+                          paddingAngle={3}
+                          dataKey="count"
+                        >
+                          {repairReasonData.map((entry, index) => (
+                            <Cell
+                              key={entry.name}
+                              fill={
+                                [
+                                  "#3b82f6",
+                                  "#6366f1",
+                                  "#f59e0b",
+                                  "#10b981",
+                                  "#f43f5e",
+                                  "#a78bfa",
+                                ][index % 6]
+                              }
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                          formatter={(value: number) => [
+                            `${value} records`,
+                            "",
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    {repairReasonData.map((entry, index) => (
+                      <div key={entry.name} className="flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center justify-center rounded text-white text-xs font-bold px-1.5 py-0.5 shrink-0"
+                          style={{
+                            background: [
+                              "#3b82f6",
                               "#6366f1",
-                              "#22d3ee",
                               "#f59e0b",
                               "#10b981",
                               "#f43f5e",
                               "#a78bfa",
-                            ][index % 6]
-                          }
-                        />
-                      ))}
-                      <LabelList
-                        dataKey="count"
-                        position="right"
-                        style={{
-                          fill: "hsl(var(--foreground))",
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                            ][index % 6],
+                            minWidth: "28px",
+                          }}
+                        >
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="text-sm truncate flex-1 text-foreground">
+                          {entry.name}
+                        </span>
+                        <span className="text-sm font-semibold text-muted-foreground shrink-0">
+                          {entry.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -749,27 +743,11 @@ export function DashboardPage({ onNavigate }: Props) {
                   data={monthlyRepairData}
                   margin={{ left: 0, right: 10, top: 4, bottom: 4 }}
                 >
-                  <defs>
-                    <linearGradient
-                      id="costGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
-                      <stop
-                        offset="100%"
-                        stopColor="#8b5cf6"
-                        stopOpacity={0.7}
-                      />
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
                     stroke="hsl(var(--border))"
-                    opacity={0.5}
+                    opacity={0.4}
                   />
                   <XAxis
                     dataKey="name"
@@ -788,67 +766,34 @@ export function DashboardPage({ onNavigate }: Props) {
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v: number) =>
-                      v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+                      v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
                     }
+                    width={36}
                   />
                   <Tooltip
-                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                     formatter={(value: number) => [
                       `$${value.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      "Repair Cost",
+                      "Total Cost",
                     ]}
                     contentStyle={{
                       background: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",
-                      borderRadius: 10,
+                      borderRadius: 8,
                       fontSize: 12,
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
                     }}
                     labelStyle={{
                       color: "hsl(var(--foreground))",
                       fontWeight: 600,
                     }}
                   />
-                  {(() => {
-                    const avg =
-                      monthlyRepairData.reduce((s, d) => s + d.cost, 0) /
-                      (monthlyRepairData.length || 1);
-                    return avg > 0 ? (
-                      <ReferenceLine
-                        y={avg}
-                        stroke="#f59e0b"
-                        strokeDasharray="4 4"
-                        label={{
-                          value: "Avg",
-                          position: "insideTopRight",
-                          fill: "#f59e0b",
-                          fontSize: 11,
-                        }}
-                      />
-                    ) : null;
-                  })()}
                   <Bar
                     dataKey="cost"
-                    radius={[6, 6, 0, 0]}
-                    fill="url(#costGradient)"
-                    maxBarSize={48}
-                  >
-                    {monthlyRepairData.map((entry, index) => (
-                      <Cell
-                        key={entry.name}
-                        fill={
-                          [
-                            "#3b82f6",
-                            "#6366f1",
-                            "#8b5cf6",
-                            "#a78bfa",
-                            "#c4b5fd",
-                            "#818cf8",
-                          ][index % 6]
-                        }
-                      />
-                    ))}
-                  </Bar>
+                    radius={[4, 4, 0, 0]}
+                    fill="#3b82f6"
+                    maxBarSize={52}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

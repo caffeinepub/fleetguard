@@ -50,6 +50,7 @@ import {
   useAllVehicles,
   useAllWorkOrders,
   useCallerFleetRole,
+  useCallerProfile,
   useGetCompanySettings,
   useIsAdmin,
 } from "../hooks/useQueries";
@@ -120,6 +121,7 @@ export function WorkOrdersPage() {
   const { data: fleetRole } = useCallerFleetRole();
   const { data: isAdmin } = useIsAdmin();
   const { data: companySettings } = useGetCompanySettings();
+  const { data: callerProfile } = useCallerProfile();
   const { actor } = useActor();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -134,6 +136,9 @@ export function WorkOrdersPage() {
   const [editMaintenanceRecord, setEditMaintenanceRecord] =
     useState<MaintenanceRecordFull | null>(null);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [completedByName, setCompletedByName] = useState<string>("");
+  const [completingWorkOrder, setCompletingWorkOrder] =
+    useState<WorkOrder | null>(null);
 
   const canCreate =
     isAdmin ||
@@ -265,6 +270,12 @@ export function WorkOrdersPage() {
         sorted.find((r) => r.vehicleId === wo.vehicleId) ?? sorted[0];
       if (newRecord) {
         setEditMaintenanceRecord(newRecord);
+        setCompletingWorkOrder(wo);
+        setCompletedByName(
+          callerProfile?.name ??
+            (callerProfile as any)?.email ??
+            "Unknown User",
+        );
         setMaintenanceModalOpen(true);
         toast.info(
           "Work order completed! Add cost and parts to the maintenance record.",
@@ -698,9 +709,31 @@ export function WorkOrdersPage() {
           onClose={() => {
             setMaintenanceModalOpen(false);
             setEditMaintenanceRecord(null);
+            setCompletingWorkOrder(null);
+          }}
+          onCancel={async () => {
+            // Revert work order back to Open on cancel
+            if (actor && completingWorkOrder) {
+              try {
+                await actor.updateWorkOrder(completingWorkOrder.id, {
+                  ...completingWorkOrder,
+                  status: WorkOrderStatus.Open,
+                });
+                await qc.invalidateQueries({ queryKey: ["workOrders"] });
+                toast.info("Work order reverted to Open");
+              } catch (err) {
+                console.error("Failed to revert work order:", err);
+              }
+            }
+            setMaintenanceModalOpen(false);
+            setEditMaintenanceRecord(null);
+            setCompletingWorkOrder(null);
           }}
           record={editMaintenanceRecord}
           vehicles={vehicles ?? []}
+          completedBy={completedByName}
+          requireCompletion={true}
+          completionType="work-order"
         />
       )}
 

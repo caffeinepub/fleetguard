@@ -19,7 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Info, Loader2, Package } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Package,
+  UserCheck,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { MaintenanceRecordFull, Vehicle } from "../backend";
@@ -29,6 +36,7 @@ import {
   useCreateMaintenance,
   useUpdateMaintenance,
 } from "../hooks/useQueries";
+import { useTaxSettings } from "../hooks/useTaxSettings";
 import { maintenanceTypeLabel, nowNs, nsToDate } from "../lib/helpers";
 
 function getPartPrice(p: { price?: number | null | number[] | [] }): number {
@@ -41,9 +49,13 @@ function getPartPrice(p: { price?: number | null | number[] | [] }): number {
 interface Props {
   open: boolean;
   onClose: () => void;
+  onCancel?: () => void;
   record?: MaintenanceRecordFull | null;
   vehicles: Vehicle[];
   defaultVehicleId?: bigint;
+  completedBy?: string;
+  requireCompletion?: boolean;
+  completionType?: "work-order" | "schedule";
 }
 
 const toInputDate = (ns: bigint) => {
@@ -71,18 +83,24 @@ const defaultForm = {
 export function MaintenanceModal({
   open,
   onClose,
+  onCancel,
   record,
   vehicles,
   defaultVehicleId,
+  completedBy,
+  requireCompletion = false,
+  completionType,
 }: Props) {
   const [form, setForm] = useState(defaultForm);
   const [selectedPartIds, setSelectedPartIds] = useState<bigint[]>([]);
   const [partQuantityMap, setPartQuantityMap] = useState<
     Record<string, number>
   >({});
+  const [noPartsUsed, setNoPartsUsed] = useState(false);
   const createM = useCreateMaintenance();
   const updateM = useUpdateMaintenance();
   const { data: parts = [] } = useAllParts();
+  const { taxSettings } = useTaxSettings();
   const isPending = createM.isPending || updateM.isPending;
 
   useEffect(() => {
@@ -108,7 +126,6 @@ export function MaintenanceModal({
             : "",
       });
       setSelectedPartIds(record.partsUsed ?? []);
-      // Build quantity map from partQuantities if available
       const qtyMap: Record<string, number> = {};
       if (
         (record as any).partQuantities &&
@@ -118,7 +135,6 @@ export function MaintenanceModal({
           qtyMap[pq.partId.toString()] = Number(pq.quantity);
         }
       } else {
-        // Fallback: default qty 1 for each selected part
         for (const id of (record as any).partsUsed ?? []) {
           qtyMap[id.toString()] = 1;
         }
@@ -133,6 +149,7 @@ export function MaintenanceModal({
       setSelectedPartIds([]);
       setPartQuantityMap({});
     }
+    setNoPartsUsed(false);
   }, [record, defaultVehicleId, vehicles]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -153,7 +170,12 @@ export function MaintenanceModal({
   ) => {
     const partsCost = calcPartsCost(ids, qtyMap);
     const laborCostVal = laborCostStr ? Number.parseFloat(laborCostStr) : 0;
-    const total = partsCost + laborCostVal;
+    const subtotal = partsCost + laborCostVal;
+    const taxAmount =
+      taxSettings.enabled && taxSettings.taxRate > 0
+        ? subtotal * (taxSettings.taxRate / 100)
+        : 0;
+    const total = subtotal + taxAmount;
     if (total > 0) {
       setForm((f) => ({ ...f, cost: total.toFixed(2) }));
     }
@@ -191,25 +213,51 @@ export function MaintenanceModal({
 
   const partsCost = calcPartsCost(selectedPartIds, partQuantityMap);
   const laborCostVal = form.laborCost ? Number.parseFloat(form.laborCost) : 0;
+  const subtotal = partsCost + laborCostVal;
+  const taxAmount =
+    taxSettings.enabled && taxSettings.taxRate > 0
+      ? subtotal * (taxSettings.taxRate / 100)
+      : 0;
 
   const handleSubmit = async () => {
-    if (
-      !form.vehicleId ||
-      !form.description ||
-      !form.technicianName ||
-      !form.cost ||
-      !form.mileage
-    ) {
+    if (!form.vehicleId || !form.technicianName || !form.mileage) {
       toast.error("Please fill in all required fields");
       return;
     }
+
+    if (requireCompletion) {
+      if (!form.description.trim()) {
+        toast.error("Work done description is required");
+        return;
+      }
+      if (!form.laborHours || Number.parseFloat(form.laborHours) <= 0) {
+        toast.error("Labour hours are required and must be greater than 0");
+        return;
+      }
+      if (!form.laborCost || Number.parseFloat(form.laborCost) <= 0) {
+        toast.error("Labour cost is required and must be greater than 0");
+        return;
+      }
+      if (selectedPartIds.length === 0 && !noPartsUsed) {
+        toast.error(
+          'Select at least one part used, or check the "No parts used" box',
+        );
+        return;
+      }
+    } else {
+      if (!form.description || !form.cost) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+    }
+
     const data = {
       id: record?.id ?? 0n,
       vehicleId: BigInt(form.vehicleId),
       date: fromInputDate(form.date),
       maintenanceType: form.maintenanceType as MaintenanceType,
       description: form.description,
-      cost: Number.parseFloat(form.cost),
+      cost: Number.parseFloat(form.cost || "0"),
       mileage: BigInt(form.mileage),
       technicianName: form.technicianName,
       nextServiceDate: form.nextServiceDate
@@ -225,7 +273,16 @@ export function MaintenanceModal({
         : undefined,
       laborCost: form.laborCost ? Number.parseFloat(form.laborCost) : undefined,
       createdAt: record?.createdAt ?? nowNs(),
+      workOrderId: (record as any)?.workOrderId,
     } as MaintenanceRecordFull;
+
+    if (completedBy) {
+      (data as any).completedBy = completedBy;
+    }
+    if (requireCompletion && noPartsUsed) {
+      (data as any).noPartsUsed = true;
+    }
+
     try {
       if (record) {
         await updateM.mutateAsync({
@@ -239,21 +296,67 @@ export function MaintenanceModal({
         toast.success("Maintenance record added");
       }
       onClose();
-    } catch {
+    } catch (err) {
+      console.error("Maintenance save error:", err);
       toast.error("Failed to save maintenance record");
     }
   };
 
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      onClose();
+    }
+  };
+
+  const handleOpenChange = (o: boolean) => {
+    if (!o) handleCancel();
+  };
+
+  const completionLabel =
+    completionType === "work-order" ? "Work Order" : "Service Schedule";
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg" data-ocid="maintenance.modal">
         <DialogHeader>
           <DialogTitle>
-            {record ? "Edit Maintenance Record" : "Add Maintenance Record"}
+            {requireCompletion
+              ? `Complete ${completionLabel} — Edit Maintenance Record`
+              : record
+                ? "Edit Maintenance Record"
+                : "Add Maintenance Record"}
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[70vh] pr-2">
           <div className="grid gap-4 py-2">
+            {/* Completed By Banner */}
+            {completedBy && (
+              <div className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-3">
+                <UserCheck className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    Marked complete by: {completedBy}
+                  </p>
+                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">
+                    Logged on {new Date().toLocaleDateString()} — visible to all
+                    team members
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Required fields notice */}
+            {requireCompletion && (
+              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                  All fields marked * are required to close this record
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label>Vehicle *</Label>
@@ -311,7 +414,12 @@ export function MaintenanceModal({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="m-labor-hours">Labor Hours</Label>
+                <Label htmlFor="m-labor-hours">
+                  Labor Hours{" "}
+                  {requireCompletion && (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
                 <Input
                   id="m-labor-hours"
                   type="number"
@@ -319,10 +427,20 @@ export function MaintenanceModal({
                   value={form.laborHours}
                   onChange={(e) => set("laborHours", e.target.value)}
                   placeholder="2.5"
+                  className={
+                    requireCompletion && !form.laborHours
+                      ? "border-amber-400/60"
+                      : ""
+                  }
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="m-labor-cost">Labor Cost ($)</Label>
+                <Label htmlFor="m-labor-cost">
+                  Labor Cost ($){" "}
+                  {requireCompletion && (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
                 <Input
                   id="m-labor-cost"
                   type="number"
@@ -330,6 +448,11 @@ export function MaintenanceModal({
                   value={form.laborCost}
                   onChange={(e) => handleLaborCostChange(e.target.value)}
                   placeholder="120.00"
+                  className={
+                    requireCompletion && !form.laborCost
+                      ? "border-amber-400/60"
+                      : ""
+                  }
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
@@ -351,7 +474,12 @@ export function MaintenanceModal({
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="m-desc">Description *</Label>
+                <Label htmlFor="m-desc">
+                  Work Done / Description{" "}
+                  {requireCompletion && (
+                    <span className="text-destructive">*</span>
+                  )}
+                </Label>
                 <Textarea
                   id="m-desc"
                   data-ocid="maintenance.textarea"
@@ -359,6 +487,11 @@ export function MaintenanceModal({
                   onChange={(e) => set("description", e.target.value)}
                   placeholder="Describe the maintenance work done..."
                   rows={3}
+                  className={
+                    requireCompletion && !form.description.trim()
+                      ? "border-amber-400/60"
+                      : ""
+                  }
                 />
               </div>
 
@@ -366,7 +499,12 @@ export function MaintenanceModal({
               <div className="col-span-2 space-y-2">
                 <div className="flex items-center gap-2">
                   <Package className="h-4 w-4 text-muted-foreground" />
-                  <Label>Parts Used</Label>
+                  <Label>
+                    Parts Used{" "}
+                    {requireCompletion && (
+                      <span className="text-destructive">*</span>
+                    )}
+                  </Label>
                   {selectedPartIds.length > 0 && (
                     <Badge variant="secondary" className="ml-auto">
                       {selectedPartIds.length} selected
@@ -378,7 +516,11 @@ export function MaintenanceModal({
                     No parts in inventory yet.
                   </p>
                 ) : (
-                  <div className="border rounded-md divide-y">
+                  <div
+                    className={`border rounded-md divide-y ${
+                      noPartsUsed ? "opacity-50 pointer-events-none" : ""
+                    }`}
+                  >
                     {parts.map((part) => {
                       const checkboxId = `part-check-${part.id.toString()}`;
                       const isSelected = selectedPartIds.some(
@@ -479,6 +621,27 @@ export function MaintenanceModal({
                     })}
                   </div>
                 )}
+                {/* No parts used checkbox */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="no-parts-used"
+                    checked={noPartsUsed}
+                    onCheckedChange={(checked) => {
+                      setNoPartsUsed(!!checked);
+                      if (checked) {
+                        setSelectedPartIds([]);
+                        setPartQuantityMap({});
+                      }
+                    }}
+                    data-ocid="maintenance.checkbox"
+                  />
+                  <Label
+                    htmlFor="no-parts-used"
+                    className="text-sm text-muted-foreground cursor-pointer"
+                  >
+                    No parts used for this job
+                  </Label>
+                </div>
               </div>
 
               {/* Cost summary */}
@@ -508,10 +671,27 @@ export function MaintenanceModal({
                         </span>
                       </div>
                     )}
+                    {taxSettings.enabled &&
+                      taxSettings.taxRate > 0 &&
+                      subtotal > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>
+                            {taxSettings.taxLabel} ({taxSettings.taxRate}%)
+                          </span>
+                          <span className="font-medium">
+                            ${taxAmount.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
-                      <span>Total</span>
+                      <span>
+                        Total
+                        {taxSettings.enabled && taxSettings.taxRate > 0
+                          ? " (incl. tax)"
+                          : ""}
+                      </span>
                       <span className="text-primary">
-                        ${(partsCost + laborCostVal).toFixed(2)}
+                        ${(subtotal + taxAmount).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -532,7 +712,11 @@ export function MaintenanceModal({
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Info className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>
-                      Total cost is auto-calculated from parts and labor above
+                      Total cost is auto-calculated from parts, labor
+                      {taxSettings.enabled && taxSettings.taxRate > 0
+                        ? `, and ${taxSettings.taxLabel}`
+                        : ""}{" "}
+                      above
                     </span>
                   </div>
                 )}
@@ -543,7 +727,7 @@ export function MaintenanceModal({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={handleCancel}
             data-ocid="maintenance.cancel_button"
           >
             Cancel
@@ -552,9 +736,21 @@ export function MaintenanceModal({
             onClick={handleSubmit}
             disabled={isPending}
             data-ocid="maintenance.submit_button"
+            className={
+              requireCompletion ? "bg-emerald-600 hover:bg-emerald-700" : ""
+            }
           >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {record ? "Save Changes" : "Add Record"}
+            {requireCompletion ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {record ? "Save & Close Record" : "Submit Record"}
+              </>
+            ) : record ? (
+              "Save Changes"
+            ) : (
+              "Add Record"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

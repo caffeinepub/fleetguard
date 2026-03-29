@@ -143,7 +143,7 @@ function AppContent() {
   }
 
   if (!identity) {
-    return <LoginPage onSignUp={handleSignUp} />;
+    return <LoginPage onSignUp={handleSignUp} onNavigate={navigate} />;
   }
 
   // Wait for actor AND dependent queries before making routing decisions.

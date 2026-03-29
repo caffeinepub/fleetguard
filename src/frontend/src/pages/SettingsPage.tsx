@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -48,6 +49,7 @@ import {
   useSaveCompanySettings,
   useSaveDefaultCurrency,
 } from "../hooks/useQueries";
+import { useTaxSettings } from "../hooks/useTaxSettings";
 
 const fleetRoleLabel: Record<string, string> = {
   [FleetRole.Admin]: "Administrator",
@@ -92,6 +94,10 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
     companySettings?.companyName,
   );
   const { data: savedCurrency } = useGetDefaultCurrency();
+  const { taxSettings, saveTaxSettings } = useTaxSettings();
+  const [taxLabel, setTaxLabel] = useState(taxSettings.taxLabel);
+  const [taxRate, setTaxRate] = useState(String(taxSettings.taxRate));
+  const [taxEnabled, setTaxEnabled] = useState(taxSettings.enabled);
   const { identity } = useInternetIdentity();
   const saveSettings = useSaveCompanySettings();
   const saveCurrency = useSaveDefaultCurrency();
@@ -469,6 +475,73 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
                   <SelectItem value="USD">🇺🇸 USD</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <Separator />
+
+            {/* Tax Settings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Tax Settings</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Apply tax to maintenance costs and transactions.
+                  </p>
+                </div>
+                <Switch
+                  checked={taxEnabled}
+                  onCheckedChange={setTaxEnabled}
+                  data-ocid="settings.tax.switch"
+                />
+              </div>
+              {taxEnabled && (
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tax-label" className="text-xs">
+                      Tax Label
+                    </Label>
+                    <Input
+                      id="tax-label"
+                      value={taxLabel}
+                      onChange={(e) => setTaxLabel(e.target.value)}
+                      placeholder="GST, HST, VAT..."
+                      className="h-9"
+                      data-ocid="settings.tax.input"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tax-rate" className="text-xs">
+                      Rate (%)
+                    </Label>
+                    <Input
+                      id="tax-rate"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={taxRate}
+                      onChange={(e) => setTaxRate(e.target.value)}
+                      placeholder="13"
+                      className="h-9"
+                      data-ocid="settings.taxrate.input"
+                    />
+                  </div>
+                </div>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  saveTaxSettings({
+                    taxLabel: taxLabel || "Tax",
+                    taxRate: Number.parseFloat(taxRate) || 0,
+                    enabled: taxEnabled,
+                  });
+                  toast.success("Tax settings saved");
+                }}
+                data-ocid="settings.tax.save_button"
+              >
+                Save Tax Settings
+              </Button>
             </div>
           </CardContent>
         </Card>

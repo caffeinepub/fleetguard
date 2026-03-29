@@ -50,10 +50,12 @@ import { toast } from "sonner";
 import { FleetRole } from "../backend";
 import type { Vehicle } from "../backend";
 import { VehicleType } from "../backend";
+import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useActor } from "../hooks/useActor";
 import {
   useAllVehicles,
   useCallerFleetRole,
+  useCallerProfile,
   useIsAdmin,
 } from "../hooks/useQueries";
 
@@ -308,6 +310,7 @@ export function ServiceSchedulesPage() {
   const { data: vehicles } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
+  const { data: callerProfile } = useCallerProfile();
 
   const { data: schedules, isLoading } = useQuery<ServiceSchedule[]>({
     queryKey: ["serviceSchedules"],
@@ -334,6 +337,9 @@ export function ServiceSchedulesPage() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState<bigint | null>(null);
+  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [completionRecord, setCompletionRecord] = useState<any>(null);
+  const [completedByName, setCompletedByName] = useState("");
 
   const canCreate =
     isAdmin ||
@@ -535,11 +541,47 @@ export function ServiceSchedulesPage() {
     if (!actor) return;
     setCompleting(id);
     try {
+      const schedule = schedules?.find((s) => s.id === id);
       await (actor as any).markScheduleComplete(id);
-      await qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
-      toast.success(
-        "Schedule marked complete — next due date advanced automatically",
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["serviceSchedules"] }),
+        qc.invalidateQueries({ queryKey: ["maintenanceRecords"] }),
+      ]);
+      // Fetch fresh maintenance records to find the newly created one
+      const freshRecords = await actor.getAllMaintenanceRecords();
+      const sorted = [...freshRecords].sort(
+        (a, b) => Number(b.createdAt) - Number(a.createdAt),
       );
+      const vehicleId = schedule?.vehicleId;
+      const newRecord = vehicleId
+        ? (sorted.find((r) => r.vehicleId === vehicleId) ?? sorted[0])
+        : sorted[0];
+      const name =
+        callerProfile?.name ?? (callerProfile as any)?.email ?? "Unknown User";
+      setCompletedByName(name);
+      if (newRecord) {
+        setCompletionRecord(newRecord);
+      } else {
+        // Open modal with blank record pre-filled with vehicleId
+        setCompletionRecord(
+          vehicleId
+            ? {
+                vehicleId,
+                id: 0n,
+                description: "",
+                cost: 0,
+                mileage: 0n,
+                technicianName: "",
+                date: BigInt(Date.now()) * 1_000_000n,
+                maintenanceType: "OilChange",
+                createdAt: BigInt(Date.now()) * 1_000_000n,
+                partsUsed: [],
+              }
+            : null,
+        );
+      }
+      setMaintenanceModalOpen(true);
+      toast.info("Schedule completed! Please fill in the maintenance record.");
     } catch {
       toast.error("Failed to mark complete");
     } finally {
@@ -1055,6 +1097,20 @@ export function ServiceSchedulesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Maintenance Record Modal (opened after completing a schedule) */}
+      <MaintenanceModal
+        open={maintenanceModalOpen}
+        onClose={() => {
+          setMaintenanceModalOpen(false);
+          setCompletionRecord(null);
+        }}
+        record={completionRecord}
+        vehicles={vehicles ?? []}
+        completedBy={completedByName}
+        requireCompletion={true}
+        completionType="schedule"
+      />
     </div>
   );
 }
