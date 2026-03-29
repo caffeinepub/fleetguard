@@ -279,6 +279,7 @@ const INTERVAL_OPTIONS = [
 
 const defaultForm = {
   vehicleId: "",
+  vehicleIds: [] as string[],
   serviceType: "",
   customServiceType: "",
   intervalPreset: "90",
@@ -342,12 +343,22 @@ export function ServiceSchedulesPage() {
     setModalOpen(true);
   };
 
+  const toggleVehicle = (id: string) => {
+    setForm((f) => ({
+      ...f,
+      vehicleIds: f.vehicleIds.includes(id)
+        ? f.vehicleIds.filter((v) => v !== id)
+        : [...f.vehicleIds, id],
+    }));
+  };
+
   const openEdit = (s: ServiceSchedule) => {
     setEditSchedule(s);
     const days = Number(s.intervalDays);
     const preset = [30, 90, 180, 365].includes(days) ? String(days) : "custom";
     setForm({
       vehicleId: s.vehicleId.toString(),
+      vehicleIds: [],
       serviceType: SERVICE_TYPES.includes(s.serviceType)
         ? s.serviceType
         : "Custom",
@@ -364,7 +375,12 @@ export function ServiceSchedulesPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.vehicleId) {
+    const isEditing = !!editSchedule;
+    if (!isEditing && form.vehicleIds.length === 0) {
+      toast.error("Select at least one vehicle");
+      return;
+    }
+    if (isEditing && !form.vehicleId) {
       toast.error("Vehicle is required");
       return;
     }
@@ -390,24 +406,53 @@ export function ServiceSchedulesPage() {
 
     setSaving(true);
     try {
-      const data: ServiceSchedule = {
-        id: editSchedule?.id ?? 0n,
-        vehicleId: BigInt(form.vehicleId),
-        serviceType: svcType,
-        intervalDays: BigInt(days),
-        nextDueDate: dateToNs(form.nextDueDate),
-        lastCompletedDate: editSchedule?.lastCompletedDate,
-        notes: form.notes,
-        status: form.status,
-        createdAt: editSchedule?.createdAt ?? 0n,
-      };
-
       if (editSchedule) {
+        // Edit: update existing single schedule
+        const existingLastCompleted = (editSchedule as any).lastCompletedDate;
+        const lastCompletedDate: [] | [bigint] = Array.isArray(
+          existingLastCompleted,
+        )
+          ? existingLastCompleted.length > 0
+            ? [existingLastCompleted[0] as bigint]
+            : []
+          : existingLastCompleted != null
+            ? [existingLastCompleted as bigint]
+            : [];
+        const data = {
+          id: editSchedule.id,
+          vehicleId: BigInt(form.vehicleId),
+          serviceType: svcType,
+          intervalDays: BigInt(days),
+          nextDueDate: dateToNs(form.nextDueDate),
+          lastCompletedDate,
+          notes: form.notes,
+          status: form.status,
+          createdAt: editSchedule.createdAt,
+        };
         await (actor as any).updateServiceSchedule(editSchedule.id, data);
         toast.success("Schedule updated");
       } else {
-        await (actor as any).createServiceSchedule(data);
-        toast.success("Schedule created");
+        // Create: one schedule per selected vehicle
+        await Promise.all(
+          form.vehicleIds.map((vid) => {
+            const data = {
+              id: 0n,
+              vehicleId: BigInt(vid),
+              serviceType: svcType,
+              intervalDays: BigInt(days),
+              nextDueDate: dateToNs(form.nextDueDate),
+              lastCompletedDate: [] as [] | [bigint],
+              notes: form.notes,
+              status: form.status,
+              createdAt: 0n,
+            };
+            return (actor as any).createServiceSchedule(data);
+          }),
+        );
+        const count = form.vehicleIds.length;
+        toast.success(
+          count > 1 ? `${count} schedules created` : "Schedule created",
+        );
       }
       await qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
       setModalOpen(false);
@@ -594,8 +639,16 @@ export function ServiceSchedulesPage() {
                               {intervalLabel(s.intervalDays)}
                             </td>
                             <td className="px-5 py-3.5 text-muted-foreground">
-                              {s.lastCompletedDate
-                                ? formatDate(s.lastCompletedDate)
+                              {(
+                                Array.isArray((s as any).lastCompletedDate)
+                                  ? (s as any).lastCompletedDate.length > 0
+                                  : !!s.lastCompletedDate
+                              )
+                                ? formatDate(
+                                    Array.isArray((s as any).lastCompletedDate)
+                                      ? (s as any).lastCompletedDate[0]
+                                      : s.lastCompletedDate!,
+                                  )
                                 : "—"}
                             </td>
                             <td className="px-5 py-3.5">
@@ -699,25 +752,69 @@ export function ServiceSchedulesPage() {
           <div className="space-y-4 py-2">
             {/* Vehicle */}
             <div className="space-y-1.5">
-              <Label htmlFor="ss-vehicle">Vehicle *</Label>
-              <Select
-                value={form.vehicleId}
-                onValueChange={(v) => setF("vehicleId", v)}
-              >
-                <SelectTrigger
-                  id="ss-vehicle"
-                  data-ocid="service-schedules.select"
+              <Label>
+                {editSchedule ? "Vehicle *" : "Vehicles * (select one or more)"}
+              </Label>
+              {editSchedule ? (
+                <Select
+                  value={form.vehicleId}
+                  onValueChange={(v) => setF("vehicleId", v)}
                 >
-                  <SelectValue placeholder="Select vehicle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(vehicles ?? []).map((v: Vehicle) => (
-                    <SelectItem key={v.id.toString()} value={v.id.toString()}>
-                      {v.name} — {v.licensePlate}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    id="ss-vehicle"
+                    data-ocid="service-schedules.select"
+                  >
+                    <SelectValue placeholder="Select vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vehicles ?? []).map((v: Vehicle) => (
+                      <SelectItem key={v.id.toString()} value={v.id.toString()}>
+                        {v.name} — {v.licensePlate}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="border border-border rounded-md max-h-44 overflow-y-auto p-2 space-y-1.5">
+                  {(vehicles ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-1">
+                      No vehicles found
+                    </p>
+                  ) : (
+                    (vehicles ?? []).map((v: Vehicle) => {
+                      const checked = form.vehicleIds.includes(v.id.toString());
+                      return (
+                        <label
+                          key={v.id.toString()}
+                          className={`flex items-center gap-2.5 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
+                            checked
+                              ? "bg-primary/10 text-foreground"
+                              : "hover:bg-muted/50 text-foreground/80"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-primary w-3.5 h-3.5"
+                            checked={checked}
+                            onChange={() => toggleVehicle(v.id.toString())}
+                            data-ocid="service-schedules.checkbox"
+                          />
+                          <span className="font-medium">{v.name}</span>
+                          <span className="text-muted-foreground text-xs">
+                            {v.licensePlate}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+              {!editSchedule && form.vehicleIds.length > 0 && (
+                <p className="text-xs text-primary font-medium">
+                  {form.vehicleIds.length} vehicle
+                  {form.vehicleIds.length > 1 ? "s" : ""} selected
+                </p>
+              )}
             </div>
 
             {/* Service type */}

@@ -186,17 +186,7 @@ export function WorkOrdersPage() {
     if (!actor) return;
     setSaving(true);
     try {
-      const completedDateRaw = editOrder?.completedDate as unknown as
-        | bigint[]
-        | bigint
-        | undefined;
-      const completedDateArr = Array.isArray(completedDateRaw)
-        ? completedDateRaw
-        : completedDateRaw != null
-          ? [completedDateRaw]
-          : [];
-
-      const data = {
+      const data: WorkOrder = {
         id: editOrder?.id ?? 0n,
         title: form.title,
         vehicleId: BigInt(form.vehicleId),
@@ -205,12 +195,12 @@ export function WorkOrdersPage() {
         priority: form.priority as WorkOrderPriority,
         status: form.status as WorkOrderStatus,
         scheduledDate: form.scheduledDate
-          ? [BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n]
-          : [],
-        completedDate: completedDateArr,
+          ? BigInt(new Date(form.scheduledDate).getTime()) * 1_000_000n
+          : undefined,
+        completedDate: editOrder?.completedDate,
         notes: form.notes,
         createdAt: editOrder?.createdAt ?? nowNs(),
-      } as unknown as WorkOrder;
+      };
       if (editOrder) {
         await actor.updateWorkOrder(editOrder.id, data);
         toast.success("Work order updated");

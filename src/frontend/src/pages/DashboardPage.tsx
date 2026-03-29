@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,9 +12,12 @@ import {
   Plus,
   Truck,
 } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Vehicle } from "../backend";
 import { Status } from "../backend";
+import { useActor } from "../hooks/useActor";
 import {
   useAllMaintenanceRecords,
   useAllVehicles,
@@ -28,6 +32,18 @@ import {
   maintenanceTypeLabel,
   vehicleTypeLabel,
 } from "../lib/helpers";
+
+interface ServiceSchedule {
+  id: bigint;
+  vehicleId: bigint;
+  serviceType: string;
+  intervalDays: bigint;
+  nextDueDate: bigint;
+  lastCompletedDate?: bigint;
+  notes: string;
+  status: string;
+  createdAt: bigint;
+}
 
 interface Props {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
@@ -48,6 +64,7 @@ function StatusBadge({ status }: { status: Status }) {
 }
 
 export function DashboardPage({ onNavigate }: Props) {
+  const { actor, isFetching: actorFetching } = useActor();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: vehicles, isLoading: vehiclesLoading } = useAllVehicles();
   const { data: upcoming, isLoading: upcomingLoading } =
@@ -55,6 +72,69 @@ export function DashboardPage({ onNavigate }: Props) {
   const { data: allRecords } = useAllMaintenanceRecords();
   const { data: profile } = useCallerProfile();
   const { data: companySettings } = useGetCompanySettings();
+
+  const { data: serviceSchedules } = useQuery<ServiceSchedule[]>({
+    queryKey: ["serviceSchedules"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllServiceSchedules() as Promise<
+        ServiceSchedule[]
+      >;
+    },
+    enabled: !!actor && !actorFetching,
+  });
+
+  const now = Date.now();
+
+  const overdueSchedules = useMemo(
+    () =>
+      (serviceSchedules ?? []).filter(
+        (s) => s.status === "Active" && Number(s.nextDueDate) / 1_000_000 < now,
+      ),
+    [serviceSchedules, now],
+  );
+
+  const dueSoonSchedules = useMemo(
+    () =>
+      (serviceSchedules ?? []).filter((s) => {
+        const dueDateMs = Number(s.nextDueDate) / 1_000_000;
+        const sevenDaysLater = now + 7 * 24 * 60 * 60 * 1000;
+        return (
+          s.status === "Active" &&
+          dueDateMs >= now &&
+          dueDateMs <= sevenDaysLater
+        );
+      }),
+    [serviceSchedules, now],
+  );
+
+  // One-time session toast notifications
+  useEffect(() => {
+    if (!serviceSchedules || serviceSchedules.length === 0) return;
+    if (sessionStorage.getItem("scheduleAlertsShown")) return;
+    if (overdueSchedules.length === 0 && dueSoonSchedules.length === 0) return;
+
+    for (const s of overdueSchedules.slice(0, 3)) {
+      const vehicle = vehicles?.find((v: Vehicle) => v.id === s.vehicleId);
+      const vehicleName = vehicle?.name ?? "Unknown Vehicle";
+      toast.error(`Overdue: ${s.serviceType} on ${vehicleName}`);
+    }
+
+    for (const s of dueSoonSchedules.slice(0, 3)) {
+      const vehicle = vehicles?.find((v: Vehicle) => v.id === s.vehicleId);
+      const vehicleName = vehicle?.name ?? "Unknown Vehicle";
+      const dueDateMs = Number(s.nextDueDate) / 1_000_000;
+      const daysUntil = Math.ceil((dueDateMs - now) / (24 * 60 * 60 * 1000));
+      toast(
+        `Due soon: ${s.serviceType} on ${vehicleName} (${daysUntil} day${
+          daysUntil !== 1 ? "s" : ""
+        })`,
+        { style: { background: "hsl(45 93% 47%)", color: "#fff" } },
+      );
+    }
+
+    sessionStorage.setItem("scheduleAlertsShown", "1");
+  }, [serviceSchedules, overdueSchedules, dueSoonSchedules, vehicles, now]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -161,6 +241,58 @@ export function DashboardPage({ onNavigate }: Props) {
             data-ocid="dashboard.lowstock.button"
           >
             View Parts
+          </Button>
+        </div>
+      )}
+
+      {/* Overdue Schedules Alert */}
+      {overdueSchedules.length > 0 && (
+        <div
+          data-ocid="dashboard.overdue.card"
+          className="flex items-center gap-3 px-5 py-4 rounded-xl bg-destructive/10 border border-destructive/30"
+        >
+          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+          <p className="text-sm font-medium text-destructive flex-1">
+            <span className="font-bold">
+              {overdueSchedules.length} service schedule
+              {overdueSchedules.length !== 1 ? "s" : ""}
+            </span>{" "}
+            are overdue — immediate attention required.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 h-8 text-xs"
+            onClick={() => onNavigate("service-schedules")}
+            data-ocid="dashboard.overdue.button"
+          >
+            View Schedules
+          </Button>
+        </div>
+      )}
+
+      {/* Due Soon Alert */}
+      {dueSoonSchedules.length > 0 && (
+        <div
+          data-ocid="dashboard.duesoon.card"
+          className="flex items-center gap-3 px-5 py-4 rounded-xl bg-warning/10 border border-warning/30"
+        >
+          <Clock className="w-5 h-5 text-warning flex-shrink-0" />
+          <p className="text-sm font-medium text-warning flex-1">
+            <span className="font-bold">
+              {dueSoonSchedules.length} service
+              {dueSoonSchedules.length !== 1 ? "s" : ""}
+            </span>{" "}
+            due within the next 7 days.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-warning/40 text-warning hover:bg-warning/10 h-8 text-xs"
+            onClick={() => onNavigate("service-schedules")}
+            data-ocid="dashboard.duesoon.button"
+          >
+            View Schedules
           </Button>
         </div>
       )}
@@ -321,6 +453,60 @@ export function DashboardPage({ onNavigate }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Overdue Service Schedules Card */}
+      {overdueSchedules.length > 0 && (
+        <Card className="shadow-card border-0 border-l-4 border-l-destructive">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <CardTitle className="text-base font-semibold text-destructive">
+                Overdue Service Schedules
+              </CardTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive text-xs gap-1 h-7"
+              onClick={() => onNavigate("service-schedules")}
+              data-ocid="dashboard.overdue.schedules.link"
+            >
+              View All <ChevronRight size={14} />
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 p-4 pt-0">
+            {overdueSchedules.slice(0, 5).map((s, i) => {
+              const vehicle = vehicles?.find(
+                (v: Vehicle) => v.id === s.vehicleId,
+              );
+              const dueDateMs = Number(s.nextDueDate) / 1_000_000;
+              const daysOverdue = Math.floor(
+                (now - dueDateMs) / (24 * 60 * 60 * 1000),
+              );
+              return (
+                <div
+                  key={s.id.toString()}
+                  data-ocid={`dashboard.overdue.schedules.item.${i + 1}`}
+                  className="flex items-center gap-3 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20"
+                >
+                  <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {s.serviceType}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {vehicle?.name ?? "Unknown Vehicle"}
+                    </p>
+                  </div>
+                  <Badge variant="destructive" className="text-xs shrink-0">
+                    {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue
+                  </Badge>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Activity */}
       <Card className="shadow-card border-0">

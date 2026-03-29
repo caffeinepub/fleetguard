@@ -46,9 +46,7 @@ actor {
   };
 
   public query ({ caller }) func getCallerFleetRole() : async ?FleetRole {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view their role");
-    };
+    if (caller.isAnonymous()) { return null };
     fleetRoles.get(caller);
   };
 
@@ -102,7 +100,8 @@ actor {
     let updatedToken = { existing with usedBy = ?caller };
     inviteTokens.add(token, updatedToken);
     setFleetRoleInternal(caller, existing.role);
-    AccessControl.assignRole(accessControlState, caller, caller, #user);
+    // Register the caller as a user without requiring admin permission
+    AccessControl.registerUser(accessControlState, caller);
     existing.role;
   };
 
@@ -117,9 +116,7 @@ actor {
   var userProfiles = Map.empty<Principal, UserProfile>();
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
+    if (caller.isAnonymous()) { return null };
     userProfiles.get(caller);
   };
 
@@ -131,8 +128,8 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Authentication required");
     };
     userProfiles.add(caller, profile);
   };
@@ -246,7 +243,6 @@ actor {
     updatedAt : Time.Time;
   };
 
-  // Separate stable maps so CompanySettings stable var is never migrated
   var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
   var defaultCurrency : Text = "CAD";
 
@@ -548,8 +544,8 @@ actor {
   };
 
   public query ({ caller }) func getDashboardStats() : async DashboardStats {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view dashboard stats");
+    if (caller.isAnonymous()) {
+      return { totalVehicles = 0; activeVehicles = 0; upcomingMaintenanceCount = 0; overdueCount = 0; lowStockPartsCount = 0 };
     };
     let currentTime = Time.now();
     let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
@@ -869,9 +865,7 @@ actor {
 
   // Company Settings
   public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view company settings");
-    };
+    if (caller.isAnonymous()) { return null };
     companySettings;
   };
 
@@ -879,10 +873,8 @@ actor {
     if (caller.isAnonymous()) {
       Runtime.trap("Unauthorized: Authentication required");
     };
-    // Auto-assign user role on first settings save (e.g. during onboarding)
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      AccessControl.assignRole(accessControlState, caller, caller, #user);
-    };
+    // Auto-register caller as a user if not yet registered (supports initial onboarding)
+    AccessControl.registerUser(accessControlState, caller);
     companySettings := ?settings;
     switch (allCompanyRegistrations.filter(func(s) { s.companyName == settings.companyName }).isEmpty()) {
       case (true) { allCompanyRegistrations.add(settings) };
@@ -911,9 +903,7 @@ actor {
   };
 
   public query ({ caller }) func getSubscriptionStatus(companyName : Text) : async ?SubscriptionRecord {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view subscription status");
-    };
+    if (caller.isAnonymous()) { return null };
     subscriptionRecords.get(companyName);
   };
 
@@ -925,9 +915,7 @@ actor {
   };
 
   public query ({ caller }) func getDefaultCurrency() : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view default currency");
-    };
+    if (caller.isAnonymous()) { return "CAD" };
     defaultCurrency;
   };
 

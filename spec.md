@@ -1,31 +1,31 @@
-# FleetGuard
+# FleetGuard — Reports
 
 ## Current State
-Service Schedules page exists (`ServiceSchedulesPage.tsx`) but is entirely hardcoded with sample data. The backend has no `ServiceSchedule` type or any related methods. The "Add Schedule" dialog shows a placeholder "coming soon" message.
+The app has a sidebar with Dashboard, Maintenance (expandable), Fleet, Parts, Vendors, Warranties, and Settings. There is no Reports section. The app tracks vehicles, maintenance records, parts inventory, work orders, and service schedules.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `ServiceSchedule` type in Motoko backend with fields: id, vehicleId, serviceType, intervalDays, nextDueDate, lastCompletedDate (optional), notes, status (Active/Inactive), createdAt
-- Backend CRUD: `createServiceSchedule`, `getAllServiceSchedules`, `updateServiceSchedule`, `deleteServiceSchedule`, `markScheduleComplete`
-- `markScheduleComplete` sets lastCompletedDate to now and auto-advances nextDueDate by intervalDays
-- Frontend: full Create/Edit modal wired to backend
-- Frontend: Delete with confirmation
-- Frontend: "Mark Complete" action per row
-- Frontend: Load real schedules from backend on mount; replace hardcoded sample data
-- Frontend: Status auto-derived (Overdue if nextDueDate < now, Upcoming otherwise; Completed shown after mark)
+- `ReportsPage` component with multiple printable/exportable report types
+- "Reports" nav item in sidebar (between Warranties and Settings)
+- `Page` type entry `"reports"` in App.tsx
+- Route and import wired in App.tsx
 
 ### Modify
-- `backend.d.ts` — add ServiceSchedule type and methods
-- `backend.did.d.ts` — add ServiceSchedule type and _SERVICE methods
-- `backend.did.js` — add IDL definitions
-- `ServiceSchedulesPage.tsx` — wire to backend, replace sample data, implement real modal form
+- `Layout.tsx`: add Reports nav item (use `BarChart2` or `FileText` icon) between Warranties and Settings
+- `App.tsx`: add `"reports"` to Page type, import ReportsPage, render it in switch
 
 ### Remove
-- Hardcoded `sampleSchedules` array from ServiceSchedulesPage
-- "Coming soon" placeholder in the Add Schedule dialog
+- Nothing
 
 ## Implementation Plan
-1. Generate Motoko backend with ServiceSchedule type and CRUD
-2. Update frontend declarations (backend.d.ts, backend.did.d.ts, backend.did.js)
-3. Rewrite ServiceSchedulesPage to load from backend, with create/edit/delete/complete actions
+1. Create `src/frontend/src/pages/ReportsPage.tsx` with these report tabs/sections:
+   - **Fleet Summary**: Total vehicles, active/inactive, vehicles by type, table of all vehicles with status
+   - **Maintenance Report**: Total records, total repair cost, breakdown by maintenance type (chart or table), top reasons for repair, records table filterable by vehicle
+   - **Parts Inventory Report**: Total inventory value (qty × price), low stock parts list, parts table with value column
+   - **Work Orders Report**: Total work orders, counts by status (Open/In Progress/Completed/Cancelled), list table
+   - Export buttons: "Print" (window.print) and "Export CSV" for each report section
+2. Update `Layout.tsx` to add Reports nav item
+3. Update `App.tsx` to add the page type and render
+
+Data comes from existing hooks: `useAllVehicles`, `useAllMaintenanceRecords`, `useAllParts`, `useAllWorkOrders`, `useGetCompanySettings`, `useGetDefaultCurrency`.

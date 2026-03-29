@@ -18,6 +18,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PartsPage } from "./pages/PartsPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { ServiceSchedulesPage } from "./pages/ServiceSchedulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { VehicleDetailPage } from "./pages/VehicleDetailPage";
@@ -37,6 +38,7 @@ export type Page =
   | "work-orders"
   | "vendors"
   | "warranties"
+  | "reports"
   | "settings"
   | "invite-accept"
   | "dev-portal";
@@ -184,6 +186,8 @@ function AppContent() {
         return <VendorsPage />;
       case "warranties":
         return <WarrantiesPage />;
+      case "reports":
+        return <ReportsPage />;
       case "settings":
         return <SettingsPage />;
       case "vehicle-detail": {
