@@ -77,15 +77,63 @@ export const MaintenanceRecordFull = IDL.Record({
   'maintenanceType' : MaintenanceType,
   'vehicleId' : IDL.Nat,
 });
-export const Part = IDL.Record({
+export const PartFull = IDL.Record({
   'id' : IDL.Nat,
   'partNumber' : IDL.Text,
   'quantityInStock' : IDL.Nat,
   'name' : IDL.Text,
   'createdAt' : Time,
   'minStockLevel' : IDL.Nat,
-  'location' : IDL.Text,
   'price' : IDL.Opt(IDL.Float64),
+  'location' : IDL.Text,
+});
+export const Vendor = IDL.Record({
+  'id' : IDL.Nat,
+  'contactName' : IDL.Text,
+  'name' : IDL.Text,
+  'createdAt' : Time,
+  'email' : IDL.Text,
+  'address' : IDL.Text,
+  'notes' : IDL.Text,
+  'category' : IDL.Text,
+  'phone' : IDL.Text,
+});
+export const Warranty = IDL.Record({
+  'id' : IDL.Nat,
+  'provider' : IDL.Text,
+  'expiryDate' : Time,
+  'cost' : IDL.Float64,
+  'coverageDetails' : IDL.Text,
+  'createdAt' : Time,
+  'description' : IDL.Text,
+  'notes' : IDL.Text,
+  'vehicleId' : IDL.Nat,
+  'startDate' : Time,
+});
+export const WorkOrderStatus = IDL.Variant({
+  'Open' : IDL.Null,
+  'Cancelled' : IDL.Null,
+  'InProgress' : IDL.Null,
+  'Completed' : IDL.Null,
+});
+export const WorkOrderPriority = IDL.Variant({
+  'Low' : IDL.Null,
+  'High' : IDL.Null,
+  'Medium' : IDL.Null,
+  'Critical' : IDL.Null,
+});
+export const WorkOrder = IDL.Record({
+  'id' : IDL.Nat,
+  'completedDate' : IDL.Opt(Time),
+  'status' : WorkOrderStatus,
+  'title' : IDL.Text,
+  'scheduledDate' : IDL.Opt(Time),
+  'createdAt' : Time,
+  'description' : IDL.Text,
+  'notes' : IDL.Text,
+  'priority' : WorkOrderPriority,
+  'assignedMechanic' : IDL.Text,
+  'vehicleId' : IDL.Nat,
 });
 export const CompanySettings = IDL.Record({
   'adminPrincipal' : IDL.Text,
@@ -97,10 +145,10 @@ export const CompanySettings = IDL.Record({
   'contactPhone' : IDL.Text,
 });
 export const SubscriptionRecord = IDL.Record({
-  'companyName' : IDL.Text,
   'status' : IDL.Text,
-  'startDate' : IDL.Opt(IDL.Int),
-  'updatedAt' : IDL.Int,
+  'updatedAt' : Time,
+  'companyName' : IDL.Text,
+  'startDate' : IDL.Opt(Time),
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const DashboardStats = IDL.Record({
@@ -117,52 +165,16 @@ export const InviteToken = IDL.Record({
   'role' : FleetRole,
   'email' : IDL.Text,
 });
-export const WorkOrderPriority = IDL.Variant({
-  'Low' : IDL.Null,
-  'Medium' : IDL.Null,
-  'High' : IDL.Null,
-  'Critical' : IDL.Null,
-});
-export const WorkOrderStatus = IDL.Variant({
-  'Open' : IDL.Null,
-  'InProgress' : IDL.Null,
-  'Completed' : IDL.Null,
-  'Cancelled' : IDL.Null,
-});
-export const WorkOrder = IDL.Record({
-  'id' : IDL.Nat,
-  'title' : IDL.Text,
-  'vehicleId' : IDL.Nat,
-  'description' : IDL.Text,
-  'assignedMechanic' : IDL.Text,
-  'priority' : WorkOrderPriority,
-  'status' : WorkOrderStatus,
-  'scheduledDate' : IDL.Opt(Time),
-  'completedDate' : IDL.Opt(Time),
-  'notes' : IDL.Text,
-  'createdAt' : Time,
-});
-export const Vendor = IDL.Record({
-  'id' : IDL.Nat,
-  'name' : IDL.Text,
-  'contactName' : IDL.Text,
-  'phone' : IDL.Text,
-  'email' : IDL.Text,
-  'address' : IDL.Text,
-  'notes' : IDL.Text,
-  'category' : IDL.Text,
-  'createdAt' : Time,
-});
-export const Warranty = IDL.Record({
+
+export const ServiceSchedule = IDL.Record({
   'id' : IDL.Nat,
   'vehicleId' : IDL.Nat,
-  'description' : IDL.Text,
-  'provider' : IDL.Text,
-  'startDate' : Time,
-  'expiryDate' : Time,
-  'coverageDetails' : IDL.Text,
-  'cost' : IDL.Float64,
+  'serviceType' : IDL.Text,
+  'intervalDays' : IDL.Nat,
+  'nextDueDate' : Time,
+  'lastCompletedDate' : IDL.Opt(Time),
   'notes' : IDL.Text,
+  'status' : IDL.Text,
   'createdAt' : Time,
 });
 
@@ -199,7 +211,12 @@ export const idlService = IDL.Service({
   'completeWorkOrder' : IDL.Func([IDL.Nat], [IDL.Nat], []),
   'createInviteToken' : IDL.Func([IDL.Text, FleetRole], [IDL.Text], []),
   'createMaintenanceRecord' : IDL.Func([MaintenanceRecordFull], [IDL.Nat], []),
-  'createPart' : IDL.Func([Part], [IDL.Nat], []),
+  'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
+  'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
+  'deleteServiceSchedule' : IDL.Func([IDL.Nat], [], []),
+  'getAllServiceSchedules' : IDL.Func([], [IDL.Vec(ServiceSchedule)], ['query']),
+  'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
+  'updateServiceSchedule' : IDL.Func([IDL.Nat, ServiceSchedule], [], []),
   'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
   'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
   'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
@@ -219,7 +236,12 @@ export const idlService = IDL.Service({
       [IDL.Vec(MaintenanceRecordFull)],
       ['query'],
     ),
-  'getAllParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
+  'getAllParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
+  'getAllSubscriptions' : IDL.Func(
+      [],
+      [IDL.Vec(SubscriptionRecord)],
+      ['query'],
+    ),
   'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
   'getAllVendors' : IDL.Func([], [IDL.Vec(Vendor)], ['query']),
   'getAllWarranties' : IDL.Func([], [IDL.Vec(Warranty)], ['query']),
@@ -229,8 +251,9 @@ export const idlService = IDL.Service({
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
+  'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
   'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
-  'getLowStockParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
+  'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
   'getMaintenanceRecord' : IDL.Func(
       [IDL.Nat],
       [MaintenanceRecordFull],
@@ -246,7 +269,12 @@ export const idlService = IDL.Service({
       [IDL.Vec(MaintenanceRecordFull)],
       ['query'],
     ),
-  'getPart' : IDL.Func([IDL.Nat], [Part], ['query']),
+  'getPart' : IDL.Func([IDL.Nat], [PartFull], ['query']),
+  'getSubscriptionStatus' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(SubscriptionRecord)],
+      ['query'],
+    ),
   'getUpcomingMaintenance' : IDL.Func(
       [],
       [IDL.Vec(MaintenanceRecordFull)],
@@ -280,10 +308,6 @@ export const idlService = IDL.Service({
   'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
-  'updateSubscriptionStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Int)], [], []),
-  'getSubscriptionStatus' : IDL.Func([IDL.Text], [IDL.Opt(SubscriptionRecord)], ['query']),
-  'getAllSubscriptions' : IDL.Func([], [IDL.Vec(SubscriptionRecord)], ['query']),
-  'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
   'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
   'updateMaintenanceRecord' : IDL.Func(
@@ -291,7 +315,12 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
-  'updatePart' : IDL.Func([IDL.Nat, Part], [], []),
+  'updatePart' : IDL.Func([IDL.Nat, PartFull], [], []),
+  'updateSubscriptionStatus' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Opt(Time)],
+      [],
+      [],
+    ),
   'updateVehicle' : IDL.Func([IDL.Nat, Vehicle], [], []),
   'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
   'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
@@ -367,15 +396,63 @@ export const idlFactory = ({ IDL }) => {
     'maintenanceType' : MaintenanceType,
     'vehicleId' : IDL.Nat,
   });
-  const Part = IDL.Record({
+  const PartFull = IDL.Record({
     'id' : IDL.Nat,
     'partNumber' : IDL.Text,
     'quantityInStock' : IDL.Nat,
     'name' : IDL.Text,
     'createdAt' : Time,
     'minStockLevel' : IDL.Nat,
-    'location' : IDL.Text,
     'price' : IDL.Opt(IDL.Float64),
+    'location' : IDL.Text,
+  });
+  const Vendor = IDL.Record({
+    'id' : IDL.Nat,
+    'contactName' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : Time,
+    'email' : IDL.Text,
+    'address' : IDL.Text,
+    'notes' : IDL.Text,
+    'category' : IDL.Text,
+    'phone' : IDL.Text,
+  });
+  const Warranty = IDL.Record({
+    'id' : IDL.Nat,
+    'provider' : IDL.Text,
+    'expiryDate' : Time,
+    'cost' : IDL.Float64,
+    'coverageDetails' : IDL.Text,
+    'createdAt' : Time,
+    'description' : IDL.Text,
+    'notes' : IDL.Text,
+    'vehicleId' : IDL.Nat,
+    'startDate' : Time,
+  });
+  const WorkOrderStatus = IDL.Variant({
+    'Open' : IDL.Null,
+    'Cancelled' : IDL.Null,
+    'InProgress' : IDL.Null,
+    'Completed' : IDL.Null,
+  });
+  const WorkOrderPriority = IDL.Variant({
+    'Low' : IDL.Null,
+    'High' : IDL.Null,
+    'Medium' : IDL.Null,
+    'Critical' : IDL.Null,
+  });
+  const WorkOrder = IDL.Record({
+    'id' : IDL.Nat,
+    'completedDate' : IDL.Opt(Time),
+    'status' : WorkOrderStatus,
+    'title' : IDL.Text,
+    'scheduledDate' : IDL.Opt(Time),
+    'createdAt' : Time,
+    'description' : IDL.Text,
+    'notes' : IDL.Text,
+    'priority' : WorkOrderPriority,
+    'assignedMechanic' : IDL.Text,
+    'vehicleId' : IDL.Nat,
   });
   const CompanySettings = IDL.Record({
     'adminPrincipal' : IDL.Text,
@@ -387,10 +464,10 @@ export const idlFactory = ({ IDL }) => {
     'contactPhone' : IDL.Text,
   });
   const SubscriptionRecord = IDL.Record({
-    'companyName' : IDL.Text,
     'status' : IDL.Text,
-    'startDate' : IDL.Opt(IDL.Int),
-    'updatedAt' : IDL.Int,
+    'updatedAt' : Time,
+    'companyName' : IDL.Text,
+    'startDate' : IDL.Opt(Time),
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const DashboardStats = IDL.Record({
@@ -407,55 +484,19 @@ export const idlFactory = ({ IDL }) => {
     'role' : FleetRole,
     'email' : IDL.Text,
   });
-  const WorkOrderPriority = IDL.Variant({
-    'Low' : IDL.Null,
-    'Medium' : IDL.Null,
-    'High' : IDL.Null,
-    'Critical' : IDL.Null,
-  });
-  const WorkOrderStatus = IDL.Variant({
-    'Open' : IDL.Null,
-    'InProgress' : IDL.Null,
-    'Completed' : IDL.Null,
-    'Cancelled' : IDL.Null,
-  });
-  const WorkOrder = IDL.Record({
-    'id' : IDL.Nat,
-    'title' : IDL.Text,
-    'vehicleId' : IDL.Nat,
-    'description' : IDL.Text,
-    'assignedMechanic' : IDL.Text,
-    'priority' : WorkOrderPriority,
-    'status' : WorkOrderStatus,
-    'scheduledDate' : IDL.Opt(Time),
-    'completedDate' : IDL.Opt(Time),
-    'notes' : IDL.Text,
-    'createdAt' : Time,
-  });
-  const Vendor = IDL.Record({
-    'id' : IDL.Nat,
-    'name' : IDL.Text,
-    'contactName' : IDL.Text,
-    'phone' : IDL.Text,
-    'email' : IDL.Text,
-    'address' : IDL.Text,
-    'notes' : IDL.Text,
-    'category' : IDL.Text,
-    'createdAt' : Time,
-  });
-  const Warranty = IDL.Record({
-    'id' : IDL.Nat,
-    'vehicleId' : IDL.Nat,
-    'description' : IDL.Text,
-    'provider' : IDL.Text,
-    'startDate' : Time,
-    'expiryDate' : Time,
-    'coverageDetails' : IDL.Text,
-    'cost' : IDL.Float64,
-    'notes' : IDL.Text,
-    'createdAt' : Time,
-  });
 
+  const ServiceSchedule = IDL.Record({
+    'id' : IDL.Nat,
+    'vehicleId' : IDL.Nat,
+    'serviceType' : IDL.Text,
+    'intervalDays' : IDL.Nat,
+    'nextDueDate' : Time,
+    'lastCompletedDate' : IDL.Opt(Time),
+    'notes' : IDL.Text,
+    'status' : IDL.Text,
+    'createdAt' : Time,
+  });
+  
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func(
         [IDL.Vec(IDL.Nat8)],
@@ -493,7 +534,12 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
-    'createPart' : IDL.Func([Part], [IDL.Nat], []),
+    'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
+    'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
+    'deleteServiceSchedule' : IDL.Func([IDL.Nat], [], []),
+    'getAllServiceSchedules' : IDL.Func([], [IDL.Vec(ServiceSchedule)], ['query']),
+    'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
+    'updateServiceSchedule' : IDL.Func([IDL.Nat, ServiceSchedule], [], []),
     'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
     'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
     'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
@@ -513,7 +559,12 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(MaintenanceRecordFull)],
         ['query'],
       ),
-    'getAllParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
+    'getAllParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
+    'getAllSubscriptions' : IDL.Func(
+        [],
+        [IDL.Vec(SubscriptionRecord)],
+        ['query'],
+      ),
     'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
     'getAllVendors' : IDL.Func([], [IDL.Vec(Vendor)], ['query']),
     'getAllWarranties' : IDL.Func([], [IDL.Vec(Warranty)], ['query']),
@@ -523,8 +574,9 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
+    'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
     'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
-    'getLowStockParts' : IDL.Func([], [IDL.Vec(Part)], ['query']),
+    'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
     'getMaintenanceRecord' : IDL.Func(
         [IDL.Nat],
         [MaintenanceRecordFull],
@@ -540,7 +592,12 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(MaintenanceRecordFull)],
         ['query'],
       ),
-    'getPart' : IDL.Func([IDL.Nat], [Part], ['query']),
+    'getPart' : IDL.Func([IDL.Nat], [PartFull], ['query']),
+    'getSubscriptionStatus' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(SubscriptionRecord)],
+        ['query'],
+      ),
     'getUpcomingMaintenance' : IDL.Func(
         [],
         [IDL.Vec(MaintenanceRecordFull)],
@@ -574,10 +631,6 @@ export const idlFactory = ({ IDL }) => {
     'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
-    'updateSubscriptionStatus' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(IDL.Int)], [], []),
-    'getSubscriptionStatus' : IDL.Func([IDL.Text], [IDL.Opt(SubscriptionRecord)], ['query']),
-    'getAllSubscriptions' : IDL.Func([], [IDL.Vec(SubscriptionRecord)], ['query']),
-    'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
     'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
     'updateMaintenanceRecord' : IDL.Func(
@@ -585,7 +638,12 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
-    'updatePart' : IDL.Func([IDL.Nat, Part], [], []),
+    'updatePart' : IDL.Func([IDL.Nat, PartFull], [], []),
+    'updateSubscriptionStatus' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(Time)],
+        [],
+        [],
+      ),
     'updateVehicle' : IDL.Func([IDL.Nat, Vehicle], [], []),
     'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
     'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),

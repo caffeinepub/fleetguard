@@ -5,7 +5,7 @@ import type {
   FleetRole,
   InviteToken,
   MaintenanceRecordFull,
-  Part,
+  PartFull as Part,
   UserProfile,
   Vehicle,
 } from "../backend";

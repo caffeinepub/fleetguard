@@ -248,7 +248,7 @@ actor {
 
   // Separate stable maps so CompanySettings stable var is never migrated
   var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
-  stable var defaultCurrency : Text = "CAD";
+  var defaultCurrency : Text = "CAD";
 
   // WorkOrder types
   public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
@@ -671,7 +671,7 @@ actor {
   // Work Orders
   public shared ({ caller }) func createWorkOrder(wo : WorkOrder) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can create work orders");
     };
     let newWO : WorkOrder = {
       wo with
@@ -687,7 +687,7 @@ actor {
 
   public shared ({ caller }) func updateWorkOrder(id : Nat, wo : WorkOrder) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can update work orders");
     };
     let existing = switch (workOrderStore.get(id)) {
       case (null) { Runtime.trap("Work order not found") };
@@ -709,7 +709,7 @@ actor {
 
   public query ({ caller }) func getWorkOrder(id : Nat) : async WorkOrder {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view work orders");
     };
     switch (workOrderStore.get(id)) {
       case (null) { Runtime.trap("Work order not found") };
@@ -719,14 +719,14 @@ actor {
 
   public query ({ caller }) func getAllWorkOrders() : async [WorkOrder] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view work orders");
     };
     workOrderStore.values().toArray();
   };
 
   public query ({ caller }) func getWorkOrdersByVehicle(vehicleId : Nat) : async [WorkOrder] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view work orders");
     };
     workOrderStore.values().toArray().filter(func(w) { w.vehicleId == vehicleId });
   };
@@ -734,7 +734,7 @@ actor {
   // Complete a work order and auto-log a maintenance record
   public shared ({ caller }) func completeWorkOrder(id : Nat) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can complete work orders");
     };
     let wo = switch (workOrderStore.get(id)) {
       case (null) { Runtime.trap("Work order not found") };
@@ -765,7 +765,7 @@ actor {
   // Vendors
   public shared ({ caller }) func createVendor(vendor : Vendor) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can create vendors");
     };
     let newVendor : Vendor = { vendor with id = nextVendorId; createdAt = Time.now() };
     vendorStore.add(nextVendorId, newVendor);
@@ -775,7 +775,7 @@ actor {
 
   public shared ({ caller }) func updateVendor(id : Nat, vendor : Vendor) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can update vendors");
     };
     let existing = switch (vendorStore.get(id)) {
       case (null) { Runtime.trap("Vendor not found") };
@@ -796,7 +796,7 @@ actor {
 
   public query ({ caller }) func getVendor(id : Nat) : async Vendor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view vendors");
     };
     switch (vendorStore.get(id)) {
       case (null) { Runtime.trap("Vendor not found") };
@@ -806,7 +806,7 @@ actor {
 
   public query ({ caller }) func getAllVendors() : async [Vendor] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view vendors");
     };
     vendorStore.values().toArray();
   };
@@ -814,7 +814,7 @@ actor {
   // Warranties
   public shared ({ caller }) func createWarranty(warranty : Warranty) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can create warranties");
     };
     let newWarranty : Warranty = { warranty with id = nextWarrantyId; createdAt = Time.now() };
     warrantyStore.add(nextWarrantyId, newWarranty);
@@ -824,7 +824,7 @@ actor {
 
   public shared ({ caller }) func updateWarranty(id : Nat, warranty : Warranty) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can update warranties");
     };
     let existing = switch (warrantyStore.get(id)) {
       case (null) { Runtime.trap("Warranty not found") };
@@ -845,7 +845,7 @@ actor {
 
   public query ({ caller }) func getWarranty(id : Nat) : async Warranty {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view warranties");
     };
     switch (warrantyStore.get(id)) {
       case (null) { Runtime.trap("Warranty not found") };
@@ -855,14 +855,14 @@ actor {
 
   public query ({ caller }) func getAllWarranties() : async [Warranty] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view warranties");
     };
     warrantyStore.values().toArray();
   };
 
   public query ({ caller }) func getWarrantiesByVehicle(vehicleId : Nat) : async [Warranty] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view warranties");
     };
     warrantyStore.values().toArray().filter(func(w) { w.vehicleId == vehicleId });
   };
@@ -870,7 +870,7 @@ actor {
   // Company Settings
   public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view company settings");
     };
     companySettings;
   };
@@ -912,7 +912,7 @@ actor {
 
   public query ({ caller }) func getSubscriptionStatus(companyName : Text) : async ?SubscriptionRecord {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view subscription status");
     };
     subscriptionRecords.get(companyName);
   };
@@ -926,15 +926,114 @@ actor {
 
   public query ({ caller }) func getDefaultCurrency() : async Text {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can view default currency");
     };
     defaultCurrency;
   };
 
   public shared ({ caller }) func saveDefaultCurrency(currency : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized");
+      Runtime.trap("Unauthorized: Only users can save default currency");
     };
     defaultCurrency := currency;
+  };
+
+  // ServiceSchedule
+  public type ServiceSchedule = {
+    id : Nat;
+    vehicleId : Nat;
+    serviceType : Text;
+    intervalDays : Nat;
+    nextDueDate : Time.Time;
+    lastCompletedDate : ?Time.Time;
+    notes : Text;
+    status : Text;
+    createdAt : Time.Time;
+  };
+
+  var serviceSchedules = Map.empty<Nat, ServiceSchedule>();
+  var nextServiceScheduleId : Nat = 1;
+
+  public shared ({ caller }) func createServiceSchedule(schedule : ServiceSchedule) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    let id = nextServiceScheduleId;
+    nextServiceScheduleId += 1;
+    let s : ServiceSchedule = {
+      id;
+      vehicleId = schedule.vehicleId;
+      serviceType = schedule.serviceType;
+      intervalDays = schedule.intervalDays;
+      nextDueDate = schedule.nextDueDate;
+      lastCompletedDate = schedule.lastCompletedDate;
+      notes = schedule.notes;
+      status = schedule.status;
+      createdAt = Time.now();
+    };
+    serviceSchedules.add(id, s);
+    id
+  };
+
+  public query ({ caller }) func getAllServiceSchedules() : async [ServiceSchedule] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    serviceSchedules.values().toArray();
+  };
+
+  public shared ({ caller }) func updateServiceSchedule(id : Nat, schedule : ServiceSchedule) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    switch (serviceSchedules.get(id)) {
+      case null { Runtime.trap("Service schedule not found") };
+      case (?existing) {
+        let updated : ServiceSchedule = {
+          id;
+          vehicleId = schedule.vehicleId;
+          serviceType = schedule.serviceType;
+          intervalDays = schedule.intervalDays;
+          nextDueDate = schedule.nextDueDate;
+          lastCompletedDate = schedule.lastCompletedDate;
+          notes = schedule.notes;
+          status = schedule.status;
+          createdAt = existing.createdAt;
+        };
+        serviceSchedules.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteServiceSchedule(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    ignore (serviceSchedules.remove(id));
+  };
+
+  public shared ({ caller }) func markScheduleComplete(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Authentication required");
+    };
+    switch (serviceSchedules.get(id)) {
+      case null { Runtime.trap("Service schedule not found") };
+      case (?existing) {
+        let intervalNanos : Int = existing.intervalDays * 24 * 60 * 60 * 1_000_000_000;
+        let newNextDue : Time.Time = existing.nextDueDate + intervalNanos;
+        let updated : ServiceSchedule = {
+          id;
+          vehicleId = existing.vehicleId;
+          serviceType = existing.serviceType;
+          intervalDays = existing.intervalDays;
+          nextDueDate = newNextDue;
+          lastCompletedDate = ?Time.now();
+          notes = existing.notes;
+          status = existing.status;
+          createdAt = existing.createdAt;
+        };
+        serviceSchedules.add(id, updated);
+      };
+    };
   };
 };

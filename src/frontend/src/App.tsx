@@ -18,6 +18,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PartsPage } from "./pages/PartsPage";
+import { ServiceSchedulesPage } from "./pages/ServiceSchedulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { VehicleDetailPage } from "./pages/VehicleDetailPage";
 import { VehiclesPage } from "./pages/VehiclesPage";
@@ -29,6 +30,8 @@ export type Page =
   | "dashboard"
   | "vehicles"
   | "maintenance"
+  | "maintenance-history"
+  | "service-schedules"
   | "vehicle-detail"
   | "parts"
   | "work-orders"
@@ -169,7 +172,10 @@ function AppContent() {
       case "vehicles":
         return <VehiclesPage onNavigate={navigate} />;
       case "maintenance":
+      case "maintenance-history":
         return <MaintenancePage />;
+      case "service-schedules":
+        return <ServiceSchedulesPage />;
       case "parts":
         return <PartsPage />;
       case "work-orders":

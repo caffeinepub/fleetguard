@@ -19,12 +19,6 @@ export interface CompanySettings {
   'industry' : string,
   'contactPhone' : string,
 }
-export interface SubscriptionRecord {
-  'companyName' : string,
-  'status' : string,
-  'startDate' : [] | [Time],
-  'updatedAt' : Time,
-}
 export interface DashboardStats {
   'activeVehicles' : bigint,
   'totalVehicles' : bigint,
@@ -64,23 +58,40 @@ export type MaintenanceType = { 'OilChange' : null } |
   { 'Electrical' : null } |
   { 'Other' : null } |
   { 'EngineCheck' : null };
-export interface Part {
+export interface PartFull {
   'id' : bigint,
   'partNumber' : string,
   'quantityInStock' : bigint,
   'name' : string,
   'createdAt' : Time,
   'minStockLevel' : bigint,
-  'location' : string,
   'price' : [] | [number],
+  'location' : string,
+}
+export interface ServiceSchedule {
+  'id' : bigint,
+  'vehicleId' : bigint,
+  'serviceType' : string,
+  'intervalDays' : bigint,
+  'nextDueDate' : Time,
+  'lastCompletedDate' : [] | [Time],
+  'notes' : string,
+  'status' : string,
+  'createdAt' : Time,
 }
 export type Status = { 'Inactive' : null } |
   { 'Active' : null };
+export interface SubscriptionRecord {
+  'status' : string,
+  'updatedAt' : Time,
+  'companyName' : string,
+  'startDate' : [] | [Time],
+}
 export type Time = bigint;
+export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
-export interface UserProfile { 'name' : string }
 export interface Vehicle {
   'id' : bigint,
   'status' : Status,
@@ -98,50 +109,50 @@ export type VehicleType = { 'Bus' : null } |
   { 'Trailer' : null } |
   { 'Truck' : null } |
   { 'Other' : null };
-export type WorkOrderPriority = { 'Low' : null } |
-  { 'Medium' : null } |
-  { 'High' : null } |
-  { 'Critical' : null };
-export type WorkOrderStatus = { 'Open' : null } |
-  { 'InProgress' : null } |
-  { 'Completed' : null } |
-  { 'Cancelled' : null };
-export interface WorkOrder {
-  'id' : bigint,
-  'title' : string,
-  'vehicleId' : bigint,
-  'description' : string,
-  'assignedMechanic' : string,
-  'priority' : WorkOrderPriority,
-  'status' : WorkOrderStatus,
-  'scheduledDate' : [] | [Time],
-  'completedDate' : [] | [Time],
-  'notes' : string,
-  'createdAt' : Time,
-}
 export interface Vendor {
   'id' : bigint,
-  'name' : string,
   'contactName' : string,
-  'phone' : string,
+  'name' : string,
+  'createdAt' : Time,
   'email' : string,
   'address' : string,
   'notes' : string,
   'category' : string,
-  'createdAt' : Time,
+  'phone' : string,
 }
 export interface Warranty {
   'id' : bigint,
-  'vehicleId' : bigint,
-  'description' : string,
   'provider' : string,
-  'startDate' : Time,
   'expiryDate' : Time,
-  'coverageDetails' : string,
   'cost' : number,
-  'notes' : string,
+  'coverageDetails' : string,
   'createdAt' : Time,
+  'description' : string,
+  'notes' : string,
+  'vehicleId' : bigint,
+  'startDate' : Time,
 }
+export interface WorkOrder {
+  'id' : bigint,
+  'completedDate' : [] | [Time],
+  'status' : WorkOrderStatus,
+  'title' : string,
+  'scheduledDate' : [] | [Time],
+  'createdAt' : Time,
+  'description' : string,
+  'notes' : string,
+  'priority' : WorkOrderPriority,
+  'assignedMechanic' : string,
+  'vehicleId' : bigint,
+}
+export type WorkOrderPriority = { 'Low' : null } |
+  { 'High' : null } |
+  { 'Medium' : null } |
+  { 'Critical' : null };
+export type WorkOrderStatus = { 'Open' : null } |
+  { 'Cancelled' : null } |
+  { 'InProgress' : null } |
+  { 'Completed' : null };
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
@@ -166,19 +177,23 @@ export interface _SERVICE {
   'completeWorkOrder' : ActorMethod<[bigint], bigint>,
   'createInviteToken' : ActorMethod<[string, FleetRole], string>,
   'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
-  'createPart' : ActorMethod<[Part], bigint>,
+  'createPart' : ActorMethod<[PartFull], bigint>,
+  'createServiceSchedule' : ActorMethod<[ServiceSchedule], bigint>,
   'createVehicle' : ActorMethod<[Vehicle], bigint>,
   'createVendor' : ActorMethod<[Vendor], bigint>,
   'createWarranty' : ActorMethod<[Warranty], bigint>,
   'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
   'deletePart' : ActorMethod<[bigint], undefined>,
+  'deleteServiceSchedule' : ActorMethod<[bigint], undefined>,
   'deleteVehicle' : ActorMethod<[bigint], undefined>,
   'deleteVendor' : ActorMethod<[bigint], undefined>,
   'deleteWarranty' : ActorMethod<[bigint], undefined>,
   'deleteWorkOrder' : ActorMethod<[bigint], undefined>,
   'getAllCompanyRegistrations' : ActorMethod<[], Array<CompanySettings>>,
   'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
-  'getAllParts' : ActorMethod<[], Array<Part>>,
+  'getAllParts' : ActorMethod<[], Array<PartFull>>,
+  'getAllServiceSchedules' : ActorMethod<[], Array<ServiceSchedule>>,
+  'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
   'getAllVehicles' : ActorMethod<[], Array<Vehicle>>,
   'getAllVendors' : ActorMethod<[], Array<Vendor>>,
   'getAllWarranties' : ActorMethod<[], Array<Warranty>>,
@@ -188,12 +203,14 @@ export interface _SERVICE {
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
+  'getDefaultCurrency' : ActorMethod<[], string>,
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
-  'getLowStockParts' : ActorMethod<[], Array<Part>>,
+  'getLowStockParts' : ActorMethod<[], Array<PartFull>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
   'getMaintenanceRecordsByVehicle' : ActorMethod<[bigint], Array<MaintenanceRecordFull>>,
   'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
-  'getPart' : ActorMethod<[bigint], Part>,
+  'getPart' : ActorMethod<[bigint], PartFull>,
+  'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
   'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getUserFleetRole' : ActorMethod<[Principal], [] | [FleetRole]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -204,17 +221,16 @@ export interface _SERVICE {
   'getWorkOrder' : ActorMethod<[bigint], WorkOrder>,
   'getWorkOrdersByVehicle' : ActorMethod<[bigint], Array<WorkOrder>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'markScheduleComplete' : ActorMethod<[bigint], undefined>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
-  'updateSubscriptionStatus' : ActorMethod<[string, string, [] | [bigint]], undefined>,
-  'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
-  'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
-  'getDefaultCurrency' : ActorMethod<[], string>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
   'updateMaintenanceRecord' : ActorMethod<[bigint, MaintenanceRecordFull], undefined>,
-  'updatePart' : ActorMethod<[bigint, Part], undefined>,
+  'updatePart' : ActorMethod<[bigint, PartFull], undefined>,
+  'updateServiceSchedule' : ActorMethod<[bigint, ServiceSchedule], undefined>,
+  'updateSubscriptionStatus' : ActorMethod<[string, string, [] | [Time]], undefined>,
   'updateVehicle' : ActorMethod<[bigint, Vehicle], undefined>,
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,

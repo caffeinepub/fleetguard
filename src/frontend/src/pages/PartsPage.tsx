@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Part } from "../backend";
+import type { PartFull as Part } from "../backend";
 import {
   useAllParts,
   useCreatePart,

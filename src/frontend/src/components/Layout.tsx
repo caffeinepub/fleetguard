@@ -1,7 +1,11 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  CalendarClock,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   ClipboardList,
+  History,
   LayoutDashboard,
   LogOut,
   Package,
@@ -13,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type { Page } from "../App";
 import { FleetRole } from "../backend";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -29,13 +34,33 @@ interface LayoutProps {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
 }
 
+const MAINTENANCE_PAGES: Page[] = [
+  "maintenance",
+  "maintenance-history",
+  "work-orders",
+  "service-schedules",
+];
+
 const topNavItems = [
   { id: "dashboard" as Page, label: "Dashboard", icon: LayoutDashboard },
   { id: "vehicles" as Page, label: "Fleet", icon: Truck },
-  { id: "maintenance" as Page, label: "Maintenance", icon: Wrench },
   { id: "parts" as Page, label: "Parts", icon: Package },
   { id: "vendors" as Page, label: "Vendors", icon: Store },
   { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
+];
+
+const maintenanceSubItems = [
+  { id: "work-orders" as Page, label: "Work Orders", icon: ClipboardList },
+  {
+    id: "service-schedules" as Page,
+    label: "Service Schedules",
+    icon: CalendarClock,
+  },
+  {
+    id: "maintenance-history" as Page,
+    label: "Maintenance History",
+    icon: History,
+  },
 ];
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
@@ -49,6 +74,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const displayName = profile?.name || shortPrincipal;
   const initials = profile?.name ? profile.name.slice(0, 2).toUpperCase() : "U";
 
+  const isMaintenanceActive = MAINTENANCE_PAGES.includes(currentPage);
+  const [maintenanceOpen, setMaintenanceOpen] = useState(isMaintenanceActive);
+
   let roleName = "Fleet Member";
   let roleColorClass = "text-sidebar-foreground/50";
   if (fleetRole === FleetRole.Admin || isAdmin) {
@@ -61,10 +89,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     roleName = "Mechanic";
     roleColorClass = "text-amber-400";
   }
-
-  const isWorkOrdersActive = currentPage === "work-orders";
-  const isMaintenanceActive =
-    currentPage === "maintenance" || isWorkOrdersActive;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -98,9 +122,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           {topNavItems.map((item) => {
             const Icon = item.icon;
             const active =
-              (item.id === "maintenance"
-                ? isMaintenanceActive
-                : currentPage === item.id) ||
+              currentPage === item.id ||
               (currentPage === "vehicle-detail" && item.id === "vehicles");
             return (
               <button
@@ -116,30 +138,64 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               >
                 <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
                 {item.label}
-                {active && item.id !== "maintenance" && (
+                {active && (
                   <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />
                 )}
               </button>
             );
           })}
 
-          {/* Work Orders — sub-item under Maintenance */}
-          <button
-            type="button"
-            data-ocid="nav.work-orders.link"
-            onClick={() => onNavigate("work-orders")}
-            className={`w-full flex items-center gap-3 pl-8 pr-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              isWorkOrdersActive
-                ? "bg-sidebar-accent/80 text-white"
-                : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-white"
-            }`}
-          >
-            <ClipboardList size={16} className="flex-shrink-0" />
-            Work Orders
-            {isWorkOrdersActive && (
-              <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />
+          {/* Maintenance expandable group */}
+          <div>
+            <button
+              type="button"
+              data-ocid="nav.maintenance.link"
+              onClick={() => setMaintenanceOpen((prev) => !prev)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                isMaintenanceActive
+                  ? "bg-sidebar-accent text-white"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-white"
+              }`}
+            >
+              <Wrench size={18} className="flex-shrink-0" />
+              Maintenance
+              <span className="ml-auto">
+                {maintenanceOpen ? (
+                  <ChevronUp size={14} className="opacity-60" />
+                ) : (
+                  <ChevronDown size={14} className="opacity-60" />
+                )}
+              </span>
+            </button>
+
+            {maintenanceOpen && (
+              <div className="mt-1 space-y-0.5">
+                {maintenanceSubItems.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const active = currentPage === sub.id;
+                  return (
+                    <button
+                      type="button"
+                      key={sub.id}
+                      data-ocid={`nav.${sub.id}.link`}
+                      onClick={() => onNavigate(sub.id)}
+                      className={`w-full flex items-center gap-3 pl-8 pr-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        active
+                          ? "bg-sidebar-accent/80 text-white"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-white"
+                      }`}
+                    >
+                      <SubIcon size={15} className="flex-shrink-0" />
+                      {sub.label}
+                      {active && (
+                        <ChevronRight className="ml-auto w-3 h-3 opacity-60" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </button>
+          </div>
 
           <div className="pt-2 mt-2 border-t border-sidebar-border/40">
             <button

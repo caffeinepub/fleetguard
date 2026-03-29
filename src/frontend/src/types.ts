@@ -1,1 +1,1 @@
-export type { Part } from "./backend";
+export type { PartFull as Part } from "./backend";
