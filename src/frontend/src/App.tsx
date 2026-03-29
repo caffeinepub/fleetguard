@@ -78,7 +78,7 @@ interface NavState {
 
 function AppContent() {
   const { identity, isInitializing, login } = useInternetIdentity();
-  const { actor } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
   const { data: companySettings, isLoading: companySettingsLoading } =
     useGetCompanySettings();
@@ -142,10 +142,17 @@ function AppContent() {
     return <LoginPage onSignUp={handleSignUp} />;
   }
 
-  if (profileLoading || companySettingsLoading) {
+  // Wait for actor AND dependent queries before making routing decisions.
+  // Without actorFetching guard, profile is undefined (query disabled while actor
+  // loads) and returning users get incorrectly routed to onboarding.
+  if (actorFetching || profileLoading || companySettingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Skeleton className="h-8 w-48" />
+        <div className="space-y-3 w-64">
+          <Skeleton className="h-8 w-40 mx-auto" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4 mx-auto" />
+        </div>
       </div>
     );
   }
@@ -164,7 +171,7 @@ function AppContent() {
     return <InviteAcceptPage token={inviteToken} />;
   }
 
-  // New user — no profile, no invite token → admin onboarding
+  // New user — no profile, no invite token -> admin onboarding
   if (isProfileEmpty(profile)) {
     return <OnboardingPage />;
   }
