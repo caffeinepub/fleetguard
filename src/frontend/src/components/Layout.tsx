@@ -18,11 +18,13 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  Moon,
   Package,
   Settings,
   Shield,
   ShieldCheck,
   Store,
+  Sun,
   Truck,
   Wrench,
 } from "lucide-react";
@@ -30,6 +32,7 @@ import type { ElementType, ReactNode } from "react";
 import { useState } from "react";
 import type { Page } from "../App";
 import { FleetRole } from "../backend";
+import { useDarkMode } from "../hooks/useDarkMode";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
@@ -95,6 +98,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { data: fleetRole } = useCallerFleetRole();
   const { data: isAdmin } = useIsAdmin();
   const { data: chatMessages } = useChatMessages();
+  const { isDark, toggle: toggleDark } = useDarkMode();
   const principal = identity?.getPrincipal().toString();
   const shortPrincipal = principal ? `${principal.slice(0, 8)}...` : "";
   const displayName = profile?.name || shortPrincipal;
@@ -454,6 +458,21 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   <TooltipTrigger asChild>
                     <button
                       type="button"
+                      data-ocid="nav.darkmode.toggle"
+                      onClick={toggleDark}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 transition-all"
+                    >
+                      {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {isDark ? "Light mode" : "Dark mode"}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
                       data-ocid="nav.logout.button"
                       onClick={clear}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 transition-all"
@@ -497,9 +516,18 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 </div>
                 <button
                   type="button"
+                  data-ocid="nav.darkmode.toggle"
+                  onClick={toggleDark}
+                  className="w-full mt-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 transition-all"
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  {isDark ? "Light Mode" : "Dark Mode"}
+                </button>
+                <button
+                  type="button"
                   data-ocid="nav.logout.button"
                   onClick={clear}
-                  className="w-full mt-2 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 transition-all"
+                  className="w-full mt-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 transition-all"
                 >
                   <LogOut size={16} />
                   Sign out
@@ -510,9 +538,25 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto bg-background">
-          <div className="min-h-full">{children}</div>
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header bar */}
+          <header className="bg-card border-b border-border px-6 py-3 flex items-center justify-end flex-shrink-0">
+            <button
+              type="button"
+              data-ocid="header.darkmode.toggle"
+              onClick={toggleDark}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+            >
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+              <span className="text-xs font-medium">
+                {isDark ? "Light" : "Dark"}
+              </span>
+            </button>
+          </header>
+          <main className="flex-1 overflow-y-auto bg-background">
+            <div className="min-h-full">{children}</div>
+          </main>
+        </div>
       </div>
     </TooltipProvider>
   );

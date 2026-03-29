@@ -79,7 +79,11 @@ function formatSubDate(ns: bigint): string {
   });
 }
 
-export function SettingsPage() {
+interface SettingsPageProps {
+  onNavigate?: (page: import("../App").Page) => void;
+}
+
+export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const { data: companySettings } = useGetCompanySettings();
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
@@ -764,8 +768,10 @@ export function SettingsPage() {
                 parts, maintenance, users, and settings.
               </p>
               <p>
-                <strong>Fleet Manager</strong> — Log and manage maintenance
-                records, view all fleet data.
+                <strong>Fleet Manager</strong> — Full access to fleet
+                operations: manage vehicles, parts, maintenance, work orders,
+                vendors, and service schedules. Cannot create/remove users or
+                delete any data.
               </p>
               <p>
                 <strong>Mechanic</strong> — Log maintenance, manage parts
@@ -776,18 +782,30 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Footer */}
-      <div className="text-center text-xs text-muted-foreground pb-4">
-        © {new Date().getFullYear()}. Built with ❤️ using{" "}
-        <a
-          href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-          target="_blank"
-          rel="noopener noreferrer"
+      {/* Privacy & Terms links */}
+      <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
+        <button
+          type="button"
+          onClick={() => onNavigate?.("privacy-policy")}
           className="underline hover:text-foreground transition-colors"
+          data-ocid="settings.link"
         >
-          caffeine.ai
-        </a>
+          Privacy Policy
+        </button>
+        <span>·</span>
+        <button
+          type="button"
+          onClick={() => onNavigate?.("terms")}
+          className="underline hover:text-foreground transition-colors"
+          data-ocid="settings.link"
+        >
+          Terms of Service
+        </button>
       </div>
+      {/* Footer */}
+      <p className="text-center text-xs text-muted-foreground pb-4">
+        © {new Date().getFullYear()} FleetGuard. All rights reserved.
+      </p>
     </div>
   );
 }

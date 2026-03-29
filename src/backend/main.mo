@@ -184,6 +184,12 @@ actor {
     };
   };
 
+  // PartQuantity for tracking quantity of parts used in maintenance
+  public type PartQuantity = {
+    partId : Nat;
+    quantity : Nat;
+  };
+
   public type MaintenanceRecordFull = {
     id : Nat;
     vehicleId : Nat;
@@ -195,11 +201,14 @@ actor {
     technicianName : Text;
     nextServiceDate : ?Time.Time;
     partsUsed : [Nat];
+    partQuantities : [PartQuantity];
+    laborHours : ?Float;
+    laborCost : ?Float;
     workOrderId : ?Nat;
     createdAt : Time.Time;
   };
 
-  // Internal Part type -- UNCHANGED from original to preserve stable variable compatibility
+  // Internal Part type
   module Part {
     public type Part = {
       id : Nat;
@@ -215,7 +224,6 @@ actor {
     };
   };
 
-  // Public API type that includes price -- not stored in partStore directly
   public type PartFull = {
     id : Nat;
     name : Text;
@@ -237,16 +245,19 @@ actor {
     createdAt : Time.Time;
   };
 
-  // Subscription record (stored separately to avoid stable var migration issues)
+  // Subscription record
   public type SubscriptionRecord = {
     companyName : Text;
-    status : Text;        // "inactive" | "active" | "cancelled"
+    status : Text;
     startDate : ?Time.Time;
     updatedAt : Time.Time;
   };
 
   var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
   var defaultCurrency : Text = "CAD";
+
+  // Company approval status store (separate to avoid migration issues)
+  var companyApprovalStore = Map.empty<Text, Text>(); // companyName -> status: "pending"|"approved"|"rejected"
 
   // WorkOrder types
   public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
@@ -304,6 +315,9 @@ actor {
   let partStore = Map.empty<Nat, Part.Part>();
   let partPriceStore = Map.empty<Nat, Float>();
   let maintenancePartsStore = Map.empty<Nat, [Nat]>();
+  let maintenancePartQuantitiesStore = Map.empty<Nat, [PartQuantity]>();
+  let maintenanceLaborHoursStore = Map.empty<Nat, Float>();
+  let maintenanceLaborCostStore = Map.empty<Nat, Float>();
   let workOrderLinkStore = Map.empty<Nat, Nat>(); // maintenanceId -> workOrderId
 
   let workOrderStore = Map.empty<Nat, WorkOrder>();
@@ -342,6 +356,12 @@ actor {
       case (null) { [] };
       case (?p) { p };
     };
+    let quantities = switch (maintenancePartQuantitiesStore.get(record.id)) {
+      case (null) { [] };
+      case (?q) { q };
+    };
+    let laborHours = maintenanceLaborHoursStore.get(record.id);
+    let laborCost = maintenanceLaborCostStore.get(record.id);
     {
       id = record.id;
       vehicleId = record.vehicleId;
@@ -353,6 +373,9 @@ actor {
       technicianName = record.technicianName;
       nextServiceDate = record.nextServiceDate;
       partsUsed = parts;
+      partQuantities = quantities;
+      laborHours = laborHours;
+      laborCost = laborCost;
       workOrderId = workOrderLinkStore.get(record.id);
       createdAt = record.createdAt;
     };
@@ -428,13 +451,27 @@ actor {
       Runtime.trap("Unauthorized: Only users can create maintenance records");
     };
     ignore getVehicleInternal(record.vehicleId);
-    for (partId in record.partsUsed.vals()) {
-      switch (partStore.get(partId)) {
-        case (null) {};
-        case (?part) {
-          if (part.quantityInStock > 0) {
-            let updated : Part.Part = { part with quantityInStock = part.quantityInStock - 1 };
-            partStore.add(partId, updated);
+    // Use partQuantities for inventory decrement if available, otherwise fall back to partsUsed
+    if (record.partQuantities.size() > 0) {
+      for (pq in record.partQuantities.vals()) {
+        switch (partStore.get(pq.partId)) {
+          case (null) {};
+          case (?part) {
+            let deduct = if (pq.quantity > part.quantityInStock) part.quantityInStock else pq.quantity;
+            let updated : Part.Part = { part with quantityInStock = part.quantityInStock - deduct };
+            partStore.add(pq.partId, updated);
+          };
+        };
+      };
+    } else {
+      for (partId in record.partsUsed.vals()) {
+        switch (partStore.get(partId)) {
+          case (null) {};
+          case (?part) {
+            if (part.quantityInStock > 0) {
+              let updated : Part.Part = { part with quantityInStock = part.quantityInStock - 1 };
+              partStore.add(partId, updated);
+            };
           };
         };
       };
@@ -455,6 +492,17 @@ actor {
     maintenanceRecords.add(newRecord);
     if (record.partsUsed.size() > 0) {
       maintenancePartsStore.add(nextMaintenanceId, record.partsUsed);
+    };
+    if (record.partQuantities.size() > 0) {
+      maintenancePartQuantitiesStore.add(nextMaintenanceId, record.partQuantities);
+    };
+    switch (record.laborHours) {
+      case (?h) { maintenanceLaborHoursStore.add(nextMaintenanceId, h) };
+      case (null) {};
+    };
+    switch (record.laborCost) {
+      case (?c) { maintenanceLaborCostStore.add(nextMaintenanceId, c) };
+      case (null) {};
     };
     nextMaintenanceId += 1;
     newRecord.id;
@@ -482,6 +530,17 @@ actor {
     };
     maintenanceStore.add(id, updatedRecord);
     maintenancePartsStore.add(id, record.partsUsed);
+    if (record.partQuantities.size() > 0) {
+      maintenancePartQuantitiesStore.add(id, record.partQuantities);
+    };
+    switch (record.laborHours) {
+      case (?h) { maintenanceLaborHoursStore.add(id, h) };
+      case (null) { maintenanceLaborHoursStore.remove(id) };
+    };
+    switch (record.laborCost) {
+      case (?c) { maintenanceLaborCostStore.add(id, c) };
+      case (null) { maintenanceLaborCostStore.remove(id) };
+    };
   };
 
   public query ({ caller }) func getMaintenanceRecord(id : Nat) : async MaintenanceRecordFull {
@@ -896,7 +955,7 @@ actor {
     allCompanyRegistrations.toArray();
   };
 
-  // Dev portal access with devKey (allows dev access when logged in via Internet Identity)
+  // Dev portal access with devKey
   let DEV_KEY : Text = "FLEETGUARD_DEV_2026";
 
   public query func getAllCompanyRegistrationsWithKey(devKey : Text) : async [CompanySettings] {
@@ -949,6 +1008,38 @@ actor {
       Runtime.trap("Unauthorized: Invalid developer key");
     };
     subscriptionRecords.values().toArray();
+  };
+
+  // Company approval
+  public shared func approveCompanyWithKey(devKey : Text, companyName : Text) : async () {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    companyApprovalStore.add(companyName, "approved");
+  };
+
+  public shared func rejectCompanyWithKey(devKey : Text, companyName : Text) : async () {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    companyApprovalStore.add(companyName, "rejected");
+  };
+
+  public query func getCompanyApprovalStatusWithKey(devKey : Text, companyName : Text) : async Text {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    switch (companyApprovalStore.get(companyName)) {
+      case (?s) { s };
+      case (null) { "pending" };
+    };
+  };
+
+  public query func getAllCompanyApprovalsWithKey(devKey : Text) : async [(Text, Text)] {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    companyApprovalStore.entries().toArray();
   };
 
   public query ({ caller }) func getDefaultCurrency() : async Text {
@@ -1062,7 +1153,7 @@ actor {
     };
   };
 
-  // Struct for Chat messages
+  // Chat messages
   public type ChatMessage = {
     id : Nat;
     senderPrincipal : Text;

@@ -134,15 +134,7 @@ export function InviteAcceptPage({ token }: InviteAcceptPageProps) {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()}. Built with ❤️ using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground transition-colors"
-          >
-            caffeine.ai
-          </a>
+          © {new Date().getFullYear()} FleetGuard. All rights reserved.
         </p>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import {
   Building2,
+  CheckCircle,
   ChevronDown,
   Code2,
   DollarSign,
@@ -25,11 +27,15 @@ import {
   RefreshCw,
   TrendingUp,
   Users,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  useAllCompanyApprovalsWithKey,
   useAllCompanyRegistrationsWithKey,
   useAllSubscriptionsWithKey,
+  useApproveCompanyWithKey,
+  useRejectCompanyWithKey,
   useUpdateSubscriptionStatusWithKey,
 } from "../hooks/useQueries";
 
@@ -74,6 +80,37 @@ function SubBadge({ status }: { status: string }) {
   );
 }
 
+function ApprovalBadge({ status }: { status: string }) {
+  if (status === "approved") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-xs font-semibold px-2.5 py-0.5 bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+      >
+        <CheckCircle className="w-3 h-3 mr-1" /> Approved
+      </Badge>
+    );
+  }
+  if (status === "rejected") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-xs font-semibold px-2.5 py-0.5 bg-red-500/15 text-red-400 border-red-500/30"
+      >
+        <XCircle className="w-3 h-3 mr-1" /> Rejected
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs font-semibold px-2.5 py-0.5 bg-amber-500/15 text-amber-400 border-amber-500/30"
+    >
+      Pending
+    </Badge>
+  );
+}
+
 export function DevPortalPage() {
   const DEV_KEY = localStorage.getItem("devKey") ?? "FLEETGUARD_DEV_2026";
   const {
@@ -86,13 +123,18 @@ export function DevPortalPage() {
     isLoading: subsLoading,
     refetch: refetchSubs,
   } = useAllSubscriptionsWithKey(DEV_KEY);
+  const { data: approvals = [], refetch: refetchApprovals } =
+    useAllCompanyApprovalsWithKey(DEV_KEY);
   const updateSub = useUpdateSubscriptionStatusWithKey();
+  const approveCompany = useApproveCompanyWithKey();
+  const rejectCompany = useRejectCompanyWithKey();
 
   const isLoading = companiesLoading || subsLoading;
 
   const refetch = () => {
     refetchCompanies();
     refetchSubs();
+    refetchApprovals();
   };
 
   const handleExit = () => {
@@ -102,6 +144,11 @@ export function DevPortalPage() {
 
   const getSubStatus = (name: string) =>
     subscriptions.find((s) => s.companyName === name)?.status ?? "inactive";
+
+  const getApprovalStatus = (name: string) => {
+    const entry = approvals.find(([n]) => n === name);
+    return entry ? entry[1] : "pending";
+  };
 
   const handleSubAction = async (
     companyName: string,
@@ -131,6 +178,26 @@ export function DevPortalPage() {
       );
     } catch {
       toast.error("Failed to update subscription");
+    }
+  };
+
+  const handleApprove = async (companyName: string) => {
+    try {
+      await approveCompany.mutateAsync({ devKey: DEV_KEY, companyName });
+      await refetchApprovals();
+      toast.success(`${companyName} has been approved`);
+    } catch {
+      toast.error("Failed to approve company");
+    }
+  };
+
+  const handleReject = async (companyName: string) => {
+    try {
+      await rejectCompany.mutateAsync({ devKey: DEV_KEY, companyName });
+      await refetchApprovals();
+      toast.success(`${companyName} has been rejected`);
+    } catch {
+      toast.error("Failed to reject company");
     }
   };
 
@@ -333,6 +400,7 @@ export function DevPortalPage() {
                     "Contact Phone",
                     "Admin Principal",
                     "Signed Up",
+                    "Approval",
                     "Subscription",
                     "Actions",
                   ].map((h) => (
@@ -349,6 +417,7 @@ export function DevPortalPage() {
               <TableBody data-ocid="devportal.table">
                 {companies.map((company, idx) => {
                   const sub = getSubStatus(company.companyName);
+                  const approval = getApprovalStatus(company.companyName);
                   return (
                     <TableRow
                       key={company.adminPrincipal}
@@ -380,6 +449,9 @@ export function DevPortalPage() {
                           : "—"}
                       </TableCell>
                       <TableCell>
+                        <ApprovalBadge status={approval} />
+                      </TableCell>
+                      <TableCell>
                         <SubBadge status={sub} />
                       </TableCell>
                       <TableCell>
@@ -394,7 +466,23 @@ export function DevPortalPage() {
                               Manage <ChevronDown className="w-3 h-3" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem
+                              className="text-emerald-600 focus:text-emerald-600 cursor-pointer gap-2"
+                              onClick={() => handleApprove(company.companyName)}
+                              data-ocid="devportal.button"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Approve
+                              Company
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-500 focus:text-red-500 cursor-pointer gap-2"
+                              onClick={() => handleReject(company.companyName)}
+                              data-ocid="devportal.button"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Reject Company
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-emerald-600 focus:text-emerald-600 cursor-pointer"
                               onClick={() =>
@@ -441,16 +529,7 @@ export function DevPortalPage() {
           className="text-center text-xs pb-4"
           style={{ color: "rgba(255,255,255,0.25)" }}
         >
-          © {new Date().getFullYear()} FleetGuard · Developer Portal · Built
-          with ❤️ using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:opacity-80"
-          >
-            caffeine.ai
-          </a>
+          &copy; {new Date().getFullYear()} FleetGuard. All rights reserved.
         </p>
       </main>
     </div>

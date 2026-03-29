@@ -646,3 +646,46 @@ export function useUpdateSubscriptionStatusWithKey() {
     },
   });
 }
+
+export function useAllCompanyApprovalsWithKey(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Array<[string, string]>>({
+    queryKey: ["companyApprovals", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return (actor as any).getAllCompanyApprovalsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useApproveCompanyWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { devKey: string; companyName: string }>({
+    mutationFn: (vars) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).approveCompanyWithKey(
+        vars.devKey,
+        vars.companyName,
+      );
+    },
+    onSuccess: (_: unknown, vars) => {
+      qc.invalidateQueries({ queryKey: ["companyApprovals", vars.devKey] });
+    },
+  });
+}
+
+export function useRejectCompanyWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { devKey: string; companyName: string }>({
+    mutationFn: (vars) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).rejectCompanyWithKey(vars.devKey, vars.companyName);
+    },
+    onSuccess: (_: unknown, vars) => {
+      qc.invalidateQueries({ queryKey: ["companyApprovals", vars.devKey] });
+    },
+  });
+}

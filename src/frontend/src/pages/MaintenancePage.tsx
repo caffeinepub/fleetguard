@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Filter, Pencil, Plus, Search } from "lucide-react";
+import { Download, Filter, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { MaintenanceType } from "../backend";
 import type { MaintenanceRecordFull, Vehicle } from "../backend";
@@ -270,9 +270,9 @@ export function MaintenancePage() {
                     "Description",
                     "Mileage",
                     "Cost",
+                    "Labor",
                     "Technician",
                     "Next Service",
-                    "Actions",
                   ].map((h) => (
                     <th
                       key={h}
@@ -289,11 +289,29 @@ export function MaintenancePage() {
                     (v: Vehicle) => v.id === r.vehicleId,
                   );
                   const woId = getWorkOrderId(r);
+                  const laborHrs = (r as any).laborHours;
+                  const laborCost = (r as any).laborCost;
+                  const laborHrsVal = Array.isArray(laborHrs)
+                    ? laborHrs.length > 0
+                      ? Number(laborHrs[0])
+                      : null
+                    : laborHrs != null
+                      ? Number(laborHrs)
+                      : null;
+                  const laborCostVal = Array.isArray(laborCost)
+                    ? laborCost.length > 0
+                      ? Number(laborCost[0])
+                      : null
+                    : laborCost != null
+                      ? Number(laborCost)
+                      : null;
                   return (
                     <tr
                       key={r.id.toString()}
                       data-ocid={`maintenance.item.${i + 1}`}
-                      className="hover:bg-muted/20 transition-colors"
+                      className="hover:bg-muted/20 transition-colors cursor-pointer"
+                      onClick={() => openEdit(r)}
+                      onKeyDown={(e) => e.key === "Enter" && openEdit(r)}
                     >
                       <td className="px-5 py-4 font-medium whitespace-nowrap">
                         {vehicle?.name ?? "Unknown"}
@@ -330,6 +348,20 @@ export function MaintenancePage() {
                         {formatCurrency(r.cost)}
                       </td>
                       <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                        {laborHrsVal != null || laborCostVal != null ? (
+                          <div className="text-xs space-y-0.5">
+                            {laborHrsVal != null && <p>{laborHrsVal}h</p>}
+                            {laborCostVal != null && (
+                              <p className="text-primary font-medium">
+                                {formatCurrency(laborCostVal)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                         {r.technicianName}
                       </td>
                       <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
@@ -340,17 +372,6 @@ export function MaintenancePage() {
                         ) : (
                           "—"
                         )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          data-ocid={`maintenance.edit_button.${i + 1}`}
-                          onClick={() => openEdit(r)}
-                        >
-                          <Pencil size={14} />
-                        </Button>
                       </td>
                     </tr>
                   );

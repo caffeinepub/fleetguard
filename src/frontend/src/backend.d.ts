@@ -7,6 +7,10 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export interface PartQuantity {
+    partId: bigint;
+    quantity: bigint;
+}
 export interface MaintenanceRecordFull {
     id: bigint;
     mileage: bigint;
@@ -16,6 +20,9 @@ export interface MaintenanceRecordFull {
     date: Time;
     createdAt: Time;
     partsUsed: Array<bigint>;
+    partQuantities: Array<PartQuantity>;
+    laborHours?: number;
+    laborCost?: number;
     description: string;
     workOrderId?: bigint;
     maintenanceType: MaintenanceType;
@@ -175,6 +182,7 @@ export enum WorkOrderStatus {
     Completed = "Completed"
 }
 export interface backendInterface {
+    approveCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     bulkCreateVehicles(vehicleList: Array<Vehicle>): Promise<Array<bigint>>;
     completeWorkOrder(id: bigint): Promise<bigint>;
@@ -192,11 +200,14 @@ export interface backendInterface {
     deleteVendor(id: bigint): Promise<void>;
     deleteWarranty(id: bigint): Promise<void>;
     deleteWorkOrder(id: bigint): Promise<void>;
+    getAllCompanyApprovalsWithKey(devKey: string): Promise<Array<[string, string]>>;
     getAllCompanyRegistrations(): Promise<Array<CompanySettings>>;
+    getAllCompanyRegistrationsWithKey(devKey: string): Promise<Array<CompanySettings>>;
     getAllMaintenanceRecords(): Promise<Array<MaintenanceRecordFull>>;
     getAllParts(): Promise<Array<PartFull>>;
     getAllServiceSchedules(): Promise<Array<ServiceSchedule>>;
     getAllSubscriptions(): Promise<Array<SubscriptionRecord>>;
+    getAllSubscriptionsWithKey(devKey: string): Promise<Array<SubscriptionRecord>>;
     getAllVehicles(): Promise<Array<Vehicle>>;
     getAllVendors(): Promise<Array<Vendor>>;
     getAllWarranties(): Promise<Array<Warranty>>;
@@ -205,6 +216,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getChatMessages(): Promise<Array<ChatMessage>>;
+    getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
     getCompanySettings(): Promise<CompanySettings | null>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
@@ -227,6 +239,7 @@ export interface backendInterface {
     isCallerAdmin(): Promise<boolean>;
     markScheduleComplete(id: bigint): Promise<void>;
     redeemInviteToken(token: string): Promise<FleetRole>;
+    rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
@@ -236,6 +249,7 @@ export interface backendInterface {
     updatePart(id: bigint, part: PartFull): Promise<void>;
     updateServiceSchedule(id: bigint, schedule: ServiceSchedule): Promise<void>;
     updateSubscriptionStatus(companyName: string, status: string, startDate: Time | null): Promise<void>;
+    updateSubscriptionStatusWithKey(devKey: string, companyName: string, status: string, startDate: Time | undefined): Promise<void>;
     updateVehicle(id: bigint, vehicle: Vehicle): Promise<void>;
     updateVendor(id: bigint, vendor: Vendor): Promise<void>;
     updateWarranty(id: bigint, warranty: Warranty): Promise<void>;

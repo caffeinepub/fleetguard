@@ -261,7 +261,7 @@ export function VendorsPage() {
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
-                  {canCreate && (
+                  {isAdmin && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

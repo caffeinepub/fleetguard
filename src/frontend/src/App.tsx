@@ -19,9 +19,11 @@ import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PartsPage } from "./pages/PartsPage";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { ServiceSchedulesPage } from "./pages/ServiceSchedulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TermsOfServicePage } from "./pages/TermsOfServicePage";
 import { VehicleDetailPage } from "./pages/VehicleDetailPage";
 import { VehiclesPage } from "./pages/VehiclesPage";
 import { VendorsPage } from "./pages/VendorsPage";
@@ -43,7 +45,9 @@ export type Page =
   | "group-chat"
   | "settings"
   | "invite-accept"
-  | "dev-portal";
+  | "dev-portal"
+  | "privacy-policy"
+  | "terms";
 
 const DEV_KEY = "FLEETGUARD_DEV_2026";
 const SIGNUP_INTENT_KEY = "fleetguard_signup_intent";
@@ -200,7 +204,11 @@ function AppContent() {
       case "group-chat":
         return <GroupChatPage />;
       case "settings":
-        return <SettingsPage />;
+        return <SettingsPage onNavigate={navigate} />;
+      case "privacy-policy":
+        return <PrivacyPolicyPage onNavigate={navigate} />;
+      case "terms":
+        return <TermsOfServicePage onNavigate={navigate} />;
       case "vehicle-detail": {
         const vehicleId = nav.params?.vehicleId as bigint | undefined;
         if (!vehicleId) return <DashboardPage onNavigate={navigate} />;
