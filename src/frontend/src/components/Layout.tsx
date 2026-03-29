@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardList,
+  Code2,
   FileBarChart,
   History,
   LayoutDashboard,
@@ -101,6 +102,8 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
 
   const isMaintenanceActive = MAINTENANCE_PAGES.includes(currentPage);
   const [maintenanceOpen, setMaintenanceOpen] = useState(isMaintenanceActive);
+
+  const isDevMode = localStorage.getItem("devKey") === "FLEETGUARD_DEV_2026";
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("fleetguard_sidebar_collapsed") === "true",
@@ -390,6 +393,41 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 </button>
               )}
             </div>
+
+            {/* Dev Portal — only when dev mode active */}
+            {isDevMode && (
+              <div className="px-0">
+                {sidebarCollapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-ocid="nav.devportal.link"
+                        onClick={() => {
+                          window.location.href = `${window.location.origin}?devKey=FLEETGUARD_DEV_2026`;
+                        }}
+                        className="w-full flex items-center justify-center py-2.5 rounded-lg transition-all text-amber-400 hover:bg-amber-400/10"
+                      >
+                        <Code2 size={18} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Dev Portal</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <button
+                    type="button"
+                    data-ocid="nav.devportal.link"
+                    onClick={() => {
+                      window.location.href = `${window.location.origin}?devKey=FLEETGUARD_DEV_2026`;
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-amber-400 hover:bg-amber-400/10"
+                  >
+                    <Code2 size={18} className="flex-shrink-0" />
+                    Dev Portal
+                  </button>
+                )}
+              </div>
+            )}
           </nav>
 
           {/* User */}

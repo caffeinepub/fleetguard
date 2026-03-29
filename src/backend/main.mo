@@ -896,6 +896,29 @@ actor {
     allCompanyRegistrations.toArray();
   };
 
+  // Dev portal access with devKey (allows dev access when logged in via Internet Identity)
+  let DEV_KEY : Text = "FLEETGUARD_DEV_2026";
+
+  public query func getAllCompanyRegistrationsWithKey(devKey : Text) : async [CompanySettings] {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    allCompanyRegistrations.toArray();
+  };
+
+  public shared func updateSubscriptionStatusWithKey(devKey : Text, companyName : Text, status : Text, startDate : ?Time.Time) : async () {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
+    };
+    let rec : SubscriptionRecord = {
+      companyName;
+      status;
+      startDate;
+      updatedAt = Time.now();
+    };
+    subscriptionRecords.add(companyName, rec);
+  };
+
   public shared ({ caller }) func updateSubscriptionStatus(companyName : Text, status : Text, startDate : ?Time.Time) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins and developers can update subscription status");
@@ -917,6 +940,13 @@ actor {
   public query ({ caller }) func getAllSubscriptions() : async [SubscriptionRecord] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins and developers can view all subscriptions");
+    };
+    subscriptionRecords.values().toArray();
+  };
+
+  public query func getAllSubscriptionsWithKey(devKey : Text) : async [SubscriptionRecord] {
+    if (devKey != DEV_KEY) {
+      Runtime.trap("Unauthorized: Invalid developer key");
     };
     subscriptionRecords.values().toArray();
   };

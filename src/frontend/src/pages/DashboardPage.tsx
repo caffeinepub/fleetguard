@@ -17,6 +17,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  LabelList,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -647,16 +650,17 @@ export function DashboardPage({ onNavigate }: Props) {
               {repairReasonData.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No data yet</p>
               ) : (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart
                     data={repairReasonData}
                     layout="vertical"
-                    margin={{ left: 10, right: 20, top: 4, bottom: 4 }}
+                    margin={{ left: 10, right: 50, top: 4, bottom: 4 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
                       horizontal={false}
                       stroke="hsl(var(--border))"
+                      opacity={0.5}
                     />
                     <XAxis
                       type="number"
@@ -664,30 +668,65 @@ export function DashboardPage({ onNavigate }: Props) {
                         fontSize: 11,
                         fill: "hsl(var(--muted-foreground))",
                       }}
+                      axisLine={false}
+                      tickLine={false}
                     />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={110}
+                      width={115}
                       tick={{
                         fontSize: 11,
-                        fill: "hsl(var(--muted-foreground))",
+                        fill: "hsl(var(--foreground))",
+                        fontWeight: 500,
                       }}
+                      axisLine={false}
+                      tickLine={false}
                     />
                     <Tooltip
+                      cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
                       contentStyle={{
                         background: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         fontSize: 12,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
                       }}
-                      labelStyle={{ color: "hsl(var(--foreground))" }}
+                      labelStyle={{
+                        color: "hsl(var(--foreground))",
+                        fontWeight: 600,
+                      }}
+                      formatter={(value: number) => [
+                        `${value} records`,
+                        "Count",
+                      ]}
                     />
-                    <Bar
-                      dataKey="count"
-                      fill="hsl(var(--primary))"
-                      radius={[0, 4, 4, 0]}
-                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                      {repairReasonData.map((entry, index) => (
+                        <Cell
+                          key={entry.name}
+                          fill={
+                            [
+                              "#6366f1",
+                              "#22d3ee",
+                              "#f59e0b",
+                              "#10b981",
+                              "#f43f5e",
+                              "#a78bfa",
+                            ][index % 6]
+                          }
+                        />
+                      ))}
+                      <LabelList
+                        dataKey="count"
+                        position="right"
+                        style={{
+                          fill: "hsl(var(--foreground))",
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -705,15 +744,32 @@ export function DashboardPage({ onNavigate }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart
                   data={monthlyRepairData}
                   margin={{ left: 0, right: 10, top: 4, bottom: 4 }}
                 >
+                  <defs>
+                    <linearGradient
+                      id="costGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
+                      <stop
+                        offset="100%"
+                        stopColor="#8b5cf6"
+                        stopOpacity={0.7}
+                      />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
                     stroke="hsl(var(--border))"
+                    opacity={0.5}
                   />
                   <XAxis
                     dataKey="name"
@@ -721,31 +777,78 @@ export function DashboardPage({ onNavigate }: Props) {
                       fontSize: 12,
                       fill: "hsl(var(--muted-foreground))",
                     }}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis
                     tick={{
                       fontSize: 11,
                       fill: "hsl(var(--muted-foreground))",
                     }}
-                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) =>
+                      v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+                    }
                   />
                   <Tooltip
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
                     formatter={(value: number) => [
-                      `$${value.toLocaleString()}`,
-                      "Cost",
+                      `$${value.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                      "Repair Cost",
                     ]}
                     contentStyle={{
                       background: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",
-                      borderRadius: 8,
+                      borderRadius: 10,
                       fontSize: 12,
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                    }}
+                    labelStyle={{
+                      color: "hsl(var(--foreground))",
+                      fontWeight: 600,
                     }}
                   />
+                  {(() => {
+                    const avg =
+                      monthlyRepairData.reduce((s, d) => s + d.cost, 0) /
+                      (monthlyRepairData.length || 1);
+                    return avg > 0 ? (
+                      <ReferenceLine
+                        y={avg}
+                        stroke="#f59e0b"
+                        strokeDasharray="4 4"
+                        label={{
+                          value: "Avg",
+                          position: "insideTopRight",
+                          fill: "#f59e0b",
+                          fontSize: 11,
+                        }}
+                      />
+                    ) : null;
+                  })()}
                   <Bar
                     dataKey="cost"
-                    fill="hsl(var(--success))"
-                    radius={[4, 4, 0, 0]}
-                  />
+                    radius={[6, 6, 0, 0]}
+                    fill="url(#costGradient)"
+                    maxBarSize={48}
+                  >
+                    {monthlyRepairData.map((entry, index) => (
+                      <Cell
+                        key={entry.name}
+                        fill={
+                          [
+                            "#3b82f6",
+                            "#6366f1",
+                            "#8b5cf6",
+                            "#a78bfa",
+                            "#c4b5fd",
+                            "#818cf8",
+                          ][index % 6]
+                        }
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

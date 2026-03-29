@@ -28,9 +28,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useAllCompanyRegistrations,
-  useGetAllSubscriptions,
-  useUpdateSubscriptionStatus,
+  useAllCompanyRegistrationsWithKey,
+  useAllSubscriptionsWithKey,
+  useUpdateSubscriptionStatusWithKey,
 } from "../hooks/useQueries";
 
 const MONTHLY_PRICE = 499;
@@ -75,17 +75,18 @@ function SubBadge({ status }: { status: string }) {
 }
 
 export function DevPortalPage() {
+  const DEV_KEY = localStorage.getItem("devKey") ?? "FLEETGUARD_DEV_2026";
   const {
     data: companies,
     isLoading: companiesLoading,
     refetch: refetchCompanies,
-  } = useAllCompanyRegistrations();
+  } = useAllCompanyRegistrationsWithKey(DEV_KEY);
   const {
     data: subscriptions = [],
     isLoading: subsLoading,
     refetch: refetchSubs,
-  } = useGetAllSubscriptions();
-  const updateSub = useUpdateSubscriptionStatus();
+  } = useAllSubscriptionsWithKey(DEV_KEY);
+  const updateSub = useUpdateSubscriptionStatusWithKey();
 
   const isLoading = companiesLoading || subsLoading;
 
@@ -114,6 +115,7 @@ export function DevPortalPage() {
     const status = statusMap[action];
     try {
       await updateSub.mutateAsync({
+        devKey: DEV_KEY,
         companyName,
         status,
         startDate:

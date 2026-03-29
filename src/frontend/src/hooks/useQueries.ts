@@ -597,3 +597,52 @@ export function useSendChatMessage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chatMessages"] }),
   });
 }
+
+// Dev portal — devKey authenticated hooks
+export function useAllCompanyRegistrationsWithKey(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<CompanySettings[]>({
+    queryKey: ["allCompanyRegistrations", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return (actor as any).getAllCompanyRegistrationsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useAllSubscriptionsWithKey(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SubscriptionRecord[]>({
+    queryKey: ["allSubscriptions", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return (actor as any).getAllSubscriptionsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useUpdateSubscriptionStatusWithKey() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { devKey: string; companyName: string; status: string; startDate?: bigint }
+  >({
+    mutationFn: ({ devKey, companyName, status, startDate }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).updateSubscriptionStatusWithKey(
+        devKey,
+        companyName,
+        status,
+        startDate ? [startDate] : [],
+      );
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
+      qc.invalidateQueries({ queryKey: ["allSubscriptions", devKey] });
+      qc.invalidateQueries({ queryKey: ["allCompanyRegistrations", devKey] });
+    },
+  });
+}

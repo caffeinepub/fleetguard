@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Building2,
   Check,
   Copy,
   CreditCard,
@@ -31,7 +32,7 @@ import {
   User,
   UserPlus,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FleetRole } from "../backend";
 import type { CompanySettings } from "../backend";
@@ -92,7 +93,12 @@ export function SettingsPage() {
   const saveCurrency = useSaveDefaultCurrency();
   const createInvite = useCreateInviteToken();
 
+  // Company info state
   const [companyName, setCompanyName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [fleetSize, setFleetSize] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +113,18 @@ export function SettingsPage() {
 
   const [copied, setCopied] = useState(false);
 
-  const currentName = companyName || companySettings?.companyName || "";
+  // Pre-populate fields when settings load (run only once on first load)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (companySettings && !initializedRef.current) {
+      initializedRef.current = true;
+      setCompanyName(companySettings.companyName ?? "");
+      setIndustry(companySettings.industry ?? "");
+      setFleetSize(companySettings.fleetSize ?? "");
+      setContactPhone(companySettings.contactPhone ?? "");
+    }
+  }, [companySettings]);
+
   const currentLogo = logoPreview ?? companySettings?.logoUrl ?? null;
   const principalId = identity?.getPrincipal().toString() ?? "";
   const currentCurrency = savedCurrency ?? "CAD";
@@ -151,10 +168,10 @@ export function SettingsPage() {
   const buildSavePayload = (
     overrides: Partial<CompanySettings> = {},
   ): CompanySettings => ({
-    companyName: currentName,
-    industry: companySettings?.industry ?? "",
-    fleetSize: companySettings?.fleetSize ?? "",
-    contactPhone: companySettings?.contactPhone ?? "",
+    companyName: companyName.trim() || companySettings?.companyName || "",
+    industry: industry || companySettings?.industry || "",
+    fleetSize: fleetSize || companySettings?.fleetSize || "",
+    contactPhone: contactPhone || companySettings?.contactPhone || "",
     logoUrl: companySettings?.logoUrl ?? "",
     adminPrincipal: companySettings?.adminPrincipal ?? principalId,
     createdAt: companySettings?.createdAt ?? BigInt(Date.now()) * 1_000_000n,
@@ -208,19 +225,24 @@ export function SettingsPage() {
     };
   };
 
-  const handleSaveName = async () => {
+  const handleSaveCompanyInfo = async () => {
     if (!companyName.trim()) {
       toast.error("Company name cannot be empty");
       return;
     }
     try {
       await saveSettings.mutateAsync(
-        buildSavePayload({ companyName: companyName.trim() }),
+        buildSavePayload({
+          companyName: companyName.trim(),
+          industry,
+          fleetSize,
+          contactPhone,
+        }),
       );
-      toast.success("Company name saved");
+      toast.success("Company information saved");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save company name");
+      toast.error("Failed to save company information");
     }
   };
 
@@ -277,15 +299,15 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {/* Company Branding — admin only */}
+      {/* Company Information — admin only */}
       {isAdmin && (
         <Card className="shadow-card border-0">
           <CardHeader>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Upload size={16} /> Company Branding
+              <Building2 size={16} /> Company Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             {/* Logo Upload */}
             <div className="space-y-3">
               <Label>Company Logo</Label>
@@ -334,30 +356,91 @@ export function SettingsPage() {
 
             <Separator />
 
-            <div className="space-y-3">
-              <Label htmlFor="company-name">Company Name</Label>
-              <div className="flex items-center gap-3 max-w-sm">
-                <Input
-                  id="company-name"
-                  data-ocid="settings.input"
-                  placeholder={companySettings?.companyName || "FleetGuard"}
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                />
-                <Button
-                  onClick={handleSaveName}
-                  disabled={saveSettings.isPending || !companyName.trim()}
-                  data-ocid="settings.save_button"
-                  size="sm"
-                >
-                  {saveSettings.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
-              </div>
+            {/* Company Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="company-name">Company Name *</Label>
+              <Input
+                id="company-name"
+                data-ocid="settings.input"
+                placeholder="Your company name"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="h-11"
+              />
             </div>
+
+            {/* Industry */}
+            <div className="space-y-1.5">
+              <Label htmlFor="industry">Industry</Label>
+              <Select value={industry} onValueChange={setIndustry}>
+                <SelectTrigger
+                  id="industry"
+                  className="h-11"
+                  data-ocid="settings.select"
+                >
+                  <SelectValue placeholder="Select industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Transportation">Transportation</SelectItem>
+                  <SelectItem value="Logistics">Logistics</SelectItem>
+                  <SelectItem value="Construction">Construction</SelectItem>
+                  <SelectItem value="Mining">Mining</SelectItem>
+                  <SelectItem value="Municipal">Municipal</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Fleet Size */}
+            <div className="space-y-1.5">
+              <Label htmlFor="fleet-size">Fleet Size</Label>
+              <Select value={fleetSize} onValueChange={setFleetSize}>
+                <SelectTrigger
+                  id="fleet-size"
+                  className="h-11"
+                  data-ocid="settings.select"
+                >
+                  <SelectValue placeholder="Select fleet size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1-10">1–10 vehicles</SelectItem>
+                  <SelectItem value="11-25">11–25 vehicles</SelectItem>
+                  <SelectItem value="26-50">26–50 vehicles</SelectItem>
+                  <SelectItem value="51-100">51–100 vehicles</SelectItem>
+                  <SelectItem value="101-250">101–250 vehicles</SelectItem>
+                  <SelectItem value="250+">250+ vehicles</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Contact Phone */}
+            <div className="space-y-1.5">
+              <Label htmlFor="contact-phone">Contact Phone</Label>
+              <Input
+                id="contact-phone"
+                data-ocid="settings.input"
+                type="tel"
+                placeholder="+1 (555) 000-0000"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            <Button
+              className="w-full h-11 gap-2"
+              onClick={handleSaveCompanyInfo}
+              disabled={saveSettings.isPending || !companyName.trim()}
+              data-ocid="settings.save_button"
+            >
+              {saveSettings.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                </>
+              ) : (
+                "Save Company Info"
+              )}
+            </Button>
 
             <Separator />
 

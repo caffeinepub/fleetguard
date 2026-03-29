@@ -69,25 +69,31 @@ function StatCard({
   title,
   value,
   icon: Icon,
-  color = "text-primary",
+  accent = "#6366f1",
 }: {
   title: string;
   value: string | number;
   icon: React.ElementType;
-  color?: string;
+  accent?: string;
 }) {
   return (
-    <Card>
+    <Card className="overflow-hidden border-0 shadow-sm">
+      <div className="h-1 w-full" style={{ background: accent }} />
       <CardContent className="p-5">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-muted ${color}`}>
-            <Icon size={20} />
+          <div
+            className="p-2.5 rounded-xl"
+            style={{ background: `${accent}18` }}
+          >
+            <Icon size={20} style={{ color: accent }} />
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider truncate">
               {title}
             </p>
-            <p className="text-2xl font-bold text-foreground mt-0.5">{value}</p>
+            <p className="text-xl font-bold text-foreground mt-0.5 truncate">
+              {value}
+            </p>
           </div>
         </div>
       </CardContent>
@@ -291,26 +297,71 @@ export function ReportsPage() {
     <>
       <style>{`
         @media print {
-          aside, .no-print { display: none !important; }
-          .print-all-tabs > [role="tabpanel"] { display: block !important; }
+          aside, .no-print, nav, header { display: none !important; }
+          .print-all-tabs > [role="tabpanel"] { display: block !important; page-break-before: auto; }
           .print-all-tabs [role="tablist"] { display: none !important; }
+          .print-header { display: flex !important; }
+          body { font-size: 11pt; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #ddd; padding: 6px 10px; }
+          th { background: #f0f4f8 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr:nth-child(even) td { background: #f9fafb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .shadow-sm, .shadow-card { box-shadow: none !important; }
+          .overflow-hidden { overflow: visible !important; }
         }
       `}</style>
+
+      {/* Print header — hidden on screen */}
+      <div
+        className="print-header hidden items-start justify-between mb-8 pb-5 border-b-2 border-gray-300"
+        style={{ display: "none" }}
+      >
+        <div className="flex items-center gap-4">
+          {companySettings?.logoUrl && (
+            <img
+              src={companySettings.logoUrl}
+              alt="Logo"
+              className="h-16 w-auto object-contain"
+            />
+          )}
+          <div>
+            <h1 className="text-2xl font-bold">
+              {companySettings?.companyName ?? "FleetGuard"}
+            </h1>
+            <p className="text-sm text-gray-500">Fleet Intelligence Report</p>
+          </div>
+        </div>
+        <div className="text-right text-sm text-gray-500">
+          <p className="font-semibold">
+            Generated: {new Date().toLocaleDateString()}
+          </p>
+          <p>{new Date().toLocaleTimeString()}</p>
+        </div>
+      </div>
 
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <BarChart3 className="text-primary" size={26} />
-              Reports
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {companySettings?.companyName
-                ? `${companySettings.companyName} — `
-                : ""}
-              Fleet intelligence and operational insights
-            </p>
+          <div className="flex items-center gap-4">
+            {companySettings?.logoUrl && (
+              <img
+                src={companySettings.logoUrl}
+                alt="Logo"
+                className="h-10 w-auto object-contain rounded-lg no-print"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <BarChart3 className="text-primary" size={26} />
+                Reports
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {companySettings?.companyName
+                  ? `${companySettings.companyName} — `
+                  : ""}
+                Fleet intelligence and operational insights
+              </p>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -372,18 +423,19 @@ export function ReportsPage() {
                   title="Total Vehicles"
                   value={vehicles.length}
                   icon={Car}
+                  accent="#6366f1"
                 />
                 <StatCard
                   title="Active"
                   value={activeVehicles.length}
                   icon={TrendingUp}
-                  color="text-green-600"
+                  accent="#10b981"
                 />
                 <StatCard
                   title="Inactive"
                   value={inactiveVehicles.length}
                   icon={AlertTriangle}
-                  color="text-amber-500"
+                  accent="#f59e0b"
                 />
                 <Card>
                   <CardHeader className="pb-2 pt-4 px-5">
@@ -498,13 +550,11 @@ export function ReportsPage() {
                   title={`Total Repair Cost (${currency})`}
                   value={`$${totalRepairCost.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   icon={TrendingUp}
-                  color="text-green-600"
                 />
                 <StatCard
                   title={`Avg Cost / Record (${currency})`}
                   value={`$${avgCost.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   icon={BarChart3}
-                  color="text-blue-600"
                 />
               </div>
 
@@ -624,13 +674,11 @@ export function ReportsPage() {
                   title={`Total Inventory Value (${currency})`}
                   value={`$${totalInventoryValue.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   icon={TrendingUp}
-                  color="text-green-600"
                 />
                 <StatCard
                   title="Low / Out of Stock"
                   value={`${lowStockCount} / ${outOfStockCount}`}
                   icon={AlertTriangle}
-                  color="text-amber-500"
                 />
               </div>
 
@@ -730,23 +778,16 @@ export function ReportsPage() {
                   value={workOrders.length}
                   icon={ClipboardList}
                 />
-                <StatCard
-                  title="Open"
-                  value={openWOs}
-                  icon={AlertTriangle}
-                  color="text-blue-600"
-                />
+                <StatCard title="Open" value={openWOs} icon={AlertTriangle} />
                 <StatCard
                   title="In Progress"
                   value={inProgressWOs}
                   icon={Wrench}
-                  color="text-amber-500"
                 />
                 <StatCard
                   title="Completed"
                   value={completedWOs}
                   icon={TrendingUp}
-                  color="text-green-600"
                 />
               </div>
 

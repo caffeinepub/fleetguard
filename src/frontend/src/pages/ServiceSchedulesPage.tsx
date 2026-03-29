@@ -451,12 +451,12 @@ export function ServiceSchedulesPage() {
     setSaving(true);
     try {
       if (editSchedule) {
-        // Preserve existing lastCompletedDate as [] | [bigint]
+        // Preserve existing lastCompletedDate as bigint | undefined
         const existingLcd = editSchedule.lastCompletedDate;
-        const lastCompletedDate: [] | [bigint] =
+        const lastCompletedDate: bigint | undefined =
           Array.isArray(existingLcd) && existingLcd.length > 0
-            ? [existingLcd[0] as bigint]
-            : [];
+            ? (existingLcd[0] as bigint)
+            : undefined;
 
         const data: {
           id: bigint;
@@ -464,7 +464,7 @@ export function ServiceSchedulesPage() {
           serviceType: string;
           intervalDays: bigint;
           nextDueDate: bigint;
-          lastCompletedDate: [] | [bigint];
+          lastCompletedDate?: bigint;
           notes: string;
           status: string;
           createdAt: bigint;
@@ -492,7 +492,7 @@ export function ServiceSchedulesPage() {
               serviceType: string;
               intervalDays: bigint;
               nextDueDate: bigint;
-              lastCompletedDate: [] | [bigint];
+              lastCompletedDate?: bigint;
               notes: string;
               status: string;
               createdAt: bigint;
@@ -502,7 +502,7 @@ export function ServiceSchedulesPage() {
               serviceType: svcType,
               intervalDays: BigInt(days),
               nextDueDate: dateToNs(form.nextDueDate),
-              lastCompletedDate: [],
+              lastCompletedDate: undefined,
               notes: form.notes,
               status: form.status,
               createdAt: 0n,
