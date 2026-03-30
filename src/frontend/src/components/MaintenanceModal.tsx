@@ -56,6 +56,7 @@ interface Props {
   vehicles: Vehicle[];
   defaultVehicleId?: bigint;
   completedBy?: string;
+  workOrderNumber?: string;
   requireCompletion?: boolean;
   completionType?: "work-order" | "schedule";
 }
@@ -91,6 +92,7 @@ export function MaintenanceModal({
   vehicles,
   defaultVehicleId,
   completedBy,
+  workOrderNumber,
   requireCompletion = false,
   completionType,
 }: Props) {
@@ -358,6 +360,11 @@ export function MaintenanceModal({
                     Logged on {new Date().toLocaleDateString()} — visible to all
                     team members
                   </p>
+                  {workOrderNumber && (
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
+                      Auto-assigned Work Order: {workOrderNumber}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

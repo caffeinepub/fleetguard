@@ -47,8 +47,8 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { FleetRole } from "../backend";
-import type { Vehicle } from "../backend";
+import { FleetRole, WorkOrderPriority, WorkOrderStatus } from "../backend";
+import type { Vehicle, WorkOrder } from "../backend";
 import { VehicleType } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useActor } from "../hooks/useActor";
@@ -123,6 +123,10 @@ function getLastCompletedDate(s: ServiceSchedule): bigint | null {
 // Helper to convert Candid optional array [] | [bigint] → bigint | undefined
 function lcdToOptional(lcd: [] | [bigint]): bigint | undefined {
   return Array.isArray(lcd) && lcd.length > 0 ? lcd[0] : undefined;
+}
+
+function formatWONumber(id: bigint): string {
+  return `WO-${String(Number(id)).padStart(4, "0")}`;
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -346,6 +350,7 @@ export function ServiceSchedulesPage() {
   const [completionRecord, setCompletionRecord] = useState<any>(null);
   const [completedByName, setCompletedByName] = useState("");
   const completionSavedRef = useRef(false);
+  const [newWorkOrderNumber, setNewWorkOrderNumber] = useState("");
   const [completionSnapshot, setCompletionSnapshot] = useState<null | {
     id: bigint;
     nextDueDate: bigint;
@@ -571,6 +576,35 @@ export function ServiceSchedulesPage() {
         });
       }
       completionSavedRef.current = false;
+
+      // Auto-create a work order for this service schedule completion
+      let newWoId: bigint | undefined;
+      try {
+        const woPayload: WorkOrder = {
+          id: 0n,
+          title: schedule?.serviceType ?? "Scheduled Service",
+          vehicleId: schedule?.vehicleId ?? 0n,
+          description: schedule?.notes
+            ? `Scheduled service: ${schedule.serviceType}. ${schedule.notes}`
+            : `Scheduled service: ${schedule?.serviceType ?? ""}`,
+          assignedMechanic:
+            callerProfile?.name ?? (callerProfile as any)?.email ?? "",
+          priority: WorkOrderPriority.Medium,
+          status: WorkOrderStatus.Completed,
+          scheduledDate: schedule?.nextDueDate,
+          completedDate: BigInt(Date.now()) * 1_000_000n,
+          notes: "",
+          createdAt: 0n,
+        };
+        newWoId = await actor.createWorkOrder(woPayload);
+        if (newWoId !== undefined) {
+          setNewWorkOrderNumber(formatWONumber(newWoId));
+          qc.invalidateQueries({ queryKey: ["workOrders"] });
+        }
+      } catch (err) {
+        console.error("[ServiceSchedules] failed to create work order:", err);
+      }
+
       await (actor as any).markScheduleComplete(id);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["serviceSchedules"] }),
@@ -589,7 +623,7 @@ export function ServiceSchedulesPage() {
         callerProfile?.name ?? (callerProfile as any)?.email ?? "Unknown User";
       setCompletedByName(name);
       if (newRecord) {
-        setCompletionRecord(newRecord);
+        setCompletionRecord({ ...newRecord, workOrderId: newWoId });
       } else {
         // Open modal with blank record pre-filled with vehicleId
         setCompletionRecord(
@@ -605,12 +639,17 @@ export function ServiceSchedulesPage() {
                 maintenanceType: "OilChange",
                 createdAt: BigInt(Date.now()) * 1_000_000n,
                 partsUsed: [],
+                workOrderId: newWoId,
               }
             : null,
         );
       }
       setMaintenanceModalOpen(true);
-      toast.info("Schedule completed! Please fill in the maintenance record.");
+      toast.info(
+        newWoId !== undefined
+          ? `Schedule completed! ${formatWONumber(newWoId)} auto-assigned. Fill in the maintenance record.`
+          : "Schedule completed! Please fill in the maintenance record.",
+      );
     } catch {
       toast.error("Failed to mark complete");
     } finally {
@@ -764,7 +803,9 @@ export function ServiceSchedulesPage() {
                           <tr
                             key={s.id.toString()}
                             data-ocid={`service-schedules.item.${idx + 1}`}
-                            className="border-b border-border/30 hover:bg-muted/20 transition-colors"
+                            className="border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer"
+                            onClick={() => openEdit(s)}
+                            onKeyDown={(e) => e.key === "Enter" && openEdit(s)}
                           >
                             <td className="px-5 py-3.5 font-medium text-foreground">
                               {vehicleLabel}
@@ -784,7 +825,11 @@ export function ServiceSchedulesPage() {
                             <td className="px-5 py-3.5">
                               <StatusBadge schedule={s} />
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td
+                              className="px-5 py-3.5"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
                               <div className="flex items-center gap-1">
                                 {isActive && (
                                   <Button
@@ -1179,11 +1224,13 @@ export function ServiceSchedulesPage() {
           setMaintenanceModalOpen(false);
           setCompletionRecord(null);
           setCompletionSnapshot(null);
+          setNewWorkOrderNumber("");
           completionSavedRef.current = false;
         }}
         record={completionRecord}
         vehicles={vehicles ?? []}
         completedBy={completedByName}
+        workOrderNumber={newWorkOrderNumber || undefined}
         requireCompletion={true}
         completionType="schedule"
       />

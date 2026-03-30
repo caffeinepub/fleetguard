@@ -587,7 +587,9 @@ export function WorkOrdersPage() {
               <div
                 key={wo.id.toString()}
                 data-ocid={`workorders.item.${idx + 1}`}
-                className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-primary/40 transition-colors"
+                className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-primary/40 transition-colors cursor-pointer"
+                onClick={() => openEdit(wo)}
+                onKeyDown={(e) => e.key === "Enter" && openEdit(wo)}
               >
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -624,7 +626,11 @@ export function WorkOrdersPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div
+                  className="flex items-center gap-2 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   {isActive && (
                     <Button
                       size="sm"
