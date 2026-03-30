@@ -17,7 +17,6 @@ import {
   History,
   LayoutDashboard,
   LogOut,
-  MessageSquare,
   Moon,
   Package,
   Settings,
@@ -37,7 +36,6 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
   useCallerProfile,
-  useChatMessages,
   useGetCompanySettings,
   useIsAdmin,
 } from "../hooks/useQueries";
@@ -65,7 +63,6 @@ const topNavItemsAfter = [
   { id: "vendors" as Page, label: "Vendors", icon: Store },
   { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
   { id: "reports" as Page, label: "Reports", icon: FileBarChart },
-  { id: "group-chat" as Page, label: "Team Chat", icon: MessageSquare },
 ];
 
 const maintenanceSubItems = [
@@ -82,22 +79,12 @@ const maintenanceSubItems = [
   },
 ];
 
-function getLastReadNs(): bigint {
-  try {
-    const v = localStorage.getItem("fleetguard_chat_last_read");
-    return v ? BigInt(v) : 0n;
-  } catch {
-    return 0n;
-  }
-}
-
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { clear, identity } = useInternetIdentity();
   const { data: profile } = useCallerProfile();
   const { data: companySettings } = useGetCompanySettings();
   const { data: fleetRole } = useCallerFleetRole();
   const { data: isAdmin } = useIsAdmin();
-  const { data: chatMessages } = useChatMessages();
   const { isDark, toggle: toggleDark } = useDarkMode();
   const principal = identity?.getPrincipal().toString();
   const shortPrincipal = principal ? `${principal.slice(0, 8)}...` : "";
@@ -121,15 +108,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     });
   };
 
-  // Unread message count
-  const unreadCount =
-    currentPage !== "group-chat" && chatMessages
-      ? chatMessages.filter((msg) => {
-          const lastRead = getLastReadNs();
-          return Number(msg.createdAt) > Number(lastRead);
-        }).length
-      : 0;
-
   let roleName = "Fleet Member";
   let roleColorClass = "text-sidebar-foreground/50";
   if (fleetRole === FleetRole.Admin || isAdmin) {
@@ -152,8 +130,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     const active =
       currentPage === item.id ||
       (currentPage === "vehicle-detail" && item.id === "vehicles");
-    const isChat = item.id === "group-chat";
-    const showBadge = isChat && unreadCount > 0;
 
     if (sidebarCollapsed) {
       return (
@@ -169,14 +145,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-white"
               }`}
             >
-              <span className="relative">
-                <Icon size={18} />
-                {showBadge && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </span>
+              <Icon size={18} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">{item.label}</TooltipContent>
@@ -196,14 +165,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-white"
         }`}
       >
-        <span className="relative flex-shrink-0">
-          <Icon className="w-4.5 h-4.5" size={18} />
-          {showBadge && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </span>
+        <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
         {item.label}
         {active && <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-60" />}
       </button>
@@ -482,7 +444,6 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   </TooltipTrigger>
                   <TooltipContent side="right">Sign out</TooltipContent>
                 </Tooltip>
-                {/* Expand button at bottom */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button

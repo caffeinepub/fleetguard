@@ -183,6 +183,7 @@ export interface PartFull {
     minStockLevel: bigint;
     price?: number;
     location: string;
+    category?: string;
 }
 export interface Warranty {
     id: bigint;
@@ -372,6 +373,10 @@ export interface backendInterface {
     updateWarranty(id: bigint, warranty: Warranty): Promise<void>;
     updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
     validateDiscountCode(code: string): Promise<DiscountCode | null>;
+    getCallerCompanyId(): Promise<string | null>;
+    getCompanyApprovalStatus(companyName: string): Promise<string>;
+    getTaxSettings(): Promise<{ taxLabel: string; taxRate: number; taxEnabled: boolean } | null>;
+    saveTaxSettings(settings: { taxLabel: string; taxRate: number; taxEnabled: boolean }): Promise<void>;
 }
 import type { CompanySettings as _CompanySettings, DiscountCode as _DiscountCode, FleetRole as _FleetRole, InviteToken as _InviteToken, MaintenanceRecordFull as _MaintenanceRecordFull, MaintenanceType as _MaintenanceType, PartFull as _PartFull, PartQuantity as _PartQuantity, ServiceSchedule as _ServiceSchedule, Status as _Status, SubscriptionRecord as _SubscriptionRecord, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, Vehicle as _Vehicle, VehicleType as _VehicleType, WorkOrder as _WorkOrder, WorkOrderPriority as _WorkOrderPriority, WorkOrderStatus as _WorkOrderStatus, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -1580,6 +1585,64 @@ export class Backend implements backendInterface {
             return from_candid_opt_n76(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getCallerCompanyId(): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await (this.actor as any).getCallerCompanyId();
+                return result[0] ?? null;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await (this.actor as any).getCallerCompanyId();
+            return result[0] ?? null;
+        }
+    }
+    async getCompanyApprovalStatus(arg0: string): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await (this.actor as any).getCompanyApprovalStatus(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await (this.actor as any).getCompanyApprovalStatus(arg0);
+            return result;
+        }
+    }
+    async getTaxSettings(): Promise<{ taxLabel: string; taxRate: number; taxEnabled: boolean } | null> {
+        if (this.processError) {
+            try {
+                const result = await (this.actor as any).getTaxSettings();
+                if (result[0]) return { taxLabel: result[0].taxLabel, taxRate: result[0].taxRate, taxEnabled: result[0].taxEnabled };
+                return null;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await (this.actor as any).getTaxSettings();
+            if (result[0]) return { taxLabel: result[0].taxLabel, taxRate: result[0].taxRate, taxEnabled: result[0].taxEnabled };
+            return null;
+        }
+    }
+    async saveTaxSettings(arg0: { taxLabel: string; taxRate: number; taxEnabled: boolean }): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await (this.actor as any).saveTaxSettings(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await (this.actor as any).saveTaxSettings(arg0);
+            return result;
+        }
+    }
 }
 function from_candid_FleetRole_n64(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _FleetRole): FleetRole {
     return from_candid_variant_n65(_uploadFile, _downloadFile, value);
@@ -1725,6 +1788,7 @@ function from_candid_record_n42(_uploadFile: (file: ExternalBlob) => Promise<Uin
     minStockLevel: bigint;
     price?: number;
     location: string;
+    category?: string;
 } {
     return {
         id: value.id,
@@ -1734,7 +1798,8 @@ function from_candid_record_n42(_uploadFile: (file: ExternalBlob) => Promise<Uin
         createdAt: value.createdAt,
         minStockLevel: value.minStockLevel,
         price: record_opt_to_undefined(from_candid_opt_n37(_uploadFile, _downloadFile, value.price)),
-        location: value.location
+        location: value.location,
+        category: value.category && value.category.length > 0 ? value.category[0] : undefined
     };
 }
 function from_candid_record_n45(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -2145,6 +2210,7 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     minStockLevel: bigint;
     price?: number;
     location: string;
+    category?: string;
 }): {
     id: bigint;
     partNumber: string;
@@ -2154,6 +2220,7 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     minStockLevel: bigint;
     price: [] | [number];
     location: string;
+    category: [] | [string];
 } {
     return {
         id: value.id,
@@ -2163,7 +2230,8 @@ function to_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         createdAt: value.createdAt,
         minStockLevel: value.minStockLevel,
         price: value.price ? candid_some(value.price) : candid_none(),
-        location: value.location
+        location: value.location,
+        category: value.category ? candid_some(value.category) : candid_none()
     };
 }
 function to_candid_record_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {

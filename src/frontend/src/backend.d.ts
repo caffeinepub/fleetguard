@@ -94,6 +94,7 @@ export interface PartFull {
     minStockLevel: bigint;
     price?: number;
     location: string;
+    category?: string;
 }
 export interface Warranty {
     id: bigint;
@@ -123,12 +124,10 @@ export interface CompanySettings {
     industry: string;
     contactPhone: string;
 }
-export interface ChatMessage {
-    id: bigint;
-    createdAt: Time;
-    senderPrincipal: string;
-    message: string;
-    senderName: string;
+export interface TaxSettings {
+    taxLabel: string;
+    taxRate: number;
+    taxEnabled: boolean;
 }
 export interface Vendor {
     id: bigint;
@@ -227,10 +226,11 @@ export interface backendInterface {
     getAllVendors(): Promise<Array<Vendor>>;
     getAllWarranties(): Promise<Array<Warranty>>;
     getAllWorkOrders(): Promise<Array<WorkOrder>>;
+    getCallerCompanyId(): Promise<string | null>;
     getCallerFleetRole(): Promise<FleetRole | null>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getChatMessages(): Promise<Array<ChatMessage>>;
+    getCompanyApprovalStatus(companyName: string): Promise<string>;
     getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
     getCompanySettings(): Promise<CompanySettings | null>;
     getDashboardStats(): Promise<DashboardStats>;
@@ -242,6 +242,7 @@ export interface backendInterface {
     getOverdueMaintenance(): Promise<Array<MaintenanceRecordFull>>;
     getPart(id: bigint): Promise<PartFull>;
     getSubscriptionStatus(companyName: string): Promise<SubscriptionRecord | null>;
+    getTaxSettings(): Promise<TaxSettings | null>;
     getUpcomingMaintenance(): Promise<Array<MaintenanceRecordFull>>;
     getUserFleetRole(user: Principal): Promise<FleetRole | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
@@ -250,7 +251,7 @@ export interface backendInterface {
     getWarrantiesByVehicle(vehicleId: bigint): Promise<Array<Warranty>>;
     getWarranty(id: bigint): Promise<Warranty>;
     getWorkOrder(id: bigint): Promise<WorkOrder>;
-    getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;
+    getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;    
     isCallerAdmin(): Promise<boolean>;
     markScheduleComplete(id: bigint): Promise<void>;
     redeemInviteToken(token: string): Promise<FleetRole>;
@@ -258,7 +259,7 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
-    sendChatMessage(senderName: string, message: string): Promise<bigint>;
+    saveTaxSettings(settings: TaxSettings): Promise<void>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;

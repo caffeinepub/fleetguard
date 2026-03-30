@@ -1,106 +1,402 @@
-import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Map "mo:core/Map";
-import Order "mo:core/Order";
-import Array "mo:core/Array";
 import Text "mo:core/Text";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
-
 
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 
-
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
-
   include MixinStorage();
 
-  // Constants
+  let DEV_KEY : Text = "FLEETGUARD_DEV_2026";
   let DEV_PRINCIPAL = Principal.fromText("2vxsx-fae");
 
-  // Fleet Roles
-  public type FleetRole = {
-    #Admin;
-    #FleetManager;
-    #Mechanic;
+  // ─── Public Types ───────────────────────────────────────────────────────────
+  public type FleetRole = { #Admin; #FleetManager; #Mechanic };
+  public type VehicleType = { #Truck; #Trailer; #Bus; #Van; #Other };
+  public type VehicleStatus = { #Active; #Inactive };
+  public type Vehicle = {
+    id : Nat; name : Text; vehicleType : VehicleType; licensePlate : Text;
+    year : Nat; make : Text; model : Text; status : VehicleStatus;
+    notes : Text; createdAt : Time.Time;
+  };
+  public type MaintenanceType = {
+    #OilChange; #TireRotation; #BrakeService; #EngineCheck;
+    #Transmission; #Electrical; #Bodywork; #Inspection; #Other;
+  };
+  public type PartQuantity = { partId : Nat; quantity : Nat };
+  public type MaintenanceRecordFull = {
+    id : Nat; vehicleId : Nat; date : Time.Time; maintenanceType : MaintenanceType;
+    description : Text; cost : Float; mileage : Nat; technicianName : Text;
+    nextServiceDate : ?Time.Time; partsUsed : [Nat]; partQuantities : [PartQuantity];
+    laborHours : ?Float; laborCost : ?Float; workOrderId : ?Nat; createdAt : Time.Time;
+  };
+  // Internal part type without price/category
+  type PartCore = {
+    id : Nat; name : Text; partNumber : Text; quantityInStock : Nat;
+    minStockLevel : Nat; location : Text; createdAt : Time.Time;
+  };
+  public type PartFull = {
+    id : Nat; name : Text; partNumber : Text; quantityInStock : Nat;
+    minStockLevel : Nat; location : Text; price : ?Float; createdAt : Time.Time; category : ?Text;
+  };
+  public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
+  public type WorkOrderStatus = { #Open; #InProgress; #Completed; #Cancelled };
+  public type WorkOrder = {
+    id : Nat; title : Text; vehicleId : Nat; description : Text;
+    assignedMechanic : Text; priority : WorkOrderPriority; status : WorkOrderStatus;
+    scheduledDate : ?Time.Time; completedDate : ?Time.Time; notes : Text; createdAt : Time.Time;
+  };
+  public type Vendor = {
+    id : Nat; name : Text; contactName : Text; phone : Text; email : Text;
+    address : Text; notes : Text; category : Text; createdAt : Time.Time;
+  };
+  public type Warranty = {
+    id : Nat; vehicleId : Nat; description : Text; provider : Text;
+    startDate : Time.Time; expiryDate : Time.Time; coverageDetails : Text;
+    cost : Float; notes : Text; createdAt : Time.Time;
+  };
+  public type ServiceSchedule = {
+    id : Nat; vehicleId : Nat; serviceType : Text; intervalDays : Nat;
+    nextDueDate : Time.Time; lastCompletedDate : ?Time.Time;
+    notes : Text; status : Text; createdAt : Time.Time;
+  };
+  public type CompanySettings = {
+    companyName : Text; industry : Text; fleetSize : Text;
+    contactPhone : Text; logoUrl : Text; adminPrincipal : Text; createdAt : Time.Time;
+  };
+  public type SubscriptionRecord = {
+    companyName : Text; status : Text; startDate : ?Time.Time;
+    trialEndsAt : ?Time.Time; plan : Text; updatedAt : Time.Time;
+  };
+  public type DiscountCode = {
+    id : Nat; code : Text; discountType : Text; value : Nat;
+    description : Text; createdAt : Time.Time; usedCount : Nat;
+  };
+  public type DashboardStats = {
+    totalVehicles : Nat; activeVehicles : Nat; upcomingMaintenanceCount : Nat;
+    overdueCount : Nat; lowStockPartsCount : Nat;
+  };
+  public type TaxSettings = { taxLabel : Text; taxRate : Float; taxEnabled : Bool };
+  public type UserProfile = { name : Text };
+  public type InviteToken = {
+    token : Text; role : FleetRole; email : Text;
+    createdAt : Time.Time; usedBy : ?Principal;
+  };
+  // Internal maintenance type (no extra fields)
+  type MaintCore = {
+    id : Nat; vehicleId : Nat; date : Time.Time; maintenanceType : MaintenanceType;
+    description : Text; cost : Float; mileage : Nat; technicianName : Text;
+    nextServiceDate : ?Time.Time; createdAt : Time.Time;
+  };
+  // Old chat type kept for migration compatibility
+  type ChatMessage = {
+    id : Nat; senderPrincipal : Text; senderName : Text; message : Text; createdAt : Time.Time;
   };
 
+  // ─── LEGACY STABLE VARIABLES (kept for upgrade compatibility, migrated in postupgrade) ───
+  // These match the exact variable names from the previous version of this actor.
+  // They are populated once on upgrade from the old single-tenant data, then cleared.
+  var vehicleStore = Map.empty<Nat, Vehicle>();
+  var vehicles = List.empty<Vehicle>();
+  var maintenanceStore = Map.empty<Nat, MaintCore>();
+  var maintenanceRecords = List.empty<MaintCore>();
+  var maintenancePartsStore = Map.empty<Nat, [Nat]>();
+  var maintenancePartQuantitiesStore = Map.empty<Nat, [PartQuantity]>();
+  var maintenanceLaborHoursStore = Map.empty<Nat, Float>();
+  var maintenanceLaborCostStore = Map.empty<Nat, Float>();
+  var workOrderLinkStore = Map.empty<Nat, Nat>();
+  var partStore = Map.empty<Nat, PartCore>();
+  var partPriceStore = Map.empty<Nat, Float>();
+  var workOrderStore = Map.empty<Nat, WorkOrder>();
+  var vendorStore = Map.empty<Nat, Vendor>();
+  var warrantyStore = Map.empty<Nat, Warranty>();
+  var serviceSchedules = Map.empty<Nat, ServiceSchedule>();
   var fleetRoles = Map.empty<Principal, FleetRole>();
+  var companySettings : ?CompanySettings = null;
+  var defaultCurrency : Text = "CAD";
+  var discountCodeMap = Map.empty<Text, Nat>();
+  var nextVehicleId = 1;
+  var nextMaintenanceId = 1;
+  var nextPartId = 1;
+  var nextWorkOrderId = 1;
+  var nextVendorId = 1;
+  var nextWarrantyId = 1;
+  var nextServiceScheduleId : Nat = 1;
+  var nextChatId = 1;
+  var chatMessages = List.empty<ChatMessage>();
 
-  func setFleetRoleInternal(user : Principal, role : FleetRole) {
-    fleetRoles.add(user, role);
+  // ─── Multi-tenant: principal → companyId ────────────────────────────────────
+  var userCompanyMap = Map.empty<Principal, Text>();
+
+  func requireCompanyId(caller : Principal) : Text {
+    switch (userCompanyMap.get(caller)) {
+      case (?cid) { cid };
+      case (null) { Runtime.trap("Company not registered. Please complete onboarding.") };
+    };
   };
 
+  public query ({ caller }) func getCallerCompanyId() : async ?Text {
+    if (caller.isAnonymous()) { return null };
+    userCompanyMap.get(caller);
+  };
+
+  // ─── Per-company stores (NEW multi-tenant stores) ────────────────────────────────
+  var cVehicles   = Map.empty<Text, Map.Map<Nat, Vehicle>>();
+  var cVehCounters = Map.empty<Text, Nat>();
+  var cParts      = Map.empty<Text, Map.Map<Nat, PartCore>>();
+  var cPrices     = Map.empty<Text, Map.Map<Nat, Float>>();
+  var cCategories = Map.empty<Text, Map.Map<Nat, Text>>();
+  var cPartCounters = Map.empty<Text, Nat>();
+  var cMaint      = Map.empty<Text, Map.Map<Nat, MaintCore>>();
+  var cMParts     = Map.empty<Text, Map.Map<Nat, [Nat]>>();
+  var cMPartQty   = Map.empty<Text, Map.Map<Nat, [PartQuantity]>>();
+  var cMLaborH    = Map.empty<Text, Map.Map<Nat, Float>>();
+  var cMLaborC    = Map.empty<Text, Map.Map<Nat, Float>>();
+  var cWOLinks    = Map.empty<Text, Map.Map<Nat, Nat>>();
+  var cMaintCounters = Map.empty<Text, Nat>();
+  var cWO         = Map.empty<Text, Map.Map<Nat, WorkOrder>>();
+  var cWOCounters  = Map.empty<Text, Nat>();
+  var cVendors    = Map.empty<Text, Map.Map<Nat, Vendor>>();
+  var cVendorCounters = Map.empty<Text, Nat>();
+  var cWarranties = Map.empty<Text, Map.Map<Nat, Warranty>>();
+  var cWarrantyCounters = Map.empty<Text, Nat>();
+  var cSchedules  = Map.empty<Text, Map.Map<Nat, ServiceSchedule>>();
+  var cScheduleCounters = Map.empty<Text, Nat>();
+  var cFleetRoles = Map.empty<Text, Map.Map<Principal, FleetRole>>();
+  var cSettings   = Map.empty<Text, CompanySettings>();
+  var cCurrency   = Map.empty<Text, Text>();
+  var cTax        = Map.empty<Text, TaxSettings>();
+
+  // ─── Global stores ────────────────────────────────────────────────────────────
+  var allCompanyRegistrations = List.empty<CompanySettings>();
+  var companyApprovalStore = Map.empty<Text, Text>();
+  var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
+  var discountCodes = Map.empty<Nat, DiscountCode>();
+  var nextDiscountCodeId = 1;
+  // (discountCodeMap is the legacy var reused as the global code->id lookup)
+
+  var userProfiles = Map.empty<Principal, UserProfile>();
+  var inviteTokens = Map.empty<Text, InviteToken>();
+  var nextInviteTokenId = 1;
+
+  // ─── Store accessor helpers ──────────────────────────────────────────────────────
+  func getOrCreate<V>(outer : Map.Map<Text, Map.Map<Nat, V>>, cid : Text) : Map.Map<Nat, V> {
+    switch (outer.get(cid)) {
+      case (?m) { m };
+      case (null) { let m = Map.empty<Nat, V>(); outer.add(cid, m); m };
+    };
+  };
+  func getOrCreateP<V>(outer : Map.Map<Text, Map.Map<Principal, V>>, cid : Text) : Map.Map<Principal, V> {
+    switch (outer.get(cid)) {
+      case (?m) { m };
+      case (null) { let m = Map.empty<Principal, V>(); outer.add(cid, m); m };
+    };
+  };
+  func nextId(counters : Map.Map<Text, Nat>, cid : Text) : Nat {
+    let n = switch (counters.get(cid)) { case (?n) n; case null 1 };
+    counters.add(cid, n + 1); n;
+  };
+
+  func toFullPart(cid : Text, p : PartCore) : PartFull {
+    { id = p.id; name = p.name; partNumber = p.partNumber;
+      quantityInStock = p.quantityInStock; minStockLevel = p.minStockLevel;
+      location = p.location; createdAt = p.createdAt;
+      price = getOrCreate(cPrices, cid).get(p.id);
+      category = getOrCreate(cCategories, cid).get(p.id) };
+  };
+
+  func toFullMaint(cid : Text, r : MaintCore) : MaintenanceRecordFull {
+    let parts = switch (cMParts.get(cid)) {
+      case (?m) { switch (m.get(r.id)) { case (?p) p; case null [] } }; case null [];
+    };
+    let qtys = switch (cMPartQty.get(cid)) {
+      case (?m) { switch (m.get(r.id)) { case (?q) q; case null [] } }; case null [];
+    };
+    let lh = switch (cMLaborH.get(cid)) { case (?m) { m.get(r.id) }; case null null };
+    let lc = switch (cMLaborC.get(cid)) { case (?m) { m.get(r.id) }; case null null };
+    let wol = switch (cWOLinks.get(cid)) { case (?m) { m.get(r.id) }; case null null };
+    { id = r.id; vehicleId = r.vehicleId; date = r.date;
+      maintenanceType = r.maintenanceType; description = r.description;
+      cost = r.cost; mileage = r.mileage; technicianName = r.technicianName;
+      nextServiceDate = r.nextServiceDate; partsUsed = parts;
+      partQuantities = qtys; laborHours = lh; laborCost = lc;
+      workOrderId = wol; createdAt = r.createdAt };
+  };
+
+  // ─── Migration: postupgrade moves legacy single-tenant data into per-company stores ───
+  system func postupgrade() {
+    // Determine the legacy company ID from old companySettings
+    let cidOpt : ?Text = switch (companySettings) {
+      case (null) {
+        // Try allCompanyRegistrations as fallback
+        if (allCompanyRegistrations.isEmpty()) { null }
+        else { ?allCompanyRegistrations.toArray()[0].companyName };
+      };
+      case (?s) { ?s.companyName };
+    };
+
+    switch (cidOpt) {
+      case (null) {}; // No legacy data to migrate
+      case (?cid) {
+        // Migrate company settings
+        switch (companySettings) {
+          case (?s) {
+            cSettings.add(cid, s);
+            // Register admin principal
+            let adminP = Principal.fromText(s.adminPrincipal);
+            if (not adminP.isAnonymous()) {
+              userCompanyMap.add(adminP, cid);
+              if (accessControlState.userRoles.get(adminP) == null) {
+                accessControlState.userRoles.add(adminP, #admin);
+              };
+              getOrCreateP(cFleetRoles, cid).add(adminP, #Admin);
+            };
+          };
+          case (null) {};
+        };
+
+        // Register all users from legacy fleetRoles into this company
+        for ((p, role) in fleetRoles.entries()) {
+          if (userCompanyMap.get(p) == null) {
+            userCompanyMap.add(p, cid);
+            if (accessControlState.userRoles.get(p) == null) {
+              accessControlState.userRoles.add(p, #user);
+            };
+          };
+          getOrCreateP(cFleetRoles, cid).add(p, role);
+        };
+
+        // Migrate default currency
+        cCurrency.add(cid, defaultCurrency);
+
+        // Migrate vehicles
+        let vm = getOrCreate(cVehicles, cid);
+        for ((id, v) in vehicleStore.entries()) { vm.add(id, v) };
+        cVehCounters.add(cid, nextVehicleId);
+
+        // Migrate parts
+        let pm = getOrCreate(cParts, cid);
+        let ppm = getOrCreate(cPrices, cid);
+        for ((id, p) in partStore.entries()) { pm.add(id, p) };
+        for ((id, price) in partPriceStore.entries()) { ppm.add(id, price) };
+        cPartCounters.add(cid, nextPartId);
+
+        // Migrate maintenance records
+        let mm = getOrCreate(cMaint, cid);
+        for ((id, r) in maintenanceStore.entries()) { mm.add(id, r) };
+        let mpm = getOrCreate(cMParts, cid);
+        for ((id, arr) in maintenancePartsStore.entries()) { mpm.add(id, arr) };
+        let mpqm = getOrCreate(cMPartQty, cid);
+        for ((id, arr) in maintenancePartQuantitiesStore.entries()) { mpqm.add(id, arr) };
+        let mlhm = getOrCreate(cMLaborH, cid);
+        for ((id, h) in maintenanceLaborHoursStore.entries()) { mlhm.add(id, h) };
+        let mlcm = getOrCreate(cMLaborC, cid);
+        for ((id, c) in maintenanceLaborCostStore.entries()) { mlcm.add(id, c) };
+        let wolm = getOrCreate(cWOLinks, cid);
+        for ((id, woid) in workOrderLinkStore.entries()) { wolm.add(id, woid) };
+        cMaintCounters.add(cid, nextMaintenanceId);
+
+        // Migrate work orders
+        let wom = getOrCreate(cWO, cid);
+        for ((id, wo) in workOrderStore.entries()) { wom.add(id, wo) };
+        cWOCounters.add(cid, nextWorkOrderId);
+
+        // Migrate vendors
+        let vnm = getOrCreate(cVendors, cid);
+        for ((id, v) in vendorStore.entries()) { vnm.add(id, v) };
+        cVendorCounters.add(cid, nextVendorId);
+
+        // Migrate warranties
+        let wrm = getOrCreate(cWarranties, cid);
+        for ((id, w) in warrantyStore.entries()) { wrm.add(id, w) };
+        cWarrantyCounters.add(cid, nextWarrantyId);
+
+        // Migrate service schedules
+        let ssm = getOrCreate(cSchedules, cid);
+        for ((id, s) in serviceSchedules.entries()) { ssm.add(id, s) };
+        cScheduleCounters.add(cid, nextServiceScheduleId);
+
+        // Migrate company registrations
+        if (allCompanyRegistrations.isEmpty()) {
+          switch (companySettings) {
+            case (?s) { allCompanyRegistrations.add(s) };
+            case (null) {};
+          };
+        };
+
+        // Clear legacy stores to free stable memory
+        vehicleStore := Map.empty<Nat, Vehicle>();
+        vehicles := List.empty<Vehicle>();
+        maintenanceStore := Map.empty<Nat, MaintCore>();
+        maintenanceRecords := List.empty<MaintCore>();
+        maintenancePartsStore := Map.empty<Nat, [Nat]>();
+        maintenancePartQuantitiesStore := Map.empty<Nat, [PartQuantity]>();
+        maintenanceLaborHoursStore := Map.empty<Nat, Float>();
+        maintenanceLaborCostStore := Map.empty<Nat, Float>();
+        workOrderLinkStore := Map.empty<Nat, Nat>();
+        partStore := Map.empty<Nat, PartCore>();
+        partPriceStore := Map.empty<Nat, Float>();
+        workOrderStore := Map.empty<Nat, WorkOrder>();
+        vendorStore := Map.empty<Nat, Vendor>();
+        warrantyStore := Map.empty<Nat, Warranty>();
+        serviceSchedules := Map.empty<Nat, ServiceSchedule>();
+        fleetRoles := Map.empty<Principal, FleetRole>();
+        chatMessages := List.empty<ChatMessage>();
+        companySettings := null;
+      };
+    };
+  };
+
+  // ─── Fleet Roles (per company) ──────────────────────────────────────────────
   public shared ({ caller }) func setUserFleetRole(user : Principal, role : FleetRole) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can set user fleet roles");
     };
-    fleetRoles.add(user, role);
+    getOrCreateP(cFleetRoles, requireCompanyId(caller)).add(user, role);
   };
 
   public query ({ caller }) func getCallerFleetRole() : async ?FleetRole {
     if (caller.isAnonymous()) { return null };
-    fleetRoles.get(caller);
+    switch (userCompanyMap.get(caller)) {
+      case (null) { null };
+      case (?cid) { getOrCreateP(cFleetRoles, cid).get(caller) };
+    };
   };
 
   public query ({ caller }) func getUserFleetRole(user : Principal) : async ?FleetRole {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Admin access required");
     };
-    fleetRoles.get(user);
+    getOrCreateP(cFleetRoles, requireCompanyId(caller)).get(user);
   };
 
-  public type InviteToken = {
-    token : Text;
-    role : FleetRole;
-    email : Text;
-    createdAt : Time.Time;
-    usedBy : ?Principal;
-  };
-
-  var inviteTokens = Map.empty<Text, InviteToken>();
-  var nextInviteTokenId = 1;
-
+  // ─── Invite Tokens ──────────────────────────────────────────────────────────
   public shared ({ caller }) func createInviteToken(email : Text, role : FleetRole) : async Text {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Admin access required to create invite tokens");
     };
     let token = "INV-" # nextInviteTokenId.toText();
-    let invite : InviteToken = {
-      token;
-      role;
-      email;
-      createdAt = Time.now();
-      usedBy = null;
-    };
-    inviteTokens.add(token, invite);
+    inviteTokens.add(token, { token; role; email; createdAt = Time.now(); usedBy = null });
     nextInviteTokenId += 1;
     token;
   };
 
   public shared ({ caller }) func redeemInviteToken(token : Text) : async FleetRole {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required to redeem invite tokens");
-    };
+    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
     let existing = switch (inviteTokens.get(token)) {
-      case (null) { Runtime.trap("Token does not exist, please try again") };
-      case (?invite) { invite };
+      case (null) { Runtime.trap("Token does not exist") }; case (?t) t;
     };
-    switch (existing.usedBy) {
-      case (?_) { Runtime.trap("Token already used by another principal") };
-      case (null) {};
-    };
-    let updatedToken = { existing with usedBy = ?caller };
-    inviteTokens.add(token, updatedToken);
-    setFleetRoleInternal(caller, existing.role);
-    // Register the caller as a user without requiring admin permission
+    switch (existing.usedBy) { case (?_) { Runtime.trap("Token already used") }; case (null) {} };
+    inviteTokens.add(token, { existing with usedBy = ?caller });
     if (accessControlState.userRoles.get(caller) == null) {
       accessControlState.userRoles.add(caller, #user);
     };
@@ -109,1004 +405,489 @@ actor {
 
   public query ({ caller }) func getInviteTokens() : async [InviteToken] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Admin access required to view invite tokens");
+      Runtime.trap("Unauthorized: Admin access required");
     };
     inviteTokens.values().toArray();
   };
 
-  public type UserProfile = { name : Text };
-  var userProfiles = Map.empty<Principal, UserProfile>();
-
+  // ─── User Profiles ──────────────────────────────────────────────────────────
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (caller.isAnonymous()) { return null };
     userProfiles.get(caller);
   };
-
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
+      Runtime.trap("Unauthorized");
     };
     userProfiles.get(user);
   };
-
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required");
-    };
+    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
     userProfiles.add(caller, profile);
   };
 
-  module Vehicle {
-    public type VehicleType = {
-      #Truck; #Trailer; #Bus; #Van; #Other;
+  // ─── Company Settings ────────────────────────────────────────────────────────
+  public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
+    let cid = settings.companyName;
+    if (accessControlState.userRoles.get(caller) == null) {
+      accessControlState.userRoles.add(caller, #admin);
     };
-    public type Status = { #Active; #Inactive };
-    public type Vehicle = {
-      id : Nat;
-      name : Text;
-      vehicleType : VehicleType;
-      licensePlate : Text;
-      year : Nat;
-      make : Text;
-      model : Text;
-      status : Status;
-      notes : Text;
-      createdAt : Time.Time;
-    };
-    public func compare(v1 : Vehicle, v2 : Vehicle) : Order.Order {
-      Nat.compare(v1.id, v2.id);
+    userCompanyMap.add(caller, cid);
+    cSettings.add(cid, settings);
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    if (roleMap.get(caller) == null) { roleMap.add(caller, #Admin) };
+    let alreadyExists = not allCompanyRegistrations
+      .filter(func(s : CompanySettings) : Bool { s.companyName == cid }).isEmpty();
+    if (not alreadyExists) { allCompanyRegistrations.add(settings) };
+  };
+
+  public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
+    if (caller.isAnonymous()) { return null };
+    switch (userCompanyMap.get(caller)) {
+      case (null) { null }; case (?cid) { cSettings.get(cid) };
     };
   };
 
-  module MaintenanceRecord {
-    public type MaintenanceType = {
-      #OilChange; #TireRotation; #BrakeService; #EngineCheck;
-      #Transmission; #Electrical; #Bodywork; #Inspection; #Other;
-    };
-    public type MaintenanceRecord = {
-      id : Nat;
-      vehicleId : Nat;
-      date : Time.Time;
-      maintenanceType : MaintenanceType;
-      description : Text;
-      cost : Float;
-      mileage : Nat;
-      technicianName : Text;
-      nextServiceDate : ?Time.Time;
-      createdAt : Time.Time;
-    };
-    public func compare(m1 : MaintenanceRecord, m2 : MaintenanceRecord) : Order.Order {
-      switch (m1.nextServiceDate, m2.nextServiceDate) {
-        case (null, null) { #equal };
-        case (?d1, ?d2) { Int.compare(d1, d2) };
-        case (null, ?_) { #greater };
-        case (?_, null) { #less };
-      };
+  public query func getCompanyApprovalStatus(companyName : Text) : async Text {
+    switch (companyApprovalStore.get(companyName)) { case (?s) s; case (null) "approved" };
+  };
+
+  public query ({ caller }) func getDefaultCurrency() : async Text {
+    if (caller.isAnonymous()) { return "CAD" };
+    switch (userCompanyMap.get(caller)) {
+      case (null) { "CAD" };
+      case (?cid) { switch (cCurrency.get(cid)) { case (?c) c; case null "CAD" } };
     };
   };
 
-  // PartQuantity for tracking quantity of parts used in maintenance
-  public type PartQuantity = {
-    partId : Nat;
-    quantity : Nat;
+  public shared ({ caller }) func saveDefaultCurrency(currency : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    cCurrency.add(requireCompanyId(caller), currency);
   };
 
-  public type MaintenanceRecordFull = {
-    id : Nat;
-    vehicleId : Nat;
-    date : Time.Time;
-    maintenanceType : MaintenanceRecord.MaintenanceType;
-    description : Text;
-    cost : Float;
-    mileage : Nat;
-    technicianName : Text;
-    nextServiceDate : ?Time.Time;
-    partsUsed : [Nat];
-    partQuantities : [PartQuantity];
-    laborHours : ?Float;
-    laborCost : ?Float;
-    workOrderId : ?Nat;
-    createdAt : Time.Time;
+  public query ({ caller }) func getTaxSettings() : async ?TaxSettings {
+    if (caller.isAnonymous()) { return null };
+    switch (userCompanyMap.get(caller)) { case (null) null; case (?cid) { cTax.get(cid) } };
   };
 
-  // Internal Part type
-  module Part {
-    public type Part = {
-      id : Nat;
-      name : Text;
-      partNumber : Text;
-      quantityInStock : Nat;
-      minStockLevel : Nat;
-      location : Text;
-      createdAt : Time.Time;
-    };
-    public func compare(p1 : Part, p2 : Part) : Order.Order {
-      Nat.compare(p1.id, p2.id);
-    };
+  public shared ({ caller }) func saveTaxSettings(settings : TaxSettings) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    cTax.add(requireCompanyId(caller), settings);
   };
 
-  public type PartFull = {
-    id : Nat;
-    name : Text;
-    partNumber : Text;
-    quantityInStock : Nat;
-    minStockLevel : Nat;
-    location : Text;
-    price : ?Float;
-    createdAt : Time.Time;
-  };
-
-  public type CompanySettings = {
-    companyName : Text;
-    industry : Text;
-    fleetSize : Text;
-    contactPhone : Text;
-    logoUrl : Text;
-    adminPrincipal : Text;
-    createdAt : Time.Time;
-  };
-
-  // Subscription record
-  public type SubscriptionRecord = {
-    companyName : Text;
-    status : Text;
-    startDate : ?Time.Time;
-    trialEndsAt : ?Time.Time;
-    plan : Text;
-    updatedAt : Time.Time;
-  };
-
-  var subscriptionRecords = Map.empty<Text, SubscriptionRecord>();
-  var defaultCurrency : Text = "CAD";
-
-  // Company approval status store (separate to avoid migration issues)
-  var companyApprovalStore = Map.empty<Text, Text>(); // companyName -> status: "pending"|"approved"|"rejected"
-
-  // Discount Codes
-  public type DiscountCode = {
-    id : Nat;
-    code : Text;
-    discountType : Text; // "percent" or "months_free"
-    value : Nat;
-    description : Text;
-    createdAt : Time.Time;
-    usedCount : Nat;
-  };
-
-  var discountCodes = Map.empty<Nat, DiscountCode>();
-  var nextDiscountCodeId = 1;
-
-  let discountCodeMap = Map.empty<Text, Nat>();
-
-  // Create discount code with devKey
-  public shared func createDiscountCodeWithKey(devKey : Text, discount : DiscountCode) : async Nat {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    let id = nextDiscountCodeId;
-    nextDiscountCodeId += 1;
-    let d : DiscountCode = {
-      id;
-      code = discount.code;
-      discountType = discount.discountType;
-      value = discount.value;
-      description = discount.description;
-      createdAt = Time.now();
-      usedCount = 0;
-    };
-    discountCodes.add(id, d);
-    discountCodeMap.add(discount.code, id);
+  // ─── Vehicles ────────────────────────────────────────────────────────────────
+  public shared ({ caller }) func createVehicle(vehicle : Vehicle) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cVehCounters, cid);
+    getOrCreate(cVehicles, cid).add(id, { vehicle with id; createdAt = Time.now() });
     id;
   };
 
-  public query func getAllDiscountCodesWithKey(devKey : Text) : async [DiscountCode] {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    discountCodes.values().toArray();
-  };
-
-  public shared func deleteDiscountCodeWithKey(devKey : Text, id : Nat) : async () {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    let discount = switch (discountCodes.get(id)) {
-      case (null) { Runtime.trap("Discount code not found") };
-      case (?d) { d };
-    };
-    discountCodes.remove(id);
-    discountCodeMap.remove(discount.code);
-  };
-
-  public query func validateDiscountCode(code : Text) : async ?DiscountCode {
-    switch (discountCodeMap.get(code)) {
-      case (null) { null };
-      case (?id) { discountCodes.get(id) };
-    };
-  };
-
-  public shared ({ caller }) func applyDiscountCode(code : Text) : async () {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required to apply discount code");
-    };
-    switch (discountCodeMap.get(code)) {
-      case (null) { Runtime.trap("Invalid discount code") };
-      case (?id) {
-        let discount = switch (discountCodes.get(id)) {
-          case (null) { Runtime.trap("Discount code not found") };
-          case (?d) { d };
-        };
-        let updated : DiscountCode = {
-          discount with usedCount = discount.usedCount + 1;
-        };
-        discountCodes.add(id, updated);
-      };
-    };
-  };
-
-  // Trial support
-  public shared func startTrialWithKey(devKey : Text, companyName : Text, trialDays : Nat) : async () {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    updateTrial(companyName, trialDays, "standard");
-  };
-
-  public shared ({ caller }) func startTrial(companyName : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized: Only admins and developers can start trial");
-    };
-    updateTrial(companyName, 7, "standard");
-  };
-
-  func updateTrial(companyName : Text, days : Nat, plan : Text) {
-    let now = Time.now();
-    let trialEndsAt = now + (days * 24 * 60 * 60 * 1000000000);
-    let rec : SubscriptionRecord = {
-      companyName;
-      status = "trial";
-      startDate = ?now;
-      trialEndsAt = ?trialEndsAt;
-      plan;
-      updatedAt = now;
-    };
-    subscriptionRecords.add(companyName, rec);
-  };
-
-  // WorkOrder types
-  public type WorkOrderPriority = { #Low; #Medium; #High; #Critical };
-  public type WorkOrderStatus = { #Open; #InProgress; #Completed; #Cancelled };
-
-  public type WorkOrder = {
-    id : Nat;
-    title : Text;
-    vehicleId : Nat;
-    description : Text;
-    assignedMechanic : Text;
-    priority : WorkOrderPriority;
-    status : WorkOrderStatus;
-    scheduledDate : ?Time.Time;
-    completedDate : ?Time.Time;
-    notes : Text;
-    createdAt : Time.Time;
-  };
-
-  // Vendor type
-  public type Vendor = {
-    id : Nat;
-    name : Text;
-    contactName : Text;
-    phone : Text;
-    email : Text;
-    address : Text;
-    notes : Text;
-    category : Text;
-    createdAt : Time.Time;
-  };
-
-  // Warranty type
-  public type Warranty = {
-    id : Nat;
-    vehicleId : Nat;
-    description : Text;
-    provider : Text;
-    startDate : Time.Time;
-    expiryDate : Time.Time;
-    coverageDetails : Text;
-    cost : Float;
-    notes : Text;
-    createdAt : Time.Time;
-  };
-
-  var companySettings : ?CompanySettings = null;
-  var allCompanyRegistrations = List.empty<CompanySettings>();
-
-  let vehicles = List.empty<Vehicle.Vehicle>();
-  let maintenanceRecords = List.empty<MaintenanceRecord.MaintenanceRecord>();
-
-  let vehicleStore = Map.empty<Nat, Vehicle.Vehicle>();
-  let maintenanceStore = Map.empty<Nat, MaintenanceRecord.MaintenanceRecord>();
-  let partStore = Map.empty<Nat, Part.Part>();
-  let partPriceStore = Map.empty<Nat, Float>();
-  let maintenancePartsStore = Map.empty<Nat, [Nat]>();
-  let maintenancePartQuantitiesStore = Map.empty<Nat, [PartQuantity]>();
-  let maintenanceLaborHoursStore = Map.empty<Nat, Float>();
-  let maintenanceLaborCostStore = Map.empty<Nat, Float>();
-  let workOrderLinkStore = Map.empty<Nat, Nat>(); // maintenanceId -> workOrderId
-
-  let workOrderStore = Map.empty<Nat, WorkOrder>();
-  let vendorStore = Map.empty<Nat, Vendor>();
-  let warrantyStore = Map.empty<Nat, Warranty>();
-
-  var nextVehicleId = 1;
-  var nextMaintenanceId = 1;
-  var nextPartId = 1;
-  var nextWorkOrderId = 1;
-  var nextVendorId = 1;
-  var nextWarrantyId = 1;
-
-  func getVehicleInternal(id : Nat) : Vehicle.Vehicle {
-    switch (vehicleStore.get(id)) {
-      case (null) { Runtime.trap("Vehicle not found") };
-      case (?vehicle) { vehicle };
-    };
-  };
-
-  func toFullPart(part : Part.Part) : PartFull {
-    {
-      id = part.id;
-      name = part.name;
-      partNumber = part.partNumber;
-      quantityInStock = part.quantityInStock;
-      minStockLevel = part.minStockLevel;
-      location = part.location;
-      price = partPriceStore.get(part.id);
-      createdAt = part.createdAt;
-    };
-  };
-
-  func toFull(record : MaintenanceRecord.MaintenanceRecord) : MaintenanceRecordFull {
-    let parts = switch (maintenancePartsStore.get(record.id)) {
-      case (null) { [] };
-      case (?p) { p };
-    };
-    let quantities = switch (maintenancePartQuantitiesStore.get(record.id)) {
-      case (null) { [] };
-      case (?q) { q };
-    };
-    let laborHours = maintenanceLaborHoursStore.get(record.id);
-    let laborCost = maintenanceLaborCostStore.get(record.id);
-    {
-      id = record.id;
-      vehicleId = record.vehicleId;
-      date = record.date;
-      maintenanceType = record.maintenanceType;
-      description = record.description;
-      cost = record.cost;
-      mileage = record.mileage;
-      technicianName = record.technicianName;
-      nextServiceDate = record.nextServiceDate;
-      partsUsed = parts;
-      partQuantities = quantities;
-      laborHours = laborHours;
-      laborCost = laborCost;
-      workOrderId = workOrderLinkStore.get(record.id);
-      createdAt = record.createdAt;
-    };
-  };
-
-  public shared ({ caller }) func createVehicle(vehicle : Vehicle.Vehicle) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create vehicles");
-    };
-    let newVehicle : Vehicle.Vehicle = {
-      vehicle with
-      id = nextVehicleId;
-      createdAt = Time.now();
-    };
-    vehicleStore.add(nextVehicleId, newVehicle);
-    vehicles.add(newVehicle);
-    nextVehicleId += 1;
-    newVehicle.id;
-  };
-
-  public shared ({ caller }) func bulkCreateVehicles(vehicleList : [Vehicle.Vehicle]) : async [Nat] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can bulk import vehicles");
-    };
+  public shared ({ caller }) func bulkCreateVehicles(vehicleList : [Vehicle]) : async [Nat] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
     let ids = List.empty<Nat>();
-    for (vehicle in vehicleList.vals()) {
-      let newVehicle : Vehicle.Vehicle = {
-        vehicle with
-        id = nextVehicleId;
-        createdAt = Time.now();
-      };
-      vehicleStore.add(nextVehicleId, newVehicle);
-      vehicles.add(newVehicle);
-      ids.add(nextVehicleId);
-      nextVehicleId += 1;
+    for (v in vehicleList.vals()) {
+      let id = nextId(cVehCounters, cid);
+      getOrCreate(cVehicles, cid).add(id, { v with id; createdAt = Time.now() });
+      ids.add(id);
     };
     ids.toArray();
   };
 
-  public shared ({ caller }) func updateVehicle(id : Nat, vehicle : Vehicle.Vehicle) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update vehicles");
+  public shared ({ caller }) func updateVehicle(id : Nat, vehicle : Vehicle) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cVehicles, cid);
+    switch (m.get(id)) {
+      case (null) { Runtime.trap("Vehicle not found") };
+      case (?e) { m.add(id, { vehicle with id; createdAt = e.createdAt }) };
     };
-    ignore getVehicleInternal(id);
-    let updatedVehicle : Vehicle.Vehicle = { vehicle with createdAt = Time.now() };
-    vehicleStore.add(id, updatedVehicle);
   };
 
   public shared ({ caller }) func deleteVehicle(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete vehicles");
-    };
-    ignore getVehicleInternal(id);
-    vehicleStore.remove(id);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    getOrCreate(cVehicles, requireCompanyId(caller)).remove(id);
   };
 
-  public query ({ caller }) func getVehicle(id : Nat) : async Vehicle.Vehicle {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view vehicles");
+  public query ({ caller }) func getVehicle(id : Nat) : async Vehicle {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cVehicles, cid).get(id)) {
+      case (null) { Runtime.trap("Vehicle not found") }; case (?v) v;
     };
-    getVehicleInternal(id);
   };
 
-  public query ({ caller }) func getAllVehicles() : async [Vehicle.Vehicle] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view vehicles");
-    };
-    vehicleStore.values().toArray().sort();
+  public query ({ caller }) func getAllVehicles() : async [Vehicle] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cVehicles, requireCompanyId(caller)).values().toArray();
   };
 
+  // ─── Parts ───────────────────────────────────────────────────────────────────
+  public shared ({ caller }) func createPart(part : PartFull) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cPartCounters, cid);
+    getOrCreate(cParts, cid).add(id, { id; name = part.name; partNumber = part.partNumber;
+      quantityInStock = part.quantityInStock; minStockLevel = part.minStockLevel;
+      location = part.location; createdAt = Time.now() });
+    switch (part.price) { case (?p) { getOrCreate(cPrices, cid).add(id, p) }; case null {} };
+    switch (part.category) { case (?c) { getOrCreate(cCategories, cid).add(id, c) }; case null {} };
+    id;
+  };
+
+  public shared ({ caller }) func updatePart(id : Nat, part : PartFull) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cParts, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Part not found") }; case (?p) p };
+    m.add(id, { id; name = part.name; partNumber = part.partNumber;
+      quantityInStock = part.quantityInStock; minStockLevel = part.minStockLevel;
+      location = part.location; createdAt = e.createdAt });
+    switch (part.price) { case (?p) { getOrCreate(cPrices, cid).add(id, p) }; case null { getOrCreate(cPrices, cid).remove(id) } };
+    switch (part.category) { case (?c) { getOrCreate(cCategories, cid).add(id, c) }; case null { getOrCreate(cCategories, cid).remove(id) } };
+  };
+
+  public shared ({ caller }) func deletePart(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cParts, cid).remove(id);
+    getOrCreate(cPrices, cid).remove(id);
+    getOrCreate(cCategories, cid).remove(id);
+  };
+
+  public query ({ caller }) func getPart(id : Nat) : async PartFull {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cParts, cid).get(id)) {
+      case (null) { Runtime.trap("Part not found") }; case (?p) { toFullPart(cid, p) };
+    };
+  };
+
+  public query ({ caller }) func getAllParts() : async [PartFull] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cParts, cid).values().toArray().map(func(p : PartCore) : PartFull { toFullPart(cid, p) });
+  };
+
+  public query ({ caller }) func getLowStockParts() : async [PartFull] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cParts, cid).values().toArray()
+      .filter(func(p : PartCore) : Bool { p.quantityInStock <= p.minStockLevel })
+      .map(func(p : PartCore) : PartFull { toFullPart(cid, p) });
+  };
+
+  // ─── Maintenance Records ─────────────────────────────────────────────────────
   public shared ({ caller }) func createMaintenanceRecord(record : MaintenanceRecordFull) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create maintenance records");
-    };
-    ignore getVehicleInternal(record.vehicleId);
-    // Use partQuantities for inventory decrement if available, otherwise fall back to partsUsed
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let ps = getOrCreate(cParts, cid);
     if (record.partQuantities.size() > 0) {
       for (pq in record.partQuantities.vals()) {
-        switch (partStore.get(pq.partId)) {
+        switch (ps.get(pq.partId)) {
           case (null) {};
-          case (?part) {
-            let deduct = if (pq.quantity > part.quantityInStock) part.quantityInStock else pq.quantity;
-            let updated : Part.Part = { part with quantityInStock = part.quantityInStock - deduct };
-            partStore.add(pq.partId, updated);
+          case (?p) {
+            let deduct = if (pq.quantity > p.quantityInStock) p.quantityInStock else pq.quantity;
+            ps.add(pq.partId, { p with quantityInStock = p.quantityInStock - deduct });
           };
         };
       };
     } else {
-      for (partId in record.partsUsed.vals()) {
-        switch (partStore.get(partId)) {
+      for (pid in record.partsUsed.vals()) {
+        switch (ps.get(pid)) {
           case (null) {};
-          case (?part) {
-            if (part.quantityInStock > 0) {
-              let updated : Part.Part = { part with quantityInStock = part.quantityInStock - 1 };
-              partStore.add(partId, updated);
-            };
+          case (?p) {
+            if (p.quantityInStock > 0) { ps.add(pid, { p with quantityInStock = p.quantityInStock - 1 }) };
           };
         };
       };
     };
-    let newRecord : MaintenanceRecord.MaintenanceRecord = {
-      id = nextMaintenanceId;
-      vehicleId = record.vehicleId;
-      date = record.date;
-      maintenanceType = record.maintenanceType;
-      description = record.description;
-      cost = record.cost;
-      mileage = record.mileage;
-      technicianName = record.technicianName;
-      nextServiceDate = record.nextServiceDate;
-      createdAt = Time.now();
-    };
-    maintenanceStore.add(nextMaintenanceId, newRecord);
-    maintenanceRecords.add(newRecord);
-    if (record.partsUsed.size() > 0) {
-      maintenancePartsStore.add(nextMaintenanceId, record.partsUsed);
-    };
-    if (record.partQuantities.size() > 0) {
-      maintenancePartQuantitiesStore.add(nextMaintenanceId, record.partQuantities);
-    };
-    switch (record.laborHours) {
-      case (?h) { maintenanceLaborHoursStore.add(nextMaintenanceId, h) };
-      case (null) {};
-    };
-    switch (record.laborCost) {
-      case (?c) { maintenanceLaborCostStore.add(nextMaintenanceId, c) };
-      case (null) {};
-    };
-    nextMaintenanceId += 1;
-    newRecord.id;
+    let id = nextId(cMaintCounters, cid);
+    getOrCreate(cMaint, cid).add(id, { id; vehicleId = record.vehicleId; date = record.date;
+      maintenanceType = record.maintenanceType; description = record.description;
+      cost = record.cost; mileage = record.mileage; technicianName = record.technicianName;
+      nextServiceDate = record.nextServiceDate; createdAt = Time.now() });
+    if (record.partsUsed.size() > 0) { getOrCreate(cMParts, cid).add(id, record.partsUsed) };
+    if (record.partQuantities.size() > 0) { getOrCreate(cMPartQty, cid).add(id, record.partQuantities) };
+    switch (record.laborHours) { case (?h) { getOrCreate(cMLaborH, cid).add(id, h) }; case null {} };
+    switch (record.laborCost) { case (?c) { getOrCreate(cMLaborC, cid).add(id, c) }; case null {} };
+    switch (record.workOrderId) { case (?woid) { getOrCreate(cWOLinks, cid).add(id, woid) }; case null {} };
+    id;
   };
 
   public shared ({ caller }) func updateMaintenanceRecord(id : Nat, record : MaintenanceRecordFull) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update maintenance records");
-    };
-    let existingRecord = switch (maintenanceStore.get(id)) {
-      case (null) { Runtime.trap("Maintenance record not found") };
-      case (?r) { r };
-    };
-    let updatedRecord : MaintenanceRecord.MaintenanceRecord = {
-      id = id;
-      vehicleId = record.vehicleId;
-      date = record.date;
-      maintenanceType = record.maintenanceType;
-      description = record.description;
-      cost = record.cost;
-      mileage = record.mileage;
-      technicianName = record.technicianName;
-      nextServiceDate = record.nextServiceDate;
-      createdAt = existingRecord.createdAt;
-    };
-    maintenanceStore.add(id, updatedRecord);
-    maintenancePartsStore.add(id, record.partsUsed);
-    if (record.partQuantities.size() > 0) {
-      maintenancePartQuantitiesStore.add(id, record.partQuantities);
-    };
-    switch (record.laborHours) {
-      case (?h) { maintenanceLaborHoursStore.add(id, h) };
-      case (null) { maintenanceLaborHoursStore.remove(id) };
-    };
-    switch (record.laborCost) {
-      case (?c) { maintenanceLaborCostStore.add(id, c) };
-      case (null) { maintenanceLaborCostStore.remove(id) };
-    };
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cMaint, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Not found") }; case (?r) r };
+    m.add(id, { id; vehicleId = record.vehicleId; date = record.date;
+      maintenanceType = record.maintenanceType; description = record.description;
+      cost = record.cost; mileage = record.mileage; technicianName = record.technicianName;
+      nextServiceDate = record.nextServiceDate; createdAt = e.createdAt });
+    getOrCreate(cMParts, cid).add(id, record.partsUsed);
+    if (record.partQuantities.size() > 0) { getOrCreate(cMPartQty, cid).add(id, record.partQuantities) };
+    switch (record.laborHours) { case (?h) { getOrCreate(cMLaborH, cid).add(id, h) }; case null { getOrCreate(cMLaborH, cid).remove(id) } };
+    switch (record.laborCost) { case (?c) { getOrCreate(cMLaborC, cid).add(id, c) }; case null { getOrCreate(cMLaborC, cid).remove(id) } };
+    switch (record.workOrderId) { case (?woid) { getOrCreate(cWOLinks, cid).add(id, woid) }; case null {} };
   };
 
   public query ({ caller }) func getMaintenanceRecord(id : Nat) : async MaintenanceRecordFull {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view maintenance records");
-    };
-    switch (maintenanceStore.get(id)) {
-      case (null) { Runtime.trap("Maintenance record not found") };
-      case (?record) { toFull(record) };
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cMaint, cid).get(id)) {
+      case (null) { Runtime.trap("Not found") }; case (?r) { toFullMaint(cid, r) };
     };
   };
 
   public query ({ caller }) func getAllMaintenanceRecords() : async [MaintenanceRecordFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view maintenance records");
-    };
-    maintenanceStore.values().toArray().sort().map(toFull);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cMaint, cid).values().toArray().map(func(r : MaintCore) : MaintenanceRecordFull { toFullMaint(cid, r) });
   };
 
   public query ({ caller }) func getMaintenanceRecordsByVehicle(vehicleId : Nat) : async [MaintenanceRecordFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view maintenance records");
-    };
-    maintenanceStore.values().toArray().filter(func(r) { r.vehicleId == vehicleId }).map(toFull);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cMaint, cid).values().toArray()
+      .filter(func(r : MaintCore) : Bool { r.vehicleId == vehicleId })
+      .map(func(r : MaintCore) : MaintenanceRecordFull { toFullMaint(cid, r) });
   };
 
   public query ({ caller }) func getUpcomingMaintenance() : async [MaintenanceRecordFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view maintenance records");
-    };
-    let currentTime = Time.now();
-    let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
-    maintenanceStore.values().toArray().filter(
-      func(record) {
-        switch (record.nextServiceDate) {
-          case (null) { false };
-          case (?date) { date > currentTime and date <= (currentTime + thirtyDays) };
-        };
-      }
-    ).sort().map(toFull);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let now = Time.now(); let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
+    getOrCreate(cMaint, cid).values().toArray()
+      .filter(func(r : MaintCore) : Bool {
+        switch (r.nextServiceDate) { case (null) false; case (?d) { d > now and d <= (now + thirtyDays) } };
+      })
+      .map(func(r : MaintCore) : MaintenanceRecordFull { toFullMaint(cid, r) });
   };
 
   public query ({ caller }) func getOverdueMaintenance() : async [MaintenanceRecordFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view maintenance records");
-    };
-    let currentTime = Time.now();
-    maintenanceStore.values().toArray().filter(
-      func(record) {
-        switch (record.nextServiceDate) {
-          case (null) { false };
-          case (?date) { date < currentTime };
-        };
-      }
-    ).sort().map(toFull);
-  };
-
-  public type DashboardStats = {
-    totalVehicles : Nat;
-    activeVehicles : Nat;
-    upcomingMaintenanceCount : Nat;
-    overdueCount : Nat;
-    lowStockPartsCount : Nat;
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let now = Time.now();
+    getOrCreate(cMaint, cid).values().toArray()
+      .filter(func(r : MaintCore) : Bool {
+        switch (r.nextServiceDate) { case (null) false; case (?d) { d < now } };
+      })
+      .map(func(r : MaintCore) : MaintenanceRecordFull { toFullMaint(cid, r) });
   };
 
   public query ({ caller }) func getDashboardStats() : async DashboardStats {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       return { totalVehicles = 0; activeVehicles = 0; upcomingMaintenanceCount = 0; overdueCount = 0; lowStockPartsCount = 0 };
     };
-    let currentTime = Time.now();
-    let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
-    let allVehicles = vehicleStore.values().toArray();
-    let totalVehicles = allVehicles.size();
-    let activeVehicles = allVehicles.filter(func(v) { v.status == #Active }).size();
-    let allRecords = maintenanceStore.values().toArray();
-    let upcomingMaintenanceCount = allRecords.filter(
-      func(record) {
-        switch (record.nextServiceDate) {
-          case (null) { false };
-          case (?date) { date > currentTime and date <= (currentTime + thirtyDays) };
-        };
-      }
-    ).size();
-    let overdueCount = allRecords.filter(
-      func(record) {
-        switch (record.nextServiceDate) {
-          case (null) { false };
-          case (?date) { date < currentTime };
-        };
-      }
-    ).size();
-    let allParts = partStore.values().toArray();
-    let lowStockPartsCount = allParts.filter(func(p) { p.quantityInStock <= p.minStockLevel }).size();
-    {
-      totalVehicles = totalVehicles;
-      activeVehicles = activeVehicles;
-      upcomingMaintenanceCount = upcomingMaintenanceCount;
-      overdueCount = overdueCount;
-      lowStockPartsCount = lowStockPartsCount;
-    };
+    let cid = requireCompanyId(caller);
+    let now = Time.now(); let thirtyDays = 30 * 24 * 60 * 60 * 1000000000;
+    let allV = getOrCreate(cVehicles, cid).values().toArray();
+    let allR = getOrCreate(cMaint, cid).values().toArray();
+    let allP = getOrCreate(cParts, cid).values().toArray();
+    { totalVehicles = allV.size();
+      activeVehicles = allV.filter(func(v : Vehicle) : Bool { v.status == #Active }).size();
+      upcomingMaintenanceCount = allR.filter(func(r : MaintCore) : Bool {
+        switch (r.nextServiceDate) { case (null) false; case (?d) { d > now and d <= (now + thirtyDays) } };
+      }).size();
+      overdueCount = allR.filter(func(r : MaintCore) : Bool {
+        switch (r.nextServiceDate) { case (null) false; case (?d) { d < now } };
+      }).size();
+      lowStockPartsCount = allP.filter(func(p : PartCore) : Bool { p.quantityInStock <= p.minStockLevel }).size() };
   };
 
-  // Parts Inventory
-  public shared ({ caller }) func createPart(part : PartFull) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create parts");
-    };
-    let newPart : Part.Part = {
-      id = nextPartId;
-      name = part.name;
-      partNumber = part.partNumber;
-      quantityInStock = part.quantityInStock;
-      minStockLevel = part.minStockLevel;
-      location = part.location;
-      createdAt = Time.now();
-    };
-    partStore.add(nextPartId, newPart);
-    switch (part.price) {
-      case (?p) { partPriceStore.add(nextPartId, p) };
-      case (null) {};
-    };
-    nextPartId += 1;
-    newPart.id;
+  // ─── Work Orders ─────────────────────────────────────────────────────────────
+  public shared ({ caller }) func createWorkOrder(wo : WorkOrder) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cWOCounters, cid);
+    getOrCreate(cWO, cid).add(id, { wo with id; status = #Open; completedDate = null; createdAt = Time.now() });
+    id;
   };
 
-  public shared ({ caller }) func updatePart(id : Nat, part : PartFull) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update parts");
-    };
-    let existing = switch (partStore.get(id)) {
-      case (null) { Runtime.trap("Part not found") };
-      case (?p) { p };
-    };
-    let updated : Part.Part = {
-      id = id;
-      name = part.name;
-      partNumber = part.partNumber;
-      quantityInStock = part.quantityInStock;
-      minStockLevel = part.minStockLevel;
-      location = part.location;
-      createdAt = existing.createdAt;
-    };
-    partStore.add(id, updated);
-    switch (part.price) {
-      case (?p) { partPriceStore.add(id, p) };
-      case (null) { partPriceStore.remove(id) };
-    };
+  public shared ({ caller }) func updateWorkOrder(id : Nat, wo : WorkOrder) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cWO, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Not found") }; case (?w) w };
+    m.add(id, { wo with id; createdAt = e.createdAt });
   };
 
-  public shared ({ caller }) func deletePart(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete parts");
-    };
-    switch (partStore.get(id)) {
-      case (null) { Runtime.trap("Part not found") };
-      case (?_) {
-        partStore.remove(id);
-        partPriceStore.remove(id);
+  public shared ({ caller }) func deleteWorkOrder(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    getOrCreate(cWO, requireCompanyId(caller)).remove(id);
+  };
+
+  public query ({ caller }) func getWorkOrder(id : Nat) : async WorkOrder {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cWO, cid).get(id)) { case (null) { Runtime.trap("Not found") }; case (?w) w };
+  };
+
+  public query ({ caller }) func getAllWorkOrders() : async [WorkOrder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cWO, requireCompanyId(caller)).values().toArray();
+  };
+
+  public query ({ caller }) func getWorkOrdersByVehicle(vehicleId : Nat) : async [WorkOrder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cWO, cid).values().toArray().filter(func(w : WorkOrder) : Bool { w.vehicleId == vehicleId });
+  };
+
+  public shared ({ caller }) func completeWorkOrder(id : Nat) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let wom = getOrCreate(cWO, cid);
+    let wo = switch (wom.get(id)) { case (null) { Runtime.trap("Not found") }; case (?w) w };
+    let now = Time.now();
+    wom.add(id, { wo with status = #Completed; completedDate = ?now });
+    let mid = nextId(cMaintCounters, cid);
+    getOrCreate(cMaint, cid).add(mid, { id = mid; vehicleId = wo.vehicleId; date = now;
+      maintenanceType = #Other; description = wo.title # ": " # wo.description;
+      cost = 0.0; mileage = 0; technicianName = wo.assignedMechanic;
+      nextServiceDate = null; createdAt = now });
+    getOrCreate(cWOLinks, cid).add(mid, id);
+    mid;
+  };
+
+  // ─── Vendors ─────────────────────────────────────────────────────────────────
+  public shared ({ caller }) func createVendor(vendor : Vendor) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cVendorCounters, cid);
+    getOrCreate(cVendors, cid).add(id, { vendor with id; createdAt = Time.now() });
+    id;
+  };
+
+  public shared ({ caller }) func updateVendor(id : Nat, vendor : Vendor) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cVendors, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Not found") }; case (?v) v };
+    m.add(id, { vendor with id; createdAt = e.createdAt });
+  };
+
+  public shared ({ caller }) func deleteVendor(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    getOrCreate(cVendors, requireCompanyId(caller)).remove(id);
+  };
+
+  public query ({ caller }) func getVendor(id : Nat) : async Vendor {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cVendors, cid).get(id)) { case (null) { Runtime.trap("Not found") }; case (?v) v };
+  };
+
+  public query ({ caller }) func getAllVendors() : async [Vendor] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cVendors, requireCompanyId(caller)).values().toArray();
+  };
+
+  // ─── Warranties ──────────────────────────────────────────────────────────────
+  public shared ({ caller }) func createWarranty(warranty : Warranty) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cWarrantyCounters, cid);
+    getOrCreate(cWarranties, cid).add(id, { warranty with id; createdAt = Time.now() });
+    id;
+  };
+
+  public shared ({ caller }) func updateWarranty(id : Nat, warranty : Warranty) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cWarranties, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Not found") }; case (?w) w };
+    m.add(id, { warranty with id; createdAt = e.createdAt });
+  };
+
+  public shared ({ caller }) func deleteWarranty(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    getOrCreate(cWarranties, requireCompanyId(caller)).remove(id);
+  };
+
+  public query ({ caller }) func getWarranty(id : Nat) : async Warranty {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cWarranties, cid).get(id)) { case (null) { Runtime.trap("Not found") }; case (?w) w };
+  };
+
+  public query ({ caller }) func getAllWarranties() : async [Warranty] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cWarranties, requireCompanyId(caller)).values().toArray();
+  };
+
+  public query ({ caller }) func getWarrantiesByVehicle(vehicleId : Nat) : async [Warranty] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cWarranties, cid).values().toArray().filter(func(w : Warranty) : Bool { w.vehicleId == vehicleId });
+  };
+
+  // ─── Service Schedules ───────────────────────────────────────────────────────
+  public shared ({ caller }) func createServiceSchedule(schedule : ServiceSchedule) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cScheduleCounters, cid);
+    getOrCreate(cSchedules, cid).add(id, { schedule with id; createdAt = Time.now() });
+    id;
+  };
+
+  public query ({ caller }) func getAllServiceSchedules() : async [ServiceSchedule] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cSchedules, requireCompanyId(caller)).values().toArray();
+  };
+
+  public shared ({ caller }) func updateServiceSchedule(id : Nat, schedule : ServiceSchedule) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cSchedules, cid);
+    let e = switch (m.get(id)) { case null { Runtime.trap("Not found") }; case (?s) s };
+    m.add(id, { schedule with id; createdAt = e.createdAt });
+  };
+
+  public shared ({ caller }) func deleteServiceSchedule(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cSchedules, requireCompanyId(caller)).remove(id);
+  };
+
+  public shared ({ caller }) func markScheduleComplete(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cSchedules, cid);
+    switch (m.get(id)) {
+      case null { Runtime.trap("Not found") };
+      case (?e) {
+        let intervalNanos : Int = e.intervalDays * 24 * 60 * 60 * 1_000_000_000;
+        m.add(id, { e with nextDueDate = e.nextDueDate + intervalNanos; lastCompletedDate = ?Time.now() });
       };
     };
   };
 
-  public query ({ caller }) func getPart(id : Nat) : async PartFull {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view parts");
-    };
-    switch (partStore.get(id)) {
-      case (null) { Runtime.trap("Part not found") };
-      case (?p) { toFullPart(p) };
-    };
-  };
-
-  public query ({ caller }) func getAllParts() : async [PartFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view parts");
-    };
-    partStore.values().toArray().sort().map(toFullPart);
-  };
-
-  public query ({ caller }) func getLowStockParts() : async [PartFull] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view parts");
-    };
-    partStore.values().toArray().filter(func(p) { p.quantityInStock <= p.minStockLevel }).sort().map(toFullPart);
-  };
-
-  // Work Orders
-  public shared ({ caller }) func createWorkOrder(wo : WorkOrder) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create work orders");
-    };
-    let newWO : WorkOrder = {
-      wo with
-      id = nextWorkOrderId;
-      status = #Open;
-      completedDate = null;
-      createdAt = Time.now();
-    };
-    workOrderStore.add(nextWorkOrderId, newWO);
-    nextWorkOrderId += 1;
-    newWO.id;
-  };
-
-  public shared ({ caller }) func updateWorkOrder(id : Nat, wo : WorkOrder) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update work orders");
-    };
-    let existing = switch (workOrderStore.get(id)) {
-      case (null) { Runtime.trap("Work order not found") };
-      case (?w) { w };
-    };
-    let updated : WorkOrder = { wo with id = id; createdAt = existing.createdAt };
-    workOrderStore.add(id, updated);
-  };
-
-  public shared ({ caller }) func deleteWorkOrder(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete work orders");
-    };
-    switch (workOrderStore.get(id)) {
-      case (null) { Runtime.trap("Work order not found") };
-      case (?_) { workOrderStore.remove(id) };
-    };
-  };
-
-  public query ({ caller }) func getWorkOrder(id : Nat) : async WorkOrder {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view work orders");
-    };
-    switch (workOrderStore.get(id)) {
-      case (null) { Runtime.trap("Work order not found") };
-      case (?w) { w };
-    };
-  };
-
-  public query ({ caller }) func getAllWorkOrders() : async [WorkOrder] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view work orders");
-    };
-    workOrderStore.values().toArray();
-  };
-
-  public query ({ caller }) func getWorkOrdersByVehicle(vehicleId : Nat) : async [WorkOrder] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view work orders");
-    };
-    workOrderStore.values().toArray().filter(func(w) { w.vehicleId == vehicleId });
-  };
-
-  // Complete a work order and auto-log a maintenance record
-  public shared ({ caller }) func completeWorkOrder(id : Nat) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can complete work orders");
-    };
-    let wo = switch (workOrderStore.get(id)) {
-      case (null) { Runtime.trap("Work order not found") };
-      case (?w) { w };
-    };
-    let now = Time.now();
-    let completed : WorkOrder = { wo with status = #Completed; completedDate = ?now };
-    workOrderStore.add(id, completed);
-    // Auto-create maintenance record
-    let newRecord : MaintenanceRecord.MaintenanceRecord = {
-      id = nextMaintenanceId;
-      vehicleId = wo.vehicleId;
-      date = now;
-      maintenanceType = #Other;
-      description = wo.title # ": " # wo.description;
-      cost = 0.0;
-      mileage = 0;
-      technicianName = wo.assignedMechanic;
-      nextServiceDate = null;
-      createdAt = now;
-    };
-    maintenanceStore.add(nextMaintenanceId, newRecord);
-    maintenanceRecords.add(newRecord);
-    workOrderLinkStore.add(nextMaintenanceId, id);
-    nextMaintenanceId += 1;
-    newRecord.id;
-  };
-
-  // Vendors
-  public shared ({ caller }) func createVendor(vendor : Vendor) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create vendors");
-    };
-    let newVendor : Vendor = { vendor with id = nextVendorId; createdAt = Time.now() };
-    vendorStore.add(nextVendorId, newVendor);
-    nextVendorId += 1;
-    newVendor.id;
-  };
-
-  public shared ({ caller }) func updateVendor(id : Nat, vendor : Vendor) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update vendors");
-    };
-    let existing = switch (vendorStore.get(id)) {
-      case (null) { Runtime.trap("Vendor not found") };
-      case (?v) { v };
-    };
-    vendorStore.add(id, { vendor with id = id; createdAt = existing.createdAt });
-  };
-
-  public shared ({ caller }) func deleteVendor(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete vendors");
-    };
-    switch (vendorStore.get(id)) {
-      case (null) { Runtime.trap("Vendor not found") };
-      case (?_) { vendorStore.remove(id) };
-    };
-  };
-
-  public query ({ caller }) func getVendor(id : Nat) : async Vendor {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view vendors");
-    };
-    switch (vendorStore.get(id)) {
-      case (null) { Runtime.trap("Vendor not found") };
-      case (?v) { v };
-    };
-  };
-
-  public query ({ caller }) func getAllVendors() : async [Vendor] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view vendors");
-    };
-    vendorStore.values().toArray();
-  };
-
-  // Warranties
-  public shared ({ caller }) func createWarranty(warranty : Warranty) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create warranties");
-    };
-    let newWarranty : Warranty = { warranty with id = nextWarrantyId; createdAt = Time.now() };
-    warrantyStore.add(nextWarrantyId, newWarranty);
-    nextWarrantyId += 1;
-    newWarranty.id;
-  };
-
-  public shared ({ caller }) func updateWarranty(id : Nat, warranty : Warranty) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update warranties");
-    };
-    let existing = switch (warrantyStore.get(id)) {
-      case (null) { Runtime.trap("Warranty not found") };
-      case (?w) { w };
-    };
-    warrantyStore.add(id, { warranty with id = id; createdAt = existing.createdAt });
-  };
-
-  public shared ({ caller }) func deleteWarranty(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete warranties");
-    };
-    switch (warrantyStore.get(id)) {
-      case (null) { Runtime.trap("Warranty not found") };
-      case (?_) { warrantyStore.remove(id) };
-    };
-  };
-
-  public query ({ caller }) func getWarranty(id : Nat) : async Warranty {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view warranties");
-    };
-    switch (warrantyStore.get(id)) {
-      case (null) { Runtime.trap("Warranty not found") };
-      case (?w) { w };
-    };
-  };
-
-  public query ({ caller }) func getAllWarranties() : async [Warranty] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view warranties");
-    };
-    warrantyStore.values().toArray();
-  };
-
-  public query ({ caller }) func getWarrantiesByVehicle(vehicleId : Nat) : async [Warranty] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view warranties");
-    };
-    warrantyStore.values().toArray().filter(func(w) { w.vehicleId == vehicleId });
-  };
-
-  // Company Settings
-  public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
-    if (caller.isAnonymous()) { return null };
-    companySettings;
-  };
-
-  public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async () {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required");
-    };
-    // Auto-register caller as a user if not yet registered (supports initial onboarding)
-    if (accessControlState.userRoles.get(caller) == null) {
-      accessControlState.userRoles.add(caller, #user);
-    };
-    companySettings := ?settings;
-    switch (allCompanyRegistrations.filter(func(s) { s.companyName == settings.companyName }).isEmpty()) {
-      case (true) { allCompanyRegistrations.add(settings) };
-      case (false) {};
-    };
-  };
-
+  // ─── Company Registrations & Dev Portal ─────────────────────────────────────
   public query ({ caller }) func getAllCompanyRegistrations() : async [CompanySettings] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized: Only admins and developers can view all company registrations");
+      Runtime.trap("Unauthorized");
     };
     allCompanyRegistrations.toArray();
   };
 
-  // Dev portal access with devKey
-  let DEV_KEY : Text = "FLEETGUARD_DEV_2026";
-
   public query func getAllCompanyRegistrationsWithKey(devKey : Text) : async [CompanySettings] {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     allCompanyRegistrations.toArray();
   };
 
   public shared func updateSubscriptionStatusWithKey(devKey : Text, companyName : Text, status : Text, startDate : ?Time.Time) : async () {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    let rec : SubscriptionRecord = {
-      companyName;
-      status;
-      startDate;
-      trialEndsAt = null;
-      plan = "standard";
-      updatedAt = Time.now();
-    };
-    subscriptionRecords.add(companyName, rec);
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null; plan = "standard"; updatedAt = Time.now() });
   };
 
   public shared ({ caller }) func updateSubscriptionStatus(companyName : Text, status : Text, startDate : ?Time.Time) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized: Only admins and developers can update subscription status");
+      Runtime.trap("Unauthorized");
     };
-    let rec : SubscriptionRecord = {
-      companyName;
-      status;
-      startDate;
-      trialEndsAt = null;
-      plan = "standard";
-      updatedAt = Time.now();
-    };
-    subscriptionRecords.add(companyName, rec);
+    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null; plan = "standard"; updatedAt = Time.now() });
   };
 
   public query ({ caller }) func getSubscriptionStatus(companyName : Text) : async ?SubscriptionRecord {
@@ -1116,195 +897,87 @@ actor {
 
   public query ({ caller }) func getAllSubscriptions() : async [SubscriptionRecord] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized: Only admins and developers can view all subscriptions");
+      Runtime.trap("Unauthorized");
     };
     subscriptionRecords.values().toArray();
   };
 
   public query func getAllSubscriptionsWithKey(devKey : Text) : async [SubscriptionRecord] {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     subscriptionRecords.values().toArray();
   };
 
-  // Company approval
   public shared func approveCompanyWithKey(devKey : Text, companyName : Text) : async () {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     companyApprovalStore.add(companyName, "approved");
   };
 
   public shared func rejectCompanyWithKey(devKey : Text, companyName : Text) : async () {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     companyApprovalStore.add(companyName, "rejected");
   };
 
   public query func getCompanyApprovalStatusWithKey(devKey : Text, companyName : Text) : async Text {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
-    switch (companyApprovalStore.get(companyName)) {
-      case (?s) { s };
-      case (null) { "pending" };
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    switch (companyApprovalStore.get(companyName)) { case (?s) s; case null "approved" };
   };
 
   public query func getAllCompanyApprovalsWithKey(devKey : Text) : async [(Text, Text)] {
-    if (devKey != DEV_KEY) {
-      Runtime.trap("Unauthorized: Invalid developer key");
-    };
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     companyApprovalStore.entries().toArray();
   };
 
-  public query ({ caller }) func getDefaultCurrency() : async Text {
-    if (caller.isAnonymous()) { return "CAD" };
-    defaultCurrency;
+  public shared func startTrialWithKey(devKey : Text, companyName : Text, trialDays : Nat) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let now = Time.now();
+    subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
+      trialEndsAt = ?(now + (trialDays * 24 * 60 * 60 * 1000000000)); plan = "standard"; updatedAt = now });
   };
 
-  public shared ({ caller }) func saveDefaultCurrency(currency : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save default currency");
+  public shared ({ caller }) func startTrial(companyName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
+      Runtime.trap("Unauthorized");
     };
-    defaultCurrency := currency;
+    let now = Time.now();
+    subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
+      trialEndsAt = ?(now + (7 * 24 * 60 * 60 * 1000000000)); plan = "standard"; updatedAt = now });
   };
 
-  // ServiceSchedule
-  public type ServiceSchedule = {
-    id : Nat;
-    vehicleId : Nat;
-    serviceType : Text;
-    intervalDays : Nat;
-    nextDueDate : Time.Time;
-    lastCompletedDate : ?Time.Time;
-    notes : Text;
-    status : Text;
-    createdAt : Time.Time;
+  // ─── Discount Codes ──────────────────────────────────────────────────────────
+  public shared func createDiscountCodeWithKey(devKey : Text, discount : DiscountCode) : async Nat {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let id = nextDiscountCodeId;
+    nextDiscountCodeId += 1;
+    discountCodes.add(id, { id; code = discount.code; discountType = discount.discountType;
+      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0 });
+    discountCodeMap.add(discount.code, id);
+    id;
   };
 
-  var serviceSchedules = Map.empty<Nat, ServiceSchedule>();
-  var nextServiceScheduleId : Nat = 1;
-
-  public shared ({ caller }) func createServiceSchedule(schedule : ServiceSchedule) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create service schedules");
-    };
-    let id = nextServiceScheduleId;
-    nextServiceScheduleId += 1;
-    let s : ServiceSchedule = {
-      id;
-      vehicleId = schedule.vehicleId;
-      serviceType = schedule.serviceType;
-      intervalDays = schedule.intervalDays;
-      nextDueDate = schedule.nextDueDate;
-      lastCompletedDate = schedule.lastCompletedDate;
-      notes = schedule.notes;
-      status = schedule.status;
-      createdAt = Time.now();
-    };
-    serviceSchedules.add(id, s);
-    id
+  public query func getAllDiscountCodesWithKey(devKey : Text) : async [DiscountCode] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    discountCodes.values().toArray();
   };
 
-  public query ({ caller }) func getAllServiceSchedules() : async [ServiceSchedule] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view service schedules");
-    };
-    serviceSchedules.values().toArray();
+  public shared func deleteDiscountCodeWithKey(devKey : Text, id : Nat) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let d = switch (discountCodes.get(id)) { case (null) { Runtime.trap("Not found") }; case (?d) d };
+    discountCodes.remove(id);
+    discountCodeMap.remove(d.code);
   };
 
-  public shared ({ caller }) func updateServiceSchedule(id : Nat, schedule : ServiceSchedule) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update service schedules");
-    };
-    switch (serviceSchedules.get(id)) {
-      case null { Runtime.trap("Service schedule not found") };
-      case (?existing) {
-        let updated : ServiceSchedule = {
-          id;
-          vehicleId = schedule.vehicleId;
-          serviceType = schedule.serviceType;
-          intervalDays = schedule.intervalDays;
-          nextDueDate = schedule.nextDueDate;
-          lastCompletedDate = schedule.lastCompletedDate;
-          notes = schedule.notes;
-          status = schedule.status;
-          createdAt = existing.createdAt;
-        };
-        serviceSchedules.add(id, updated);
+  public query func validateDiscountCode(code : Text) : async ?DiscountCode {
+    switch (discountCodeMap.get(code)) { case (null) null; case (?id) { discountCodes.get(id) } };
+  };
+
+  public shared ({ caller }) func applyDiscountCode(code : Text) : async () {
+    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
+    switch (discountCodeMap.get(code)) {
+      case (null) { Runtime.trap("Invalid discount code") };
+      case (?id) {
+        let d = switch (discountCodes.get(id)) { case (null) { Runtime.trap("Not found") }; case (?d) d };
+        discountCodes.add(id, { d with usedCount = d.usedCount + 1 });
       };
     };
-  };
-
-  public shared ({ caller }) func deleteServiceSchedule(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can delete service schedules");
-    };
-    serviceSchedules.remove(id);
-  };
-
-  public shared ({ caller }) func markScheduleComplete(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can mark schedules complete");
-    };
-    switch (serviceSchedules.get(id)) {
-      case null { Runtime.trap("Service schedule not found") };
-      case (?existing) {
-        let intervalNanos : Int = existing.intervalDays * 24 * 60 * 60 * 1_000_000_000;
-        let newNextDue : Time.Time = existing.nextDueDate + intervalNanos;
-        let updated : ServiceSchedule = {
-          id;
-          vehicleId = existing.vehicleId;
-          serviceType = existing.serviceType;
-          intervalDays = existing.intervalDays;
-          nextDueDate = newNextDue;
-          lastCompletedDate = ?Time.now();
-          notes = existing.notes;
-          status = existing.status;
-          createdAt = existing.createdAt;
-        };
-        serviceSchedules.add(id, updated);
-      };
-    };
-  };
-
-  // Chat messages
-  public type ChatMessage = {
-    id : Nat;
-    senderPrincipal : Text;
-    senderName : Text;
-    message : Text;
-    createdAt : Time.Time;
-  };
-
-  var nextChatId = 1;
-  var chatMessages = List.empty<ChatMessage>();
-
-  public shared ({ caller }) func sendChatMessage(senderName : Text, message : Text) : async Nat {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required");
-    };
-    let chatMessage : ChatMessage = {
-      id = nextChatId;
-      senderPrincipal = caller.toText();
-      senderName;
-      message;
-      createdAt = Time.now();
-    };
-    chatMessages.add(chatMessage);
-    nextChatId += 1;
-    chatMessage.id;
-  };
-
-  public query ({ caller }) func getChatMessages() : async [ChatMessage] {
-    if (caller.isAnonymous()) {
-      Runtime.trap("Unauthorized: Authentication required");
-    };
-    chatMessages.toArray().sort(func(a : ChatMessage, b : ChatMessage) : Order.Order {
-      Int.compare(a.createdAt, b.createdAt)
-    });
   };
 };
