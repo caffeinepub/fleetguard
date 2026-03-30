@@ -702,8 +702,16 @@ actor {
   public shared ({ caller }) func createWorkOrder(wo : WorkOrder) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
     let cid = requireCompanyId(caller);
-    let id = nextId(cWOCounters, cid);
-    getOrCreate(cWO, cid).add(id, { wo with id; status = #Open; completedDate = null; createdAt = Time.now() });
+    // Use max(counter, maxExistingId+1) to guarantee no duplicate WO numbers
+    let existing = getOrCreate(cWO, cid);
+    var maxExisting : Nat = 0;
+    for ((eid, _) in existing.entries()) {
+      if (eid > maxExisting) { maxExisting := eid };
+    };
+    let counterVal = switch (cWOCounters.get(cid)) { case (?n) n; case null 1 };
+    let id = if (counterVal > maxExisting) counterVal else maxExisting + 1;
+    cWOCounters.add(cid, id + 1);
+    existing.add(id, { wo with id; status = #Open; completedDate = null; createdAt = Time.now() });
     id;
   };
 
