@@ -8,7 +8,7 @@ import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useCallerProfile, useGetCompanySettings } from "./hooks/useQueries";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DevPortalPage } from "./pages/DevPortalPage";
+import DevPortalPage from "./pages/DevPortalPage";
 import { InviteAcceptPage } from "./pages/InviteAcceptPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
