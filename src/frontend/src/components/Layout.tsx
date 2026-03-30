@@ -20,7 +20,6 @@ import {
   Moon,
   Package,
   Settings,
-  Shield,
   ShieldCheck,
   Store,
   Sun,
@@ -195,7 +194,11 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                     onClick={toggleSidebar}
                     className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center hover:bg-primary/80 transition-colors"
                   >
-                    <Shield className="w-4 h-4 text-white" />
+                    <img
+                      src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                      alt="FleetGuard"
+                      className="w-5 h-5 object-contain"
+                    />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">Expand Sidebar</TooltipContent>
@@ -209,9 +212,11 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                     className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-4 h-4 text-white" />
-                  </div>
+                  <img
+                    src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                    alt="FleetGuard"
+                    className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                  />
                 )}
                 <span className="font-semibold text-base tracking-tight text-white truncate flex-1">
                   {companySettings?.companyName || "FleetGuard"}
