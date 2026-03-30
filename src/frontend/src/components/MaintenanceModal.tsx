@@ -25,6 +25,7 @@ import {
   Info,
   Loader2,
   Package,
+  Search,
   UserCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -99,11 +100,21 @@ export function MaintenanceModal({
     Record<string, number>
   >({});
   const [noPartsUsed, setNoPartsUsed] = useState(false);
+  const [partSearch, setPartSearch] = useState("");
   const createM = useCreateMaintenance();
   const updateM = useUpdateMaintenance();
   const { data: parts = [] } = useAllParts();
   const { taxSettings } = useTaxSettings();
   const isPending = createM.isPending || updateM.isPending;
+
+  const filteredParts = [...parts]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter((p) =>
+      partSearch.trim() === ""
+        ? true
+        : p.name.toLowerCase().includes(partSearch.toLowerCase()) ||
+          p.partNumber.toLowerCase().includes(partSearch.toLowerCase()),
+    );
 
   useEffect(() => {
     if (record) {
@@ -152,6 +163,7 @@ export function MaintenanceModal({
       setPartQuantityMap({});
     }
     setNoPartsUsed(false);
+    setPartSearch("");
   }, [record, defaultVehicleId, vehicles]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -514,9 +526,25 @@ export function MaintenanceModal({
                     </Badge>
                   )}
                 </div>
+                {parts.length > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search parts..."
+                      value={partSearch}
+                      onChange={(e) => setPartSearch(e.target.value)}
+                      className="pl-8 h-9 text-sm"
+                      data-ocid="maintenance.search_input"
+                    />
+                  </div>
+                )}
                 {parts.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-2">
                     No parts in inventory yet.
+                  </p>
+                ) : filteredParts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    No parts match your search.
                   </p>
                 ) : (
                   <div
@@ -524,7 +552,7 @@ export function MaintenanceModal({
                       noPartsUsed ? "opacity-50 pointer-events-none" : ""
                     }`}
                   >
-                    {parts.map((part) => {
+                    {filteredParts.map((part) => {
                       const checkboxId = `part-check-${part.id.toString()}`;
                       const isSelected = selectedPartIds.some(
                         (id) => id === part.id,

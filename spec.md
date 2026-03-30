@@ -1,31 +1,38 @@
 # FleetGuard
 
 ## Current State
-FleetGuard is a fleet maintenance SaaS app with:
-- Service Schedules page with mark-complete flow that opens MaintenanceModal
-- Cancel-revert logic using completionSnapshot and completionSavedRef
-- Parts page with usage history dialog
-- Role-based access (Admin/FleetManager/Mechanic)
-- CSV export on all list pages (PDF already removed from UI buttons)
-- exportPDF function exists in exportUtils.ts but is unused
+All data stores (vehicles, parts, maintenance records, work orders, vendors, warranties, service schedules, chat messages, company settings, currency) are global. Every authenticated user across all companies sees and shares the same data. This is a critical security and privacy bug.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Parts Usage History: ensure each entry shows Work Order #, Date, Mechanic name, Qty used, and is clickable to open full maintenance record (already partially implemented — verify and complete)
+- `userToCompany: Map<Principal, Text>` — tracks which company each user belongs to
+- `companyId: Text` field on all per-company data types: Vehicle, Part, MaintenanceRecord, PartFull, MaintenanceRecordFull, WorkOrder, Vendor, Warranty, ServiceSchedule, ChatMessage
+- `companySettingsStore: Map<Text, CompanySettings>` — per-company settings
+- `defaultCurrencies: Map<Text, Text>` — per-company currency
+- `getCallerCompanyId` helper that resolves caller → companyId
+- Auto-register admin in `userToCompany` on first `saveCompanySettings` call
+- Stamp invite tokens with the creating admin's companyId so redeemed users join the right company
 
 ### Modify
-- Service Schedule Completion: when user marks schedule complete, auto-open the MaintenanceModal with `requireCompletion=true`; record must be saved to Maintenance History with all costs (parts + labor); if user cancels, revert schedule back to Open status using updateServiceSchedule with original snapshot data. **Critical bug to fix**: the `updateServiceSchedule` call in the cancel-revert passes `lastCompletedDate` as `[] | [bigint]` array but the backend type expects `Time | undefined`. Fix the Candid encoding of the revert call so it uses the correct format — pass `lastCompletedDate` as `undefined` when the array is empty, or unwrap the first element.
-- User Role Permissions: confirm and enforce — all roles EXCEPT Mechanic (Admin + FleetManager) can add/edit/delete Fleet/Vehicles, Parts, Vendors, Warranties. Mechanics can only log maintenance and view data. Add canCreate/canEdit guards on all Add/Edit buttons in VehiclesPage, PartsPage, VendorsPage, WarrantiesPage.
-- Export: remove the `exportPDF` function from exportUtils.ts and ensure no PDF export buttons exist anywhere in the app.
+- All `create*` functions: stamp `companyId = callerCompanyId` before storing
+- All `get*` / `getAll*` query functions: filter results by `callerCompanyId`
+- `saveCompanySettings`: register caller as new company if not registered, store per-company
+- `getCompanySettings`: return only the caller's company settings
+- `getDefaultCurrency` / `saveDefaultCurrency`: per-company keyed by companyId
+- `createInviteToken`: stamp token with admin's companyId
+- `redeemInviteToken`: add new user to `userToCompany` with token's companyId
+- All counter vars (nextVehicleId etc.) made per-company using `Map<Text, Nat>`
 
 ### Remove
-- `exportPDF` function from `src/frontend/src/lib/exportUtils.ts`
-- Any remaining PDF export buttons or options in any page
+- Global `var companySettings : ?CompanySettings` (replaced by per-company map)
+- Global `var defaultCurrency : Text` (replaced by per-company map)
 
 ## Implementation Plan
-1. Fix the cancel-revert in ServiceSchedulesPage.tsx: in the `onClose` handler's `updateServiceSchedule` call, convert `lastCompletedDate` from `[] | [bigint]` to `bigint | undefined` before sending
-2. Verify role guards (canCreate/canEdit) are present in VehiclesPage, PartsPage, VendorsPage, WarrantiesPage — all should check `isAdmin || fleetRole === FleetRole.FleetManager`
-3. Remove exportPDF from exportUtils.ts
-4. Verify Parts Usage History dialog: shows WO#, date, mechanic, qty; rows are clickable; opens maintenance record modal
-5. Validate and build
+1. Add `companyId: Text` to all data types
+2. Add `var userToCompany = Map.empty<Principal, Text>()` and `getCallerCompanyId` helper
+3. Change `companySettings` and `defaultCurrency` to per-company maps
+4. Update all CRUD functions to stamp and filter by companyId
+5. Update invite token to carry companyId, register users on redeem
+6. Update per-company ID counters
+7. Update backend.d.ts to include companyId fields
