@@ -24,6 +24,11 @@ export interface MaintenanceRecordFull {
     laborCost?: number;
     vehicleId: bigint;
 }
+export interface CompanyUserInfo {
+    principal: Principal;
+    role: FleetRole;
+    profile?: UserProfile;
+}
 export type Time = bigint;
 export interface WorkOrder {
     id: bigint;
@@ -57,7 +62,7 @@ export interface DiscountCode {
 }
 export interface Vehicle {
     id: bigint;
-    status: Status;
+    status: VehicleStatus;
     model: string;
     vehicleType: VehicleType;
     licensePlate: string;
@@ -92,9 +97,9 @@ export interface PartFull {
     name: string;
     createdAt: Time;
     minStockLevel: bigint;
+    category?: string;
     price?: number;
     location: string;
-    category?: string;
 }
 export interface Warranty {
     id: bigint;
@@ -108,12 +113,18 @@ export interface Warranty {
     vehicleId: bigint;
     startDate: Time;
 }
+export interface TaxSettings {
+    taxEnabled: boolean;
+    taxLabel: string;
+    taxRate: number;
+}
 export interface InviteToken {
     token: string;
     usedBy?: Principal;
     createdAt: Time;
     role: FleetRole;
     email: string;
+    companyId: string;
 }
 export interface CompanySettings {
     adminPrincipal: string;
@@ -123,11 +134,6 @@ export interface CompanySettings {
     fleetSize: string;
     industry: string;
     contactPhone: string;
-}
-export interface TaxSettings {
-    taxLabel: string;
-    taxRate: number;
-    taxEnabled: boolean;
 }
 export interface Vendor {
     id: bigint;
@@ -163,14 +169,14 @@ export enum MaintenanceType {
     Other = "Other",
     EngineCheck = "EngineCheck"
 }
-export enum Status {
-    Inactive = "Inactive",
-    Active = "Active"
-}
 export enum UserRole {
     admin = "admin",
     user = "user",
     guest = "guest"
+}
+export enum VehicleStatus {
+    Inactive = "Inactive",
+    Active = "Active"
 }
 export enum VehicleType {
     Bus = "Bus",
@@ -193,10 +199,13 @@ export enum WorkOrderStatus {
 }
 export interface backendInterface {
     applyDiscountCode(code: string): Promise<void>;
+    approveCompany(companyName: string): Promise<void>;
     approveCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     bulkCreateVehicles(vehicleList: Array<Vehicle>): Promise<Array<bigint>>;
+    cancelSubscription(companyName: string): Promise<void>;
     completeWorkOrder(id: bigint): Promise<bigint>;
+    createDiscountCode(discount: DiscountCode): Promise<bigint>;
     createDiscountCodeWithKey(devKey: string, discount: DiscountCode): Promise<bigint>;
     createInviteToken(email: string, role: FleetRole): Promise<string>;
     createMaintenanceRecord(record: MaintenanceRecordFull): Promise<bigint>;
@@ -206,6 +215,7 @@ export interface backendInterface {
     createVendor(vendor: Vendor): Promise<bigint>;
     createWarranty(warranty: Warranty): Promise<bigint>;
     createWorkOrder(wo: WorkOrder): Promise<bigint>;
+    deleteDiscountCode(code: string): Promise<void>;
     deleteDiscountCodeWithKey(devKey: string, id: bigint): Promise<void>;
     deletePart(id: bigint): Promise<void>;
     deleteServiceSchedule(id: bigint): Promise<void>;
@@ -233,8 +243,10 @@ export interface backendInterface {
     getCompanyApprovalStatus(companyName: string): Promise<string>;
     getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
     getCompanySettings(): Promise<CompanySettings | null>;
+    getCompanyUsers(): Promise<Array<CompanyUserInfo>>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
+    getDiscountCodes(): Promise<Array<DiscountCode>>;
     getInviteTokens(): Promise<Array<InviteToken>>;
     getLowStockParts(): Promise<Array<PartFull>>;
     getMaintenanceRecord(id: bigint): Promise<MaintenanceRecordFull>;
@@ -251,10 +263,11 @@ export interface backendInterface {
     getWarrantiesByVehicle(vehicleId: bigint): Promise<Array<Warranty>>;
     getWarranty(id: bigint): Promise<Warranty>;
     getWorkOrder(id: bigint): Promise<WorkOrder>;
-    getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;    
+    getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;
     isCallerAdmin(): Promise<boolean>;
     markScheduleComplete(id: bigint): Promise<void>;
     redeemInviteToken(token: string): Promise<FleetRole>;
+    rejectCompany(companyName: string): Promise<void>;
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;

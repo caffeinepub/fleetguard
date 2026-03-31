@@ -20,7 +20,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Vehicle } from "../backend";
-import { Status, VehicleType } from "../backend";
+import { VehicleStatus, VehicleType } from "../backend";
 import { useCreateVehicle, useUpdateVehicle } from "../hooks/useQueries";
 import { nowNs } from "../lib/helpers";
 
@@ -37,7 +37,7 @@ const defaultForm = {
   year: new Date().getFullYear().toString(),
   make: "",
   model: "",
-  status: Status.Active,
+  status: VehicleStatus.Active,
   notes: "",
 };
 
@@ -79,7 +79,7 @@ export function VehicleModal({ open, onClose, vehicle }: Props) {
       year: BigInt(form.year),
       make: form.make,
       model: form.model,
-      status: form.status as Status,
+      status: form.status as VehicleStatus,
       notes: form.notes,
       createdAt: vehicle?.createdAt ?? nowNs(),
     };
@@ -173,7 +173,7 @@ export function VehicleModal({ open, onClose, vehicle }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Status</Label>
+              <Label>VehicleStatus</Label>
               <Select
                 value={form.status}
                 onValueChange={(v) => set("status", v)}
@@ -182,8 +182,10 @@ export function VehicleModal({ open, onClose, vehicle }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={Status.Active}>Active</SelectItem>
-                  <SelectItem value={Status.Inactive}>Inactive</SelectItem>
+                  <SelectItem value={VehicleStatus.Active}>Active</SelectItem>
+                  <SelectItem value={VehicleStatus.Inactive}>
+                    Inactive
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

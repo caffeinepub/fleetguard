@@ -28,7 +28,7 @@ import {
 import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Vehicle } from "../backend";
-import { Status } from "../backend";
+import { VehicleStatus } from "../backend";
 import { useActor } from "../hooks/useActor";
 import {
   useAllMaintenanceRecords,
@@ -61,11 +61,11 @@ interface Props {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
 }
 
-function StatusBadge({ status }: { status: Status }) {
+function StatusBadge({ status }: { status: VehicleStatus }) {
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-        status === Status.Active
+        status === VehicleStatus.Active
           ? "bg-success/10 text-success"
           : "bg-muted text-muted-foreground"
       }`}

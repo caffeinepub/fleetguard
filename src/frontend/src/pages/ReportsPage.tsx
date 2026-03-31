@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import {
   MaintenanceType,
-  Status,
+  VehicleStatus,
   WorkOrderPriority,
   WorkOrderStatus,
 } from "../backend";
@@ -158,8 +158,12 @@ export function ReportsPage() {
   const isLoading = vLoading || mLoading || pLoading || woLoading;
 
   // Fleet Summary stats
-  const activeVehicles = vehicles.filter((v) => v.status === Status.Active);
-  const inactiveVehicles = vehicles.filter((v) => v.status === Status.Inactive);
+  const activeVehicles = vehicles.filter(
+    (v) => v.status === VehicleStatus.Active,
+  );
+  const inactiveVehicles = vehicles.filter(
+    (v) => v.status === VehicleStatus.Inactive,
+  );
   const vehicleTypeBreakdown = vehicles.reduce(
     (acc, v) => {
       acc[String(v.vehicleType)] = (acc[String(v.vehicleType)] ?? 0) + 1;
@@ -220,7 +224,15 @@ export function ReportsPage() {
   const exportFleet = () => {
     exportCSV(
       "fleet-summary.csv",
-      ["Name", "Type", "Make", "Model", "Year", "Status", "License Plate"],
+      [
+        "Name",
+        "Type",
+        "Make",
+        "Model",
+        "Year",
+        "VehicleStatus",
+        "License Plate",
+      ],
       vehicles.map((v) => [
         v.name,
         String(v.vehicleType),
@@ -257,7 +269,7 @@ export function ReportsPage() {
         "Min Stock",
         `Unit Price (${currency})`,
         `Total Value (${currency})`,
-        "Status",
+        "VehicleStatus",
       ],
       parts.map((p) => {
         let stockStatus = "In Stock";
@@ -280,7 +292,15 @@ export function ReportsPage() {
   const exportWorkOrders = () => {
     exportCSV(
       "work-orders.csv",
-      ["ID", "Title", "Vehicle", "Mechanic", "Priority", "Status", "Created"],
+      [
+        "ID",
+        "Title",
+        "Vehicle",
+        "Mechanic",
+        "Priority",
+        "VehicleStatus",
+        "Created",
+      ],
       workOrders.map((wo) => [
         Number(wo.id),
         wo.title,
@@ -484,7 +504,7 @@ export function ReportsPage() {
                         <TableHead>Type</TableHead>
                         <TableHead>Make / Model</TableHead>
                         <TableHead>Year</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>VehicleStatus</TableHead>
                         <TableHead>License Plate</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -518,7 +538,7 @@ export function ReportsPage() {
                             <TableCell>
                               <Badge
                                 className={
-                                  v.status === Status.Active
+                                  v.status === VehicleStatus.Active
                                     ? "bg-green-100 text-green-700 border-0"
                                     : "bg-gray-100 text-gray-600 border-0"
                                 }
@@ -705,7 +725,7 @@ export function ReportsPage() {
                         <TableHead>Min Stock</TableHead>
                         <TableHead>Unit Price</TableHead>
                         <TableHead>Total Value</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>VehicleStatus</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -813,7 +833,7 @@ export function ReportsPage() {
                         <TableHead>Vehicle</TableHead>
                         <TableHead>Mechanic</TableHead>
                         <TableHead>Priority</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>VehicleStatus</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>

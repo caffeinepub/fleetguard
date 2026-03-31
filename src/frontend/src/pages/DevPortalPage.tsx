@@ -43,6 +43,7 @@ import {
   Key,
   LayoutDashboard,
   Loader2,
+  LogOut,
   Mail,
   Menu,
   Moon,
@@ -385,6 +386,20 @@ export default function DevPortalPage() {
           className="p-4 space-y-3"
           style={{ borderTop: "1px solid oklch(0.24 0.07 255)" }}
         >
+          <button
+            type="button"
+            data-ocid="dev_portal.exit_app.button"
+            onClick={() => window.location.replace(window.location.origin)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
+            style={{
+              background: "oklch(0.22 0.06 255)",
+              color: "oklch(0.65 0.2 150)",
+              border: "1px solid oklch(0.65 0.2 150 / 0.3)",
+            }}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            Exit to App
+          </button>
           <button
             type="button"
             data-ocid="dev_portal.dark_mode.toggle"

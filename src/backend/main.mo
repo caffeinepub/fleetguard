@@ -10,7 +10,9 @@ import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -89,7 +91,13 @@ actor {
   public type UserProfile = { name : Text };
   public type InviteToken = {
     token : Text; role : FleetRole; email : Text;
+    companyId : Text;  // NEW: the company the admin belongs to
     createdAt : Time.Time; usedBy : ?Principal;
+  };
+  public type CompanyUserInfo = {
+    principal : Principal;
+    profile : ?UserProfile;
+    role : FleetRole;
   };
   // Internal maintenance type (no extra fields)
   type MaintCore = {
@@ -358,10 +366,17 @@ actor {
 
   // ─── Fleet Roles (per company) ──────────────────────────────────────────────
   public shared ({ caller }) func setUserFleetRole(user : Principal, role : FleetRole) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can set user fleet roles");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can set fleet roles");
     };
-    getOrCreateP(cFleetRoles, requireCompanyId(caller)).add(user, role);
+    let cid = requireCompanyId(caller);
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    // Verify caller is Admin in their company
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (_) { Runtime.trap("Unauthorized: Only company admins can set user fleet roles") };
+    };
+    roleMap.add(user, role);
   };
 
   public query ({ caller }) func getCallerFleetRole() : async ?FleetRole {
@@ -373,19 +388,44 @@ actor {
   };
 
   public query ({ caller }) func getUserFleetRole(user : Principal) : async ?FleetRole {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Admin access required");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: User access required");
     };
-    getOrCreateP(cFleetRoles, requireCompanyId(caller)).get(user);
+    let cid = requireCompanyId(caller);
+    getOrCreateP(cFleetRoles, cid).get(user);
+  };
+
+  public query ({ caller }) func getCompanyUsers() : async [CompanyUserInfo] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: User access required");
+    };
+    let cid = requireCompanyId(caller);
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    let result = List.empty<CompanyUserInfo>();
+    for ((p, role) in roleMap.entries()) {
+      result.add({
+        principal = p;
+        profile = userProfiles.get(p);
+        role = role;
+      });
+    };
+    result.toArray();
   };
 
   // ─── Invite Tokens ──────────────────────────────────────────────────────────
   public shared ({ caller }) func createInviteToken(email : Text, role : FleetRole) : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Admin access required to create invite tokens");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: User access required to create invite tokens");
+    };
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin in their company
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (_) { Runtime.trap("Unauthorized: Only company admins can create invite tokens") };
     };
     let token = "INV-" # nextInviteTokenId.toText();
-    inviteTokens.add(token, { token; role; email; createdAt = Time.now(); usedBy = null });
+    inviteTokens.add(token, { token; role; email; companyId = cid; createdAt = Time.now(); usedBy = null });
     nextInviteTokenId += 1;
     token;
   };
@@ -397,17 +437,34 @@ actor {
     };
     switch (existing.usedBy) { case (?_) { Runtime.trap("Token already used") }; case (null) {} };
     inviteTokens.add(token, { existing with usedBy = ?caller });
+    
+    // Register user in the token's company
+    userCompanyMap.add(caller, existing.companyId);
+    
+    // Add user to system ACL as #user if not already registered
     if (accessControlState.userRoles.get(caller) == null) {
       accessControlState.userRoles.add(caller, #user);
     };
+    
+    // Add user to company's fleet roles
+    getOrCreateP(cFleetRoles, existing.companyId).add(caller, existing.role);
+    
     existing.role;
   };
 
   public query ({ caller }) func getInviteTokens() : async [InviteToken] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Admin access required");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: User access required");
     };
-    inviteTokens.values().toArray();
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin in their company
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (_) { Runtime.trap("Unauthorized: Only company admins can view invite tokens") };
+    };
+    // Return only tokens for caller's company
+    inviteTokens.values().toArray().filter(func(t : InviteToken) : Bool { t.companyId == cid });
   };
 
   // ─── User Profiles ──────────────────────────────────────────────────────────
@@ -415,12 +472,14 @@ actor {
     if (caller.isAnonymous()) { return null };
     userProfiles.get(caller);
   };
+  
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized");
     };
     userProfiles.get(user);
   };
+  
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
     if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
     userProfiles.add(caller, profile);
@@ -451,6 +510,20 @@ actor {
 
   public query func getCompanyApprovalStatus(companyName : Text) : async Text {
     switch (companyApprovalStore.get(companyName)) { case (?s) s; case (null) "approved" };
+  };
+
+  public shared ({ caller }) func approveCompany(companyName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    companyApprovalStore.add(companyName, "approved");
+  };
+
+  public shared ({ caller }) func rejectCompany(companyName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    companyApprovalStore.add(companyName, "rejected");
   };
 
   public query ({ caller }) func getDefaultCurrency() : async Text {
@@ -486,8 +559,15 @@ actor {
   };
 
   public shared ({ caller }) func bulkCreateVehicles(vehicleList : [Vehicle]) : async [Nat] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
     let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can bulk create vehicles") };
+    };
     let ids = List.empty<Nat>();
     for (v in vehicleList.vals()) {
       let id = nextId(cVehCounters, cid);
@@ -508,8 +588,16 @@ actor {
   };
 
   public shared ({ caller }) func deleteVehicle(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
-    getOrCreate(cVehicles, requireCompanyId(caller)).remove(id);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can delete vehicles") };
+    };
+    getOrCreate(cVehicles, cid).remove(id);
   };
 
   public query ({ caller }) func getVehicle(id : Nat) : async Vehicle {
@@ -551,8 +639,15 @@ actor {
   };
 
   public shared ({ caller }) func deletePart(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
     let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can delete parts") };
+    };
     getOrCreate(cParts, cid).remove(id);
     getOrCreate(cPrices, cid).remove(id);
     getOrCreate(cCategories, cid).remove(id);
@@ -724,8 +819,16 @@ actor {
   };
 
   public shared ({ caller }) func deleteWorkOrder(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
-    getOrCreate(cWO, requireCompanyId(caller)).remove(id);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can delete work orders") };
+    };
+    getOrCreate(cWO, cid).remove(id);
   };
 
   public query ({ caller }) func getWorkOrder(id : Nat) : async WorkOrder {
@@ -779,8 +882,16 @@ actor {
   };
 
   public shared ({ caller }) func deleteVendor(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
-    getOrCreate(cVendors, requireCompanyId(caller)).remove(id);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can delete vendors") };
+    };
+    getOrCreate(cVendors, cid).remove(id);
   };
 
   public query ({ caller }) func getVendor(id : Nat) : async Vendor {
@@ -812,8 +923,16 @@ actor {
   };
 
   public shared ({ caller }) func deleteWarranty(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) Runtime.trap("Unauthorized");
-    getOrCreate(cWarranties, requireCompanyId(caller)).remove(id);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    // Verify caller is Admin or FleetManager
+    let roleMap = getOrCreateP(cFleetRoles, cid);
+    switch (roleMap.get(caller)) {
+      case (?#Admin) {};
+      case (?#FleetManager) {};
+      case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can delete warranties") };
+    };
+    getOrCreate(cWarranties, cid).remove(id);
   };
 
   public query ({ caller }) func getWarranty(id : Nat) : async Warranty {
@@ -875,8 +994,8 @@ actor {
 
   // ─── Company Registrations & Dev Portal ─────────────────────────────────────
   public query ({ caller }) func getAllCompanyRegistrations() : async [CompanySettings] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
     };
     allCompanyRegistrations.toArray();
   };
@@ -892,8 +1011,8 @@ actor {
   };
 
   public shared ({ caller }) func updateSubscriptionStatus(companyName : Text, status : Text, startDate : ?Time.Time) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
     };
     subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null; plan = "standard"; updatedAt = Time.now() });
   };
@@ -904,8 +1023,8 @@ actor {
   };
 
   public query ({ caller }) func getAllSubscriptions() : async [SubscriptionRecord] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
     };
     subscriptionRecords.values().toArray();
   };
@@ -943,15 +1062,38 @@ actor {
   };
 
   public shared ({ caller }) func startTrial(companyName : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin)) and caller != DEV_PRINCIPAL) {
-      Runtime.trap("Unauthorized");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
     };
     let now = Time.now();
     subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
       trialEndsAt = ?(now + (7 * 24 * 60 * 60 * 1000000000)); plan = "standard"; updatedAt = now });
   };
 
+  public shared ({ caller }) func cancelSubscription(companyName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    let existing = switch (subscriptionRecords.get(companyName)) {
+      case (null) { Runtime.trap("Subscription not found") };
+      case (?s) s;
+    };
+    subscriptionRecords.add(companyName, { existing with status = "cancelled"; updatedAt = Time.now() });
+  };
+
   // ─── Discount Codes ──────────────────────────────────────────────────────────
+  public shared ({ caller }) func createDiscountCode(discount : DiscountCode) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    let id = nextDiscountCodeId;
+    nextDiscountCodeId += 1;
+    discountCodes.add(id, { id; code = discount.code; discountType = discount.discountType;
+      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0 });
+    discountCodeMap.add(discount.code, id);
+    id;
+  };
+
   public shared func createDiscountCodeWithKey(devKey : Text, discount : DiscountCode) : async Nat {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     let id = nextDiscountCodeId;
@@ -962,9 +1104,29 @@ actor {
     id;
   };
 
+  public query ({ caller }) func getDiscountCodes() : async [DiscountCode] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    discountCodes.values().toArray();
+  };
+
   public query func getAllDiscountCodesWithKey(devKey : Text) : async [DiscountCode] {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     discountCodes.values().toArray();
+  };
+
+  public shared ({ caller }) func deleteDiscountCode(code : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Admin access required");
+    };
+    switch (discountCodeMap.get(code)) {
+      case (null) { Runtime.trap("Discount code not found") };
+      case (?id) {
+        discountCodes.remove(id);
+        discountCodeMap.remove(code);
+      };
+    };
   };
 
   public shared func deleteDiscountCodeWithKey(devKey : Text, id : Nat) : async () {

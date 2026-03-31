@@ -34,7 +34,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Vehicle } from "../backend";
-import { Status, VehicleType } from "../backend";
+import { VehicleStatus, VehicleType } from "../backend";
 import { FleetRole } from "../backend";
 import { VehicleModal } from "../components/VehicleModal";
 import {
@@ -179,8 +179,8 @@ export function VehiclesPage({ onNavigate }: Props) {
         model: modelIdx >= 0 ? (cols[modelIdx] ?? "") : "",
         status:
           statusIdx >= 0 && (cols[statusIdx] ?? "").toLowerCase() === "inactive"
-            ? Status.Inactive
-            : Status.Active,
+            ? VehicleStatus.Inactive
+            : VehicleStatus.Active,
         notes: notesIdx >= 0 ? (cols[notesIdx] ?? "") : "",
         createdAt: nowNs(),
       });
@@ -214,7 +214,7 @@ export function VehiclesPage({ onNavigate }: Props) {
       "Year",
       "Type",
       "License Plate",
-      "Status",
+      "VehicleStatus",
     ];
     const rows = (vehicles ?? []).map((v: Vehicle) => [
       v.name,
@@ -306,12 +306,12 @@ export function VehiclesPage({ onNavigate }: Props) {
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger data-ocid="vehicles.status.select" className="w-36">
-            <SelectValue placeholder="All Status" />
+            <SelectValue placeholder="All VehicleStatus" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value={Status.Active}>Active</SelectItem>
-            <SelectItem value={Status.Inactive}>Inactive</SelectItem>
+            <SelectItem value="all">All VehicleStatus</SelectItem>
+            <SelectItem value={VehicleStatus.Active}>Active</SelectItem>
+            <SelectItem value={VehicleStatus.Inactive}>Inactive</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortOrder} onValueChange={setSortOrder}>
@@ -363,7 +363,7 @@ export function VehiclesPage({ onNavigate }: Props) {
                     "Type",
                     "Year",
                     "License Plate",
-                    "Status",
+                    "VehicleStatus",
                     "Actions",
                   ].map((h) => (
                     <th
@@ -409,14 +409,14 @@ export function VehiclesPage({ onNavigate }: Props) {
                     <td className="px-5 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          v.status === Status.Active
+                          v.status === VehicleStatus.Active
                             ? "bg-success/10 text-success"
                             : "bg-muted text-muted-foreground"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            v.status === Status.Active
+                            v.status === VehicleStatus.Active
                               ? "bg-success"
                               : "bg-muted-foreground"
                           }`}

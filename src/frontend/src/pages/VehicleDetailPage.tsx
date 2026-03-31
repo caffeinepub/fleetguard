@@ -14,7 +14,7 @@ import {
   User,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { MaintenanceType, Status } from "../backend";
+import { MaintenanceType, VehicleStatus } from "../backend";
 import type { MaintenanceRecordFull } from "../backend";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { VehicleModal } from "../components/VehicleModal";
@@ -178,14 +178,14 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
               <div className="flex items-center gap-2 no-print">
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
-                    vehicle.status === Status.Active
+                    vehicle.status === VehicleStatus.Active
                       ? "bg-success/10 text-success"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      vehicle.status === Status.Active
+                      vehicle.status === VehicleStatus.Active
                         ? "bg-success"
                         : "bg-muted-foreground"
                     }`}

@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -33,6 +34,7 @@ import {
   Upload,
   User,
   UserPlus,
+  Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -42,6 +44,7 @@ import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
+  useCompanyUsers,
   useCreateInviteToken,
   useGetCompanySettings,
   useGetDefaultCurrency,
@@ -50,6 +53,7 @@ import {
   useIsAdmin,
   useSaveCompanySettings,
   useSaveDefaultCurrency,
+  useSetUserFleetRole,
 } from "../hooks/useQueries";
 import { useTaxSettings } from "../hooks/useTaxSettings";
 
@@ -143,6 +147,10 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const saveSettings = useSaveCompanySettings();
   const saveCurrency = useSaveDefaultCurrency();
   const createInvite = useCreateInviteToken();
+
+  // Manage Team hooks
+  const { data: companyUsers, isLoading: usersLoading } = useCompanyUsers();
+  const setUserFleetRole = useSetUserFleetRole();
 
   // Company info state
   const [companyName, setCompanyName] = useState("");
@@ -336,6 +344,19 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
       console.error(err);
       toast.error("Failed to copy link");
     }
+  };
+
+  const handleRoleChange = (userPrincipal: any, newRole: FleetRole) => {
+    setUserFleetRole.mutate(
+      { user: userPrincipal, role: newRole },
+      {
+        onSuccess: () =>
+          toast.success(
+            `Role updated to ${fleetRoleLabel[newRole] ?? newRole}`,
+          ),
+        onError: () => toast.error("Failed to update role"),
+      },
+    );
   };
 
   return (
@@ -751,6 +772,124 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
         </CardContent>
       </Card>
 
+      {/* Manage Team — admin only */}
+      {isAdmin && (
+        <Card className="shadow-card border-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Users size={16} /> Manage Team
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              View and manage your team members and their access roles.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {usersLoading ? (
+              <div
+                className="space-y-3"
+                data-ocid="settings.team.loading_state"
+              >
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-6 w-20 ml-auto" />
+                  </div>
+                ))}
+              </div>
+            ) : !companyUsers || companyUsers.length === 0 ? (
+              <div
+                className="text-center py-8 text-muted-foreground text-sm"
+                data-ocid="settings.team.empty_state"
+              >
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No team members yet. Invite users using the form below.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <Table data-ocid="settings.team.table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Name</TableHead>
+                      <TableHead className="text-xs">Role</TableHead>
+                      <TableHead className="text-xs hidden sm:table-cell">
+                        Principal ID
+                      </TableHead>
+                      <TableHead className="text-xs text-right">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {companyUsers.map((user, idx) => {
+                      const principalStr = user.principal.toString();
+                      const truncatedPrincipal = `${principalStr.slice(0, 8)}...${principalStr.slice(-4)}`;
+                      const currentRole = user.role;
+                      return (
+                        <TableRow
+                          key={principalStr}
+                          data-ocid={`settings.team.item.${idx + 1}`}
+                        >
+                          <TableCell className="text-sm font-medium">
+                            {user.profile?.name ?? "Unnamed User"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                currentRole === FleetRole.Admin
+                                  ? "border-primary/40 text-primary bg-primary/5"
+                                  : currentRole === FleetRole.FleetManager
+                                    ? "border-success/40 text-success bg-success/5"
+                                    : "border-amber-500/40 text-amber-600 bg-amber-500/5"
+                              }`}
+                            >
+                              {fleetRoleLabel[currentRole] ?? currentRole}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {truncatedPrincipal}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Select
+                              value={currentRole}
+                              onValueChange={(v) =>
+                                handleRoleChange(user.principal, v as FleetRole)
+                              }
+                              disabled={setUserFleetRole.isPending}
+                            >
+                              <SelectTrigger
+                                className="h-8 w-36 text-xs"
+                                data-ocid={`settings.team.select.${idx + 1}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={FleetRole.Admin}>
+                                  Administrator
+                                </SelectItem>
+                                <SelectItem value={FleetRole.FleetManager}>
+                                  Fleet Manager
+                                </SelectItem>
+                                <SelectItem value={FleetRole.Mechanic}>
+                                  Mechanic
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Invite Team Members — admin only */}
       {isAdmin && (
         <Card className="shadow-card border-0">
@@ -789,6 +928,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={FleetRole.Admin}>Admin</SelectItem>
                     <SelectItem value={FleetRole.FleetManager}>
                       Fleet Manager
                     </SelectItem>
@@ -878,9 +1018,11 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
                             <Badge
                               variant="outline"
                               className={`text-xs ${
-                                invite.role === FleetRole.FleetManager
-                                  ? "border-success/40 text-success bg-success/5"
-                                  : "border-amber-500/40 text-amber-600 bg-amber-500/5"
+                                invite.role === FleetRole.Admin
+                                  ? "border-primary/40 text-primary bg-primary/5"
+                                  : invite.role === FleetRole.FleetManager
+                                    ? "border-success/40 text-success bg-success/5"
+                                    : "border-amber-500/40 text-amber-600 bg-amber-500/5"
                               }`}
                             >
                               {fleetRoleLabel[invite.role] ?? invite.role}

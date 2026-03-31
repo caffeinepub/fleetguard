@@ -10,13 +10,6 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface ChatMessage {
-  'id' : bigint,
-  'createdAt' : Time,
-  'senderPrincipal' : string,
-  'message' : string,
-  'senderName' : string,
-}
 export interface CompanySettings {
   'adminPrincipal' : string,
   'createdAt' : Time,
@@ -25,6 +18,11 @@ export interface CompanySettings {
   'fleetSize' : string,
   'industry' : string,
   'contactPhone' : string,
+}
+export interface CompanyUserInfo {
+  'principal' : Principal,
+  'role' : FleetRole,
+  'profile' : [] | [UserProfile],
 }
 export interface DashboardStats {
   'activeVehicles' : bigint,
@@ -51,6 +49,7 @@ export interface InviteToken {
   'createdAt' : Time,
   'role' : FleetRole,
   'email' : string,
+  'companyId' : string,
 }
 export interface MaintenanceRecordFull {
   'id' : bigint,
@@ -85,6 +84,7 @@ export interface PartFull {
   'name' : string,
   'createdAt' : Time,
   'minStockLevel' : bigint,
+  'category' : [] | [string],
   'price' : [] | [number],
   'location' : string,
 }
@@ -100,8 +100,6 @@ export interface ServiceSchedule {
   'notes' : string,
   'vehicleId' : bigint,
 }
-export type Status = { 'Inactive' : null } |
-  { 'Active' : null };
 export interface SubscriptionRecord {
   'status' : string,
   'plan' : string,
@@ -110,6 +108,11 @@ export interface SubscriptionRecord {
   'trialEndsAt' : [] | [Time],
   'startDate' : [] | [Time],
 }
+export interface TaxSettings {
+  'taxEnabled' : boolean,
+  'taxLabel' : string,
+  'taxRate' : number,
+}
 export type Time = bigint;
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
@@ -117,7 +120,7 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface Vehicle {
   'id' : bigint,
-  'status' : Status,
+  'status' : VehicleStatus,
   'model' : string,
   'vehicleType' : VehicleType,
   'licensePlate' : string,
@@ -127,6 +130,8 @@ export interface Vehicle {
   'year' : bigint,
   'notes' : string,
 }
+export type VehicleStatus = { 'Inactive' : null } |
+  { 'Active' : null };
 export type VehicleType = { 'Bus' : null } |
   { 'Van' : null } |
   { 'Trailer' : null } |
@@ -205,10 +210,13 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'applyDiscountCode' : ActorMethod<[string], undefined>,
+  'approveCompany' : ActorMethod<[string], undefined>,
   'approveCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'bulkCreateVehicles' : ActorMethod<[Array<Vehicle>], Array<bigint>>,
+  'cancelSubscription' : ActorMethod<[string], undefined>,
   'completeWorkOrder' : ActorMethod<[bigint], bigint>,
+  'createDiscountCode' : ActorMethod<[DiscountCode], bigint>,
   'createDiscountCodeWithKey' : ActorMethod<[string, DiscountCode], bigint>,
   'createInviteToken' : ActorMethod<[string, FleetRole], string>,
   'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
@@ -218,6 +226,7 @@ export interface _SERVICE {
   'createVendor' : ActorMethod<[Vendor], bigint>,
   'createWarranty' : ActorMethod<[Warranty], bigint>,
   'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
+  'deleteDiscountCode' : ActorMethod<[string], undefined>,
   'deleteDiscountCodeWithKey' : ActorMethod<[string, bigint], undefined>,
   'deletePart' : ActorMethod<[bigint], undefined>,
   'deleteServiceSchedule' : ActorMethod<[bigint], undefined>,
@@ -247,14 +256,17 @@ export interface _SERVICE {
   'getAllVendors' : ActorMethod<[], Array<Vendor>>,
   'getAllWarranties' : ActorMethod<[], Array<Warranty>>,
   'getAllWorkOrders' : ActorMethod<[], Array<WorkOrder>>,
+  'getCallerCompanyId' : ActorMethod<[], [] | [string]>,
   'getCallerFleetRole' : ActorMethod<[], [] | [FleetRole]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getChatMessages' : ActorMethod<[], Array<ChatMessage>>,
+  'getCompanyApprovalStatus' : ActorMethod<[string], string>,
   'getCompanyApprovalStatusWithKey' : ActorMethod<[string, string], string>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
+  'getCompanyUsers' : ActorMethod<[], Array<CompanyUserInfo>>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
+  'getDiscountCodes' : ActorMethod<[], Array<DiscountCode>>,
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
   'getLowStockParts' : ActorMethod<[], Array<PartFull>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
@@ -265,6 +277,7 @@ export interface _SERVICE {
   'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getPart' : ActorMethod<[bigint], PartFull>,
   'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
+  'getTaxSettings' : ActorMethod<[], [] | [TaxSettings]>,
   'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getUserFleetRole' : ActorMethod<[Principal], [] | [FleetRole]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -277,11 +290,12 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'markScheduleComplete' : ActorMethod<[bigint], undefined>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
+  'rejectCompany' : ActorMethod<[string], undefined>,
   'rejectCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
-  'sendChatMessage' : ActorMethod<[string, string], bigint>,
+  'saveTaxSettings' : ActorMethod<[TaxSettings], undefined>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
   'startTrial' : ActorMethod<[string], undefined>,
   'startTrialWithKey' : ActorMethod<[string, string, bigint], undefined>,

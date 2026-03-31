@@ -2,6 +2,7 @@ import { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CompanySettings,
+  CompanyUserInfo,
   FleetRole,
   InviteToken,
   MaintenanceRecordFull,
@@ -778,5 +779,31 @@ export function useStartTrialWithKey() {
     onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
       qc.invalidateQueries({ queryKey: ["allSubscriptions", devKey] });
     },
+  });
+}
+
+// Company Users — fetch all users in the caller's company with their profiles + fleet roles
+export function useCompanyUsers() {
+  const { actor, isFetching } = useActor();
+  return useQuery<CompanyUserInfo[]>({
+    queryKey: ["companyUsers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getCompanyUsers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+// Set a user's fleet role — admin only
+export function useSetUserFleetRole() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ user, role }: { user: Principal; role: FleetRole }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setUserFleetRole(user, role);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["companyUsers"] }),
   });
 }

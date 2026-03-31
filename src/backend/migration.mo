@@ -1,45 +1,43 @@
 import Map "mo:core/Map";
+import Principal "mo:core/Principal";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Nat "mo:core/Nat";
 
 module {
-  type OldSubscriptionRecord = {
-    companyName : Text;
-    status : Text;
-    startDate : ?Time.Time;
-    updatedAt : Time.Time;
-  };
-
-  type NewSubscriptionRecord = {
-    companyName : Text;
-    status : Text;
-    startDate : ?Time.Time;
-    trialEndsAt : ?Time.Time;
-    plan : Text;
-    updatedAt : Time.Time;
+  type OldInviteToken = {
+    token : Text;
+    role : { #Admin; #FleetManager; #Mechanic };
+    email : Text;
+    createdAt : Time.Time;
+    usedBy : ?Principal;
   };
 
   type OldActor = {
-    subscriptionRecords : Map.Map<Text, OldSubscriptionRecord>;
+    inviteTokens : Map.Map<Text, OldInviteToken>;
+  };
+
+  type NewInviteToken = {
+    token : Text;
+    role : { #Admin; #FleetManager; #Mechanic };
+    email : Text;
+    companyId : Text;
+    createdAt : Time.Time;
+    usedBy : ?Principal;
   };
 
   type NewActor = {
-    subscriptionRecords : Map.Map<Text, NewSubscriptionRecord>;
+    inviteTokens : Map.Map<Text, NewInviteToken>;
   };
 
   public func run(old : OldActor) : NewActor {
-    let newSubs = old.subscriptionRecords.map<Text, OldSubscriptionRecord, NewSubscriptionRecord>(
-      func(_companyName, oldRecord) {
+    let newInviteTokens = old.inviteTokens.map<Text, OldInviteToken, NewInviteToken>(
+      func(_token, oldToken) {
         {
-          oldRecord with
-          trialEndsAt = null;
-          plan = "standard";
+          oldToken with
+          companyId = "";
         };
       }
     );
-    {
-      old with
-      subscriptionRecords = newSubs;
-    };
+    { inviteTokens = newInviteTokens };
   };
 };

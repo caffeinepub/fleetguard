@@ -1,4 +1,4 @@
-import { MaintenanceType, Status, VehicleType } from "../backend";
+import { MaintenanceType, VehicleStatus, VehicleType } from "../backend";
 
 export const nowNs = (): bigint => BigInt(Date.now()) * 1_000_000n;
 
@@ -36,9 +36,9 @@ export const maintenanceTypeLabel: Record<MaintenanceType, string> = {
   [MaintenanceType.Other]: "Other",
 };
 
-export const statusLabel: Record<Status, string> = {
-  [Status.Active]: "Active",
-  [Status.Inactive]: "Inactive",
+export const statusLabel: Record<VehicleStatus, string> = {
+  [VehicleStatus.Active]: "Active",
+  [VehicleStatus.Inactive]: "Inactive",
 };
 
 export const daysFromNow = (ns: bigint): number => {
