@@ -88,10 +88,8 @@ export function InternetIdentityProvider({
   children: ReactNode;
   createOptions?: AuthClientCreateOptions;
 }>) {
-  // Store auth client in a ref so setting it does NOT trigger re-renders
-  // or re-run the initialization effect. This is the fix for the infinite
-  // loading loop that was caused by authClient being in both useState and
-  // the useEffect dependency array.
+  // Store authClient in a ref so updating it never triggers a re-render
+  // and never causes the initialization effect to loop.
   const authClientRef = useRef<AuthClient | undefined>(undefined);
 
   const [identity, setIdentity] = useState<Identity | undefined>(undefined);
@@ -104,12 +102,11 @@ export function InternetIdentityProvider({
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
-    const client = authClientRef.current;
-    if (!client) {
+    const latestIdentity = authClientRef.current?.getIdentity();
+    if (!latestIdentity) {
       setErrorMessage("Identity not found after successful login");
       return;
     }
-    const latestIdentity = client.getIdentity();
     setIdentity(latestIdentity);
     setStatus("success");
   }, [setErrorMessage]);
@@ -161,8 +158,8 @@ export function InternetIdentityProvider({
     void client
       .logout()
       .then(() => {
-        setIdentity(undefined);
         authClientRef.current = undefined;
+        setIdentity(undefined);
         setStatus("idle");
         setError(undefined);
       })
@@ -176,9 +173,8 @@ export function InternetIdentityProvider({
       });
   }, [setErrorMessage]);
 
-  // This effect runs ONCE on mount (createOptions is stable).
-  // authClientRef is NOT in the dependency array — storing the client in a ref
-  // is invisible to React and will never cause this effect to re-run.
+  // This effect runs exactly once on mount (createOptions is stable).
+  // authClient is a ref — writing to it never causes a re-run.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -210,7 +206,7 @@ export function InternetIdentityProvider({
     return () => {
       cancelled = true;
     };
-  }, [createOptions]); // authClientRef intentionally omitted — it's a ref, not state
+  }, [createOptions]); // authClient intentionally excluded — it's a ref
 
   const value = useMemo<ProviderValue>(
     () => ({
