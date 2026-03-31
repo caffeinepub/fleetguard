@@ -2,23 +2,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Building2,
   CheckCircle2,
   ChevronRight,
   CreditCard,
   Loader2,
   Lock,
+  Mail,
+  Phone,
   Shield,
   Tag,
   Truck,
+  Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -35,15 +32,13 @@ type StripeInstance = {
 type StripeElements = { getElement: (el: any) => any };
 type StripeCardElementType = any;
 
-// Stripe.js is loaded from CDN when a publishable key is present in localStorage.
-// This avoids requiring @stripe/react-stripe-js / @stripe/stripe-js npm packages.
 declare global {
   interface Window {
     Stripe?: (pk: string) => StripeInstance;
   }
 }
 
-// ─── StripeCardForm: loads Stripe.js and mounts a card element ────────────────
+// ─── StripeCardForm ────────────────────────────────────────────────────────────
 function StripeCardForm({
   publishableKey,
   onReady,
@@ -109,17 +104,7 @@ function StripeCardForm({
   );
 }
 
-const INDUSTRIES = [
-  "Trucking",
-  "Bus Fleet",
-  "Delivery & Logistics",
-  "Construction",
-  "Other",
-];
-
-const FLEET_SIZES = ["1\u201310", "11\u201350", "51\u2013200", "200+"];
-
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 function StepDots({ current }: { current: number }) {
   return (
@@ -154,10 +139,24 @@ function formatExpiry(val: string) {
 
 export function OnboardingPage() {
   const [step, setStep] = useState(1);
-  const [companyName, setCompanyName] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [fleetSize, setFleetSize] = useState("");
-  const [phone, setPhone] = useState("");
+
+  // Pre-populate from sessionStorage (set before II login on the sign-up form)
+  const [companyName] = useState(
+    () => sessionStorage.getItem("fleetguard_presignup_company") || "",
+  );
+  const [industry] = useState(
+    () => sessionStorage.getItem("fleetguard_presignup_industry") || "",
+  );
+  const [fleetSize] = useState(
+    () => sessionStorage.getItem("fleetguard_presignup_fleetsize") || "",
+  );
+  const [phone] = useState(
+    () => sessionStorage.getItem("fleetguard_presignup_phone") || "",
+  );
+  const [email] = useState(
+    () => sessionStorage.getItem("fleetguard_presignup_email") || "",
+  );
+
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -184,6 +183,16 @@ export function OnboardingPage() {
   const saveProfile = useSaveProfile();
   const qc = useQueryClient();
 
+  // Clear presignup sessionStorage keys once mounted
+  useEffect(() => {
+    sessionStorage.removeItem("fleetguard_presignup_company");
+    sessionStorage.removeItem("fleetguard_presignup_industry");
+    sessionStorage.removeItem("fleetguard_presignup_fleetsize");
+    sessionStorage.removeItem("fleetguard_presignup_phone");
+    sessionStorage.removeItem("fleetguard_presignup_email");
+  }, []);
+
+  // Step 1 → 2: save company settings and advance
   const handleCompanyNext = async () => {
     if (!companyName.trim()) {
       toast.error("Please enter your company name");
@@ -200,7 +209,7 @@ export function OnboardingPage() {
         adminPrincipal: identity?.getPrincipal().toString() ?? "",
         createdAt: BigInt(Date.now()) * 1_000_000n,
       });
-      setStep(3);
+      setStep(2);
     } catch {
       toast.error("Failed to save company settings");
     } finally {
@@ -208,6 +217,7 @@ export function OnboardingPage() {
     }
   };
 
+  // Step 2 → 3: save profile
   const handleProfileComplete = async () => {
     if (!name.trim()) {
       toast.error("Please enter your name");
@@ -217,7 +227,7 @@ export function OnboardingPage() {
     try {
       await saveProfile.mutateAsync({ name: name.trim() });
       await qc.invalidateQueries({ queryKey: ["callerProfile"] });
-      setStep(4);
+      setStep(3);
     } catch {
       toast.error("Failed to save profile");
     } finally {
@@ -257,6 +267,7 @@ export function OnboardingPage() {
     );
   };
 
+  // Step 3 → 4: activate trial
   const handleActivateTrial = async () => {
     if (STRIPE_PK && stripeRef.current && stripeElementsRef.current) {
       if (!stripeCardReady) {
@@ -276,9 +287,9 @@ export function OnboardingPage() {
           await (actor as any).applyDiscountCode(discountApplied.code);
         }
         await (actor as any).startTrial(token?.id ?? companyName.trim());
-        setStep(5);
+        setStep(4);
       } catch {
-        setStep(5);
+        setStep(4);
       } finally {
         setActivatingTrial(false);
       }
@@ -294,9 +305,9 @@ export function OnboardingPage() {
         await (actor as any).applyDiscountCode(discountApplied.code);
       }
       await (actor as any).startTrial(companyName.trim());
-      setStep(5);
+      setStep(4);
     } catch {
-      setStep(5);
+      setStep(4);
     } finally {
       setActivatingTrial(false);
     }
@@ -316,153 +327,143 @@ export function OnboardingPage() {
           <span className="text-xl font-bold tracking-tight">FleetGuard</span>
         </div>
 
-        {step < 5 && <StepDots current={step - 1 < 1 ? 1 : step - 1} />}
+        {step <= 3 && <StepDots current={step} />}
 
         <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
-          {/* Step 1 \u2014 Welcome */}
+          {/* ── Step 1: Welcome & Confirm Company ─────────────────── */}
           {step === 1 && (
-            <div className="p-8 text-center" data-ocid="onboarding.panel">
-              <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                <Truck className="w-10 h-10 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold mb-3">
-                Set Up Your FleetGuard Account
-              </h1>
-              <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
-                You're the Administrator. Complete this setup to get your
-                company running and then invite your team members.
-              </p>
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-left mb-5">
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> 7-Day Free Trial
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Start free for 7 days. After your trial, continue for
-                  <strong> $499/month</strong>. Cancel anytime.
+            <div className="p-8" data-ocid="onboarding.panel">
+              {/* Hero */}
+              <div className="text-center mb-7">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Truck className="w-8 h-8 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold mb-1">
+                  {companyName
+                    ? `Welcome to FleetGuard, ${companyName}!`
+                    : "Welcome to FleetGuard!"}
+                </h1>
+                <p className="text-muted-foreground text-sm">
+                  Let's confirm your details and get your account set up.
                 </p>
               </div>
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-left mb-8">
-                <p className="text-sm font-semibold text-primary mb-1 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5" /> Admin Onboarding
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  As the Administrator, you are responsible for managing the
-                  fleet, creating user accounts, and making operational
-                  decisions.
-                </p>
+
+              {/* Confirmation summary card */}
+              <div className="bg-muted/40 border border-border/60 rounded-xl divide-y divide-border/50 mb-5">
+                {companyName && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground w-28 shrink-0">
+                      Company
+                    </span>
+                    <span className="text-sm font-semibold truncate">
+                      {companyName}
+                    </span>
+                  </div>
+                )}
+                {industry && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Truck className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground w-28 shrink-0">
+                      Industry
+                    </span>
+                    <span className="text-sm font-semibold">{industry}</span>
+                  </div>
+                )}
+                {fleetSize && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground w-28 shrink-0">
+                      Fleet size
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {fleetSize} vehicles
+                    </span>
+                  </div>
+                )}
+                {email && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground w-28 shrink-0">
+                      Email
+                    </span>
+                    <span className="text-sm font-semibold truncate">
+                      {email}
+                    </span>
+                  </div>
+                )}
+                {phone && (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground w-28 shrink-0">
+                      Phone
+                    </span>
+                    <span className="text-sm font-semibold">{phone}</span>
+                  </div>
+                )}
+
+                {/* Fallback if no data from sessionStorage */}
+                {!companyName && !industry && !fleetSize && (
+                  <div className="px-4 py-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No company information found. You can continue and fill in
+                      your details in Settings.
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {/* 7-day trial badge */}
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex items-start gap-3 mb-4">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    7-Day Free Trial
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    &mdash; start free for 7 days, then{" "}
+                    <strong>$499/month</strong>. Cancel anytime.
+                  </span>
+                </div>
+              </div>
+
+              {/* Admin info box */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-start gap-3 mb-7">
+                <Shield className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <span className="font-semibold text-primary">
+                    You are the Administrator
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    &mdash; you have full control over your company's fleet,
+                    users, and settings.
+                  </span>
+                </div>
+              </div>
+
               <Button
                 data-ocid="onboarding.primary_button"
                 className="w-full h-12 text-base font-semibold gap-2"
-                onClick={() => setStep(2)}
+                onClick={handleCompanyNext}
+                disabled={saving}
               >
-                Get Started <ChevronRight className="w-4 h-4" />
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Setting up...
+                  </>
+                ) : (
+                  <>
+                    Get Started <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </div>
           )}
 
-          {/* Step 2 \u2014 Company Setup */}
+          {/* ── Step 2: Your Profile ───────────────────────────────── */}
           {step === 2 && (
-            <div className="p-8" data-ocid="onboarding.panel">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold">Company Information</h2>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Tell us about your transport company.
-                </p>
-              </div>
-
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="company-name">
-                    Company Name <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="company-name"
-                    data-ocid="onboarding.input"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="e.g. Swift Transport Ltd"
-                    className="h-11"
-                    onKeyDown={(e) => e.key === "Enter" && handleCompanyNext()}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Industry</Label>
-                  <Select value={industry} onValueChange={setIndustry}>
-                    <SelectTrigger
-                      className="h-11"
-                      data-ocid="onboarding.select"
-                    >
-                      <SelectValue placeholder="Select your industry" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDUSTRIES.map((ind) => (
-                        <SelectItem key={ind} value={ind}>
-                          {ind}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Number of Vehicles</Label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {FLEET_SIZES.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setFleetSize(size)}
-                        className={`h-11 rounded-lg border text-sm font-medium transition-all ${
-                          fleetSize === size
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background hover:border-primary/50 text-foreground"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="contact-phone">
-                    Contact Phone (optional)
-                  </Label>
-                  <Input
-                    id="contact-phone"
-                    data-ocid="onboarding.input"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +1 555 000 1234"
-                    className="h-11"
-                    type="tel"
-                  />
-                </div>
-
-                <Button
-                  data-ocid="onboarding.primary_button"
-                  className="w-full h-12 font-semibold gap-2"
-                  onClick={handleCompanyNext}
-                  disabled={saving || !companyName.trim()}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-                    </>
-                  ) : (
-                    <>
-                      Next <ChevronRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3 \u2014 Your Profile */}
-          {step === 3 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold">Your Profile</h2>
@@ -510,8 +511,8 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 4 \u2014 Activate Free Trial (CC) */}
-          {step === 4 && (
+          {/* ── Step 3: Activate Free Trial (payment) ─────────────── */}
+          {step === 3 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-1">
@@ -681,14 +682,14 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 5 \u2014 All Set */}
-          {step === 5 && (
+          {/* ── Step 4: All Set ────────────────────────────────────── */}
+          {step === 4 && (
             <div className="p-8 text-center" data-ocid="onboarding.panel">
               <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 className="w-11 h-11 text-emerald-500" />
               </div>
               <h2 className="text-2xl font-bold mb-2">
-                You're all set, {name}!
+                You're all set{name ? `, ${name}` : ""}!
               </h2>
               <p className="text-muted-foreground text-sm mb-2">
                 Your 7-day free trial has started. Enjoy full access to
