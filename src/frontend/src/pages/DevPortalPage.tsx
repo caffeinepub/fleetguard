@@ -478,6 +478,21 @@ export default function DevPortalPage() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          <button
+            type="button"
+            data-ocid="dev_portal.exit_app.header.button"
+            onClick={() => window.location.replace(window.location.origin)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: "oklch(0.65 0.2 150 / 0.15)",
+              color: "oklch(0.65 0.2 150)",
+              border: "1px solid oklch(0.65 0.2 150 / 0.3)",
+            }}
+            title="Exit to main app"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Exit</span>
+          </button>
         </header>
 
         {/* Page Content */}
