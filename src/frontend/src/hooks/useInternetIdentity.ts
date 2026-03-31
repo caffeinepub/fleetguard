@@ -88,12 +88,11 @@ export function InternetIdentityProvider({
   children: ReactNode;
   createOptions?: AuthClientCreateOptions;
 }>) {
-  // Use refs so that storing the client / options never triggers a re-render
-  // (and thus never restarts the initialization effect — eliminating the
-  // infinite initializing loop).
+  // Store auth client in a ref so setting it does NOT trigger re-renders
+  // or re-run the initialization effect. This is the fix for the infinite
+  // loading loop that was caused by authClient being in both useState and
+  // the useEffect dependency array.
   const authClientRef = useRef<AuthClient | undefined>(undefined);
-  const createOptionsRef = useRef(createOptions);
-  createOptionsRef.current = createOptions;
 
   const [identity, setIdentity] = useState<Identity | undefined>(undefined);
   const [loginStatus, setStatus] = useState<Status>("initializing");
@@ -105,11 +104,12 @@ export function InternetIdentityProvider({
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
-    const latestIdentity = authClientRef.current?.getIdentity();
-    if (!latestIdentity) {
+    const client = authClientRef.current;
+    if (!client) {
       setErrorMessage("Identity not found after successful login");
       return;
     }
+    const latestIdentity = client.getIdentity();
     setIdentity(latestIdentity);
     setStatus("success");
   }, [setErrorMessage]);
@@ -144,7 +144,7 @@ export function InternetIdentityProvider({
       identityProvider: DEFAULT_IDENTITY_PROVIDER,
       onSuccess: handleLoginSuccess,
       onError: handleLoginError,
-      maxTimeToLive: ONE_HOUR_IN_NANOSECONDS * BigInt(24 * 30), // 30 days
+      maxTimeToLive: ONE_HOUR_IN_NANOSECONDS * BigInt(24 * 30),
     };
 
     setStatus("logging-in");
@@ -176,19 +176,16 @@ export function InternetIdentityProvider({
       });
   }, [setErrorMessage]);
 
-  // Runs ONCE on mount. All mutable values are accessed via refs so the dep
-  // array is intentionally empty — adding authClient would recreate the
-  // infinite loop this pattern is specifically designed to prevent.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional stable init
+  // This effect runs ONCE on mount (createOptions is stable).
+  // authClientRef is NOT in the dependency array — storing the client in a ref
+  // is invisible to React and will never cause this effect to re-run.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         setStatus("initializing");
         if (!authClientRef.current) {
-          authClientRef.current = await createAuthClient(
-            createOptionsRef.current,
-          );
+          authClientRef.current = await createAuthClient(createOptions);
         }
         if (cancelled) return;
         const isAuthenticated = await authClientRef.current.isAuthenticated();
@@ -213,7 +210,7 @@ export function InternetIdentityProvider({
     return () => {
       cancelled = true;
     };
-  }, []); // empty on purpose — see comment above
+  }, [createOptions]); // authClientRef intentionally omitted — it's a ref, not state
 
   const value = useMemo<ProviderValue>(
     () => ({
