@@ -389,7 +389,10 @@ export default function DevPortalPage() {
           <button
             type="button"
             data-ocid="dev_portal.exit_app.button"
-            onClick={() => window.location.replace(window.location.origin)}
+            onClick={() => {
+              localStorage.removeItem("devKey");
+              window.location.replace(window.location.origin);
+            }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
             style={{
               background: "oklch(0.22 0.06 255)",
@@ -481,7 +484,10 @@ export default function DevPortalPage() {
           <button
             type="button"
             data-ocid="dev_portal.exit_app.header.button"
-            onClick={() => window.location.replace(window.location.origin)}
+            onClick={() => {
+              localStorage.removeItem("devKey");
+              window.location.replace(window.location.origin);
+            }}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
             style={{
               background: "oklch(0.65 0.2 150 / 0.15)",
