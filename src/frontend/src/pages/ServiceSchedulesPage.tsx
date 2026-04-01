@@ -1177,6 +1177,20 @@ export function ServiceSchedulesPage() {
         open={maintenanceModalOpen}
         onSaved={() => {
           completionSavedRef.current = true;
+          // Also mark the associated work order as complete in the Work Orders section
+          if (actor && completionRecord?.workOrderId !== undefined) {
+            actor
+              .completeWorkOrder(completionRecord.workOrderId)
+              .then(() => {
+                qc.invalidateQueries({ queryKey: ["workOrders"] });
+              })
+              .catch((err: unknown) => {
+                console.error(
+                  "[ServiceSchedules] failed to complete work order:",
+                  err,
+                );
+              });
+          }
         }}
         onClose={() => {
           if (!completionSavedRef.current && completionSnapshot) {

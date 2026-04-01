@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700;1,14..32,300..700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -7,15 +7,12 @@
 @layer base {
   :root {
     --radius: 0.75rem;
-    /* Background: #F5F7FA */
     --background: 0.975 0.006 250;
     --foreground: 0.2 0.02 255;
-    /* Card: white */
     --card: 1 0 0;
     --card-foreground: 0.2 0.02 255;
     --popover: 1 0 0;
     --popover-foreground: 0.2 0.02 255;
-    /* Primary: #1F5EFF */
     --primary: 0.5 0.23 264;
     --primary-foreground: 1 0 0;
     --secondary: 0.94 0.01 250;
@@ -24,16 +21,13 @@
     --muted-foreground: 0.52 0.02 255;
     --accent: 0.94 0.01 250;
     --accent-foreground: 0.3 0.04 255;
-    /* Destructive: #E54B4B */
     --destructive: 0.58 0.18 22;
     --destructive-foreground: 1 0 0;
     --border: 0.91 0.008 250;
     --input: 0.91 0.008 250;
     --ring: 0.5 0.23 264;
-    /* Success green #2FBF71 */
     --success: 0.68 0.14 148;
     --success-foreground: 1 0 0;
-    /* Warning amber #F2C94C */
     --warning: 0.82 0.15 85;
     --warning-foreground: 0.2 0.02 0;
     --chart-1: 0.5 0.23 264;
@@ -41,7 +35,6 @@
     --chart-3: 0.82 0.15 85;
     --chart-4: 0.58 0.18 22;
     --chart-5: 0.65 0.12 210;
-    /* Sidebar navy: #0B2F5F → #0D4B8F gradient done via CSS */
     --sidebar: 0.24 0.09 255;
     --sidebar-foreground: 0.95 0.01 250;
     --sidebar-primary: 0.5 0.23 264;
@@ -77,12 +70,26 @@
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground;
     font-family: "Inter", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
   body.dark {
     color-scheme: dark;
+  }
+
+  /* Tabular numbers for data displays */
+  .font-tnum,
+  table td,
+  table th,
+  [data-numeric] {
+    font-feature-settings: "tnum", "cv02";
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -90,25 +97,62 @@
 .sidebar-gradient {
   background: linear-gradient(
     180deg,
-    oklch(0.24 0.09 255) 0%,
-    oklch(0.33 0.11 255) 100%
+    oklch(0.2 0.08 258) 0%,
+    oklch(0.18 0.07 260) 100%
   );
+}
+
+/* Elevated card shadow */
+.shadow-card {
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.06), 0 4px 12px oklch(0 0 0 / 0.04);
+}
+
+/* Nav active accent strip */
+.nav-item-active {
+  position: relative;
+  background-color: oklch(0.3 0.1 256 / 0.65);
+  color: white;
+}
+
+.nav-item-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: oklch(0.65 0.22 264);
+}
+
+/* Button scale interaction */
+.btn-scale {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.btn-scale:hover:not(:disabled) {
+  transform: scale(1.018);
+}
+.btn-scale:active:not(:disabled) {
+  transform: scale(0.99);
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: oklch(0.94 0.008 250);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.75 0.01 250);
+  background: oklch(0.75 0.01 250 / 0.45);
   border-radius: 3px;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0.01 250 / 0.65);
+}
 
-/* Print styles for asset record */
+/* Print styles */
 @media print {
   aside,
   nav.sidebar,

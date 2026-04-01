@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -29,8 +30,34 @@ const INDUSTRIES = [
   "Construction",
   "Other",
 ];
-
 const FLEET_SIZES = ["1\u201310", "11\u201350", "51\u2013200", "200+"];
+
+const HERO_STATS = [
+  {
+    label: "Active Vehicles",
+    value: "42",
+    sub: "across 3 depots",
+    color: "text-blue-300",
+  },
+  {
+    label: "Overdue Services",
+    value: "3",
+    sub: "require attention",
+    color: "text-amber-300",
+  },
+  {
+    label: "Cost Saved",
+    value: "$12.4k",
+    sub: "this quarter",
+    color: "text-emerald-300",
+  },
+  {
+    label: "Fleet Uptime",
+    value: "98.2%",
+    sub: "availability rate",
+    color: "text-sky-300",
+  },
+];
 
 interface LoginPageProps {
   onSignUp?: () => void;
@@ -39,7 +66,6 @@ interface LoginPageProps {
 
 export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
   const { login, isLoggingIn } = useInternetIdentity();
-
   const [showSignUpForm, setShowSignUpForm] = useState(false);
   const [signUpCompany, setSignUpCompany] = useState("");
   const [signUpIndustry, setSignUpIndustry] = useState("");
@@ -86,71 +112,159 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
     login();
   };
 
-  const leftPanel = (
-    <div className="hidden lg:flex flex-col justify-center px-16 w-1/2 text-white">
-      <div className="flex items-center gap-3 mb-10">
-        <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
-          <Shield className="w-6 h-6 text-white" />
-        </div>
-        <span className="text-2xl font-bold tracking-tight">FleetGuard</span>
-      </div>
-      <h1 className="text-4xl font-bold leading-tight mb-4">
-        Fleet Maintenance,
-        <br />
-        <span className="text-white/70">Simplified.</span>
-      </h1>
-      <p className="text-white/60 text-lg mb-10 max-w-sm">
-        Manage your entire fleet's maintenance history in one secure,
-        decentralized platform.
-      </p>
-      <div className="space-y-4">
-        {[
-          {
-            icon: Truck,
-            label: "Track all vehicle types",
-            sub: "Trucks, buses, vans, trailers",
-          },
-          {
-            icon: Wrench,
-            label: "Full maintenance history",
-            sub: "Detailed service records",
-          },
-          {
-            icon: BarChart3,
-            label: "Smart dashboard analytics",
-            sub: "Upcoming & overdue alerts",
-          },
-        ].map(({ icon: Icon, label, sub }) => (
-          <div key={label} className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-              <Icon className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-medium">{label}</p>
-              <p className="text-sm text-white/50">{sub}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   return (
     <div
       className="min-h-screen flex"
       style={{
         background:
-          "linear-gradient(135deg, oklch(0.24 0.09 255) 0%, oklch(0.33 0.11 255) 50%, oklch(0.45 0.14 255) 100%)",
+          "linear-gradient(145deg, oklch(0.18 0.08 258) 0%, oklch(0.22 0.10 260) 40%, oklch(0.28 0.12 255) 100%)",
       }}
     >
-      {leftPanel}
+      {/* Left hero panel */}
+      <div className="hidden lg:flex flex-col justify-between px-14 py-12 w-[52%] relative overflow-hidden">
+        {/* Radial glow overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 60% at 20% 30%, oklch(0.45 0.18 264 / 0.18) 0%, transparent 60%), " +
+              "radial-gradient(ellipse 50% 40% at 80% 70%, oklch(0.55 0.2 210 / 0.12) 0%, transparent 50%)",
+          }}
+        />
+        {/* Subtle grid */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "linear-gradient(oklch(1 0 0) 1px, transparent 1px), linear-gradient(90deg, oklch(1 0 0) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }}
+        />
+
+        {/* Logo */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center gap-3 relative z-10"
+        >
+          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
+            <img
+              src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+              alt="FleetGuard"
+              className="w-6 h-6 object-contain"
+            />
+          </div>
+          <span className="text-xl font-bold tracking-tight text-white">
+            FleetGuard
+          </span>
+        </motion.div>
+
+        {/* Hero text + stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="flex-1 flex flex-col justify-center py-10 relative z-10"
+        >
+          <p className="text-white/50 text-xs font-semibold tracking-widest uppercase mb-4">
+            Fleet Management Platform
+          </p>
+          <h1 className="text-5xl font-bold leading-[1.1] mb-5 text-white">
+            Manage your fleet
+            <br />
+            <span className="text-white/40">with confidence.</span>
+          </h1>
+          <p className="text-white/50 text-base mb-10 max-w-xs leading-relaxed">
+            Real-time maintenance tracking, cost analytics, and compliance,
+            built for global operators.
+          </p>
+
+          <div className="space-y-3 mb-10">
+            {[
+              {
+                icon: Truck,
+                label: "All vehicle types",
+                sub: "Trucks, buses, vans, trailers",
+              },
+              {
+                icon: Wrench,
+                label: "Complete maintenance history",
+                sub: "Work orders, schedules, parts",
+              },
+              {
+                icon: BarChart3,
+                label: "Analytics & cost insights",
+                sub: "Live dashboard, CSV exports",
+              },
+            ].map(({ icon: Icon, label, sub }) => (
+              <div key={label} className="flex items-center gap-3.5">
+                <div className="w-8 h-8 rounded-lg bg-white/8 border border-white/10 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-4 h-4 text-white/60" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white/80">{label}</p>
+                  <p className="text-xs text-white/40">{sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats mockup card */}
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="rounded-2xl p-5 border border-white/10"
+            style={{
+              background: "oklch(1 0 0 / 0.05)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-white/50 text-xs font-semibold tracking-widest uppercase">
+                Live Overview
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-white/40 text-xs">Active</span>
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {HERO_STATS.map((s) => (
+                <div
+                  key={s.label}
+                  className="rounded-xl p-3"
+                  style={{ background: "oklch(1 0 0 / 0.06)" }}
+                >
+                  <p className={`text-xl font-bold font-tnum ${s.color}`}>
+                    {s.value}
+                  </p>
+                  <p className="text-white/70 text-xs font-medium mt-0.5">
+                    {s.label}
+                  </p>
+                  <p className="text-white/35 text-xs">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+
+        <p className="text-white/25 text-xs relative z-10">
+          Trusted by transport operators worldwide
+        </p>
+      </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         {!showSignUpForm ? (
-          /* ── Sign-in card ─────────────────────────────────────────── */
-          <div className="w-full max-w-sm">
-            <div className="bg-white rounded-2xl p-8 shadow-elevated">
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-sm"
+          >
+            <div className="bg-white rounded-2xl p-8 shadow-elevated-lg">
               <div className="flex items-center gap-2.5 mb-6 lg:hidden">
                 <Shield className="w-6 h-6 text-primary" />
                 <span className="text-xl font-bold">FleetGuard</span>
@@ -164,7 +278,7 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
 
               <Button
                 data-ocid="login.primary_button"
-                className="w-full h-11 text-base font-medium"
+                className="w-full h-11 text-base font-medium btn-scale"
                 onClick={() => login()}
                 disabled={isLoggingIn}
               >
@@ -187,20 +301,18 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
               <Button
                 data-ocid="login.secondary_button"
                 variant="outline"
-                className="w-full h-11 text-base font-medium"
+                className="w-full h-11 text-base font-medium btn-scale"
                 onClick={() => setShowSignUpForm(true)}
                 disabled={isLoggingIn}
               >
-                Sign Up — New Company
+                Sign Up for New Company
               </Button>
               <p className="text-center text-xs text-muted-foreground mt-3">
                 New to FleetGuard? Sign up to register your company.
               </p>
-
               <p className="text-center text-xs text-muted-foreground mt-6">
-                Secured by Advanced Cryptography - 100% onchain
+                Secured by Advanced Cryptography · 100% onchain
               </p>
-
               <div className="flex items-center justify-center gap-3 mt-4">
                 <button
                   type="button"
@@ -219,27 +331,27 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         ) : (
-          /* ── Sign-up form card ────────────────────────────────────── */
-          <div className="w-full max-w-md">
-            <div className="bg-white rounded-2xl p-8 shadow-elevated">
-              {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35 }}
+            className="w-full max-w-md"
+          >
+            <div className="bg-white rounded-2xl p-8 shadow-elevated-lg">
               <div className="flex items-center gap-2.5 mb-1 lg:hidden">
                 <Shield className="w-6 h-6 text-primary" />
                 <span className="text-xl font-bold">FleetGuard</span>
               </div>
-
               <button
                 type="button"
                 data-ocid="login.link"
                 onClick={handleBackToSignIn}
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5"
               >
-                <ChevronLeft className="w-4 h-4" />
-                Back to Sign in
+                <ChevronLeft className="w-4 h-4" /> Back to Sign in
               </button>
-
               <div className="flex items-center gap-2.5 mb-1">
                 <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Building2 className="w-5 h-5 text-primary" />
@@ -253,7 +365,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
               </p>
 
               <div className="space-y-5">
-                {/* Company Name */}
                 <div className="space-y-1.5">
                   <Label htmlFor="signup-company">
                     Company Name <span className="text-destructive">*</span>
@@ -269,7 +380,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                   />
                 </div>
 
-                {/* Industry */}
                 <div className="space-y-1.5">
                   <Label>
                     Industry <span className="text-destructive">*</span>
@@ -291,7 +401,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                   </Select>
                 </div>
 
-                {/* Fleet Size */}
                 <div className="space-y-2">
                   <Label>
                     Number of Vehicles{" "}
@@ -316,7 +425,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                   </div>
                 </div>
 
-                {/* Phone */}
                 <div className="space-y-1.5">
                   <Label htmlFor="signup-phone">
                     Phone Number{" "}
@@ -335,7 +443,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                   />
                 </div>
 
-                {/* Email */}
                 <div className="space-y-1.5">
                   <Label htmlFor="signup-email">
                     Email Address{" "}
@@ -354,32 +461,29 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                   />
                 </div>
 
-                {/* CTA */}
                 <Button
                   data-ocid="login.primary_button"
-                  className="w-full h-12 text-base font-semibold gap-2 mt-1"
+                  className="w-full h-12 text-base font-semibold gap-2 mt-1 btn-scale"
                   onClick={handleContinueWithII}
                   disabled={isLoggingIn || !canContinue}
                 >
                   {isLoggingIn ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Connecting...
+                      <Loader2 className="h-4 w-4 animate-spin" /> Connecting...
                     </>
                   ) : (
                     <>
-                      <Shield className="h-4 w-4" />
-                      Continue with Internet Identity
+                      <Shield className="h-4 w-4" /> Continue with Internet
+                      Identity
                     </>
                   )}
                 </Button>
-
                 <p className="text-center text-xs text-muted-foreground">
-                  Secured by Advanced Cryptography — 100% onchain
+                  Secured by Advanced Cryptography · 100% onchain
                 </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

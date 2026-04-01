@@ -1,9 +1,10 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
+import { AnimatePresence, motion } from "motion/react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "./components/Layout";
+import { SplashScreen } from "./components/SplashScreen";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useCallerProfile, useGetCompanySettings } from "./hooks/useQueries";
@@ -74,6 +75,29 @@ interface NavState {
   params?: Record<string, unknown>;
 }
 
+function PageTransition({
+  children,
+  pageKey,
+}: {
+  children: React.ReactNode;
+  pageKey: string;
+}) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={pageKey}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className="min-h-full"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 function AppContent() {
   const { identity, isInitializing, login } = useInternetIdentity();
   const { isFetching: actorFetching } = useActor();
@@ -94,9 +118,7 @@ function AppContent() {
     login();
   };
 
-  // Dev portal — Internet Identity ONLY
   if (isDevPortal) {
-    // If not authenticated or not using Internet Identity, show error
     if (!isInitializing && !identity) {
       return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -123,49 +145,20 @@ function AppContent() {
         </div>
       );
     }
-    if (isInitializing) {
-      return (
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="space-y-3 w-64">
-            <Skeleton className="h-8 w-40 mx-auto" />
-            <Skeleton className="h-4 w-full" />
-          </div>
-        </div>
-      );
-    }
+    if (isInitializing) return <SplashScreen />;
     return <DevPortalPage />;
   }
 
-  if (isInitializing) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="space-y-3 w-64">
-          <Skeleton className="h-8 w-40 mx-auto" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4 mx-auto" />
-        </div>
-      </div>
-    );
-  }
+  if (isInitializing) return <SplashScreen />;
 
   if (!identity) {
     return <LoginPage onSignUp={handleSignUp} onNavigate={navigate} />;
   }
 
-  // Wait for actor AND dependent queries before making routing decisions.
   if (actorFetching || profileLoading || companySettingsLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="space-y-3 w-64">
-          <Skeleton className="h-8 w-40 mx-auto" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4 mx-auto" />
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
-  // Show rejected error if applicable
   if (rejectedError) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -182,7 +175,6 @@ function AppContent() {
     );
   }
 
-  // Sign-up intent: force onboarding if no company settings yet
   if (
     sessionStorage.getItem(SIGNUP_INTENT_KEY) === "1" &&
     (isProfileEmpty(profile) || companySettings === null)
@@ -191,12 +183,10 @@ function AppContent() {
     return <OnboardingPage />;
   }
 
-  // Invited user — has token but no profile yet
   if (inviteToken && isProfileEmpty(profile)) {
     return <InviteAcceptPage token={inviteToken} />;
   }
 
-  // New user — no profile, no invite token -> admin onboarding
   if (isProfileEmpty(profile)) {
     return <OnboardingPage />;
   }
@@ -249,13 +239,12 @@ function AppContent() {
       }}
     >
       <Layout currentPage={nav.page} onNavigate={navigate}>
-        {renderPage()}
+        <PageTransition pageKey={nav.page}>{renderPage()}</PageTransition>
       </Layout>
     </RejectionGuard>
   );
 }
 
-// Component that periodically checks approval status and forces logout on rejection
 function RejectionGuard({
   children,
   companyName,
@@ -270,9 +259,7 @@ function RejectionGuard({
 
   useEffect(() => {
     if (!actor || !companyName) return;
-
     let cancelled = false;
-
     const check = async () => {
       try {
         const status = await actor.getCompanyApprovalStatus(companyName);
@@ -283,10 +270,9 @@ function RejectionGuard({
           );
         }
       } catch {
-        // Ignore errors - don't block the app
+        // Ignore
       }
     };
-
     check();
     const interval = setInterval(check, 30000);
     return () => {
