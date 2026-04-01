@@ -196,12 +196,12 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 type="button"
                 data-ocid="nav.sidebar.toggle"
                 onClick={toggleSidebar}
-                className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors"
+                className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors"
               >
                 <img
                   src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
                   alt="FleetGuard"
-                  className="w-5 h-5 object-contain"
+                  className="w-7 h-7 object-contain"
                 />
               </button>
             </TooltipTrigger>
@@ -213,13 +213,13 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               <img
                 src={companySettings.logoUrl}
                 alt="Company Logo"
-                className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
               />
             ) : (
               <img
                 src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
                 alt="FleetGuard"
-                className="w-8 h-8 object-contain flex-shrink-0"
+                className="w-10 h-10 object-contain flex-shrink-0"
               />
             )}
             <span className="font-semibold text-base tracking-tight text-white truncate flex-1">
@@ -518,7 +518,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <header className="bg-card border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between flex-shrink-0">
-            {/* Hamburger */}
+            {/* Hamburger (mobile only) */}
             <button
               type="button"
               data-ocid="header.menu.button"
@@ -533,7 +533,19 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               <img
                 src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
                 alt="FleetGuard"
-                className="w-6 h-6 object-contain"
+                className="w-8 h-8 object-contain"
+              />
+              <span className="text-sm font-semibold text-foreground">
+                {companySettings?.companyName || "FleetGuard"}
+              </span>
+            </div>
+
+            {/* Desktop header logo + company name */}
+            <div className="hidden sm:flex items-center gap-2.5">
+              <img
+                src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                alt="FleetGuard"
+                className="w-9 h-9 object-contain"
               />
               <span className="text-sm font-semibold text-foreground">
                 {companySettings?.companyName || "FleetGuard"}
