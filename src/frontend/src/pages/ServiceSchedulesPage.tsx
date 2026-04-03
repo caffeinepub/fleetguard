@@ -45,12 +45,11 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { FleetRole, WorkOrderPriority, WorkOrderStatus } from "../backend";
 import type { Vehicle, WorkOrder } from "../backend";
 import { VehicleType } from "../backend";
-import { MaintenanceModal } from "../components/MaintenanceModal";
 import { useActor } from "../hooks/useActor";
 import {
   useAllVehicles,
@@ -129,24 +128,9 @@ function formatWONumber(id: bigint): string {
   return `WO-${String(Number(id)).padStart(4, "0")}`;
 }
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+// ─── Status badge ──────────────────────────────────────────────
 
 function StatusBadge({ schedule }: { schedule: ServiceSchedule }) {
-  if (isJustCompleted(schedule)) {
-    return (
-      <Badge className="bg-success/20 text-emerald-400 border-success/30 gap-1">
-        <CheckCircle2 size={11} />
-        Just Completed
-      </Badge>
-    );
-  }
-  if (schedule.status === "Inactive") {
-    return (
-      <Badge className="bg-muted text-muted-foreground border-border gap-1">
-        Inactive
-      </Badge>
-    );
-  }
   const derived = deriveStatus(schedule);
   if (derived === "Overdue") {
     return (
@@ -346,22 +330,6 @@ export function ServiceSchedulesPage() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState<bigint | null>(null);
-  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
-  const [completionRecord, setCompletionRecord] = useState<any>(null);
-  const [completedByName, setCompletedByName] = useState("");
-  const completionSavedRef = useRef(false);
-  const [newWorkOrderNumber, setNewWorkOrderNumber] = useState("");
-  const [completionSnapshot, setCompletionSnapshot] = useState<null | {
-    id: bigint;
-    nextDueDate: bigint;
-    lastCompletedDate: [] | [bigint];
-    status: string;
-    intervalDays: bigint;
-    serviceType: string;
-    notes: string;
-    vehicleId: bigint;
-    createdAt: bigint;
-  }>(null);
 
   const canCreate =
     isAdmin ||
@@ -557,27 +525,20 @@ export function ServiceSchedulesPage() {
     }
   };
 
+  /**
+   * New completion flow:
+   * 1. Create a work order with status = Open (not Completed)
+   * 2. Mark the schedule as complete
+   * 3. Show a toast with the WO number
+   * 4. Done — user goes to Work Orders page to complete/fill in the WO
+   */
   const handleMarkComplete = async (id: bigint) => {
     if (!actor) return;
     setCompleting(id);
     try {
       const schedule = schedules?.find((s) => s.id === id);
-      if (schedule) {
-        setCompletionSnapshot({
-          id: schedule.id,
-          nextDueDate: schedule.nextDueDate,
-          lastCompletedDate: schedule.lastCompletedDate,
-          status: schedule.status,
-          intervalDays: schedule.intervalDays,
-          serviceType: schedule.serviceType,
-          notes: schedule.notes,
-          vehicleId: schedule.vehicleId,
-          createdAt: schedule.createdAt,
-        });
-      }
-      completionSavedRef.current = false;
 
-      // Auto-create a work order for this service schedule completion
+      // Step 1: Create an Open work order for this schedule
       let newWoId: bigint | undefined;
       try {
         const woPayload: WorkOrder = {
@@ -590,65 +551,27 @@ export function ServiceSchedulesPage() {
           assignedMechanic:
             callerProfile?.name ?? (callerProfile as any)?.email ?? "",
           priority: WorkOrderPriority.Medium,
-          status: WorkOrderStatus.Completed,
+          status: WorkOrderStatus.Open,
           scheduledDate: schedule?.nextDueDate,
-          completedDate: BigInt(Date.now()) * 1_000_000n,
+          completedDate: undefined,
           notes: "",
           createdAt: 0n,
         };
         newWoId = await actor.createWorkOrder(woPayload);
-        if (newWoId !== undefined) {
-          setNewWorkOrderNumber(formatWONumber(newWoId));
-          qc.invalidateQueries({ queryKey: ["workOrders"] });
-        }
+        qc.invalidateQueries({ queryKey: ["workOrders"] });
       } catch (err) {
         console.error("[ServiceSchedules] failed to create work order:", err);
       }
 
+      // Step 2: Mark the schedule complete
       await (actor as any).markScheduleComplete(id);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["serviceSchedules"] }),
-        qc.invalidateQueries({ queryKey: ["maintenanceRecords"] }),
-      ]);
-      // Fetch fresh maintenance records to find the newly created one
-      const freshRecords = await actor.getAllMaintenanceRecords();
-      const sorted = [...freshRecords].sort(
-        (a, b) => Number(b.createdAt) - Number(a.createdAt),
-      );
-      const vehicleId = schedule?.vehicleId;
-      const newRecord = vehicleId
-        ? (sorted.find((r) => r.vehicleId === vehicleId) ?? sorted[0])
-        : sorted[0];
-      const name =
-        callerProfile?.name ?? (callerProfile as any)?.email ?? "Unknown User";
-      setCompletedByName(name);
-      if (newRecord) {
-        setCompletionRecord({ ...newRecord, workOrderId: newWoId });
-      } else {
-        // Open modal with blank record pre-filled with vehicleId
-        setCompletionRecord(
-          vehicleId
-            ? {
-                vehicleId,
-                id: 0n,
-                description: "",
-                cost: 0,
-                mileage: 0n,
-                technicianName: "",
-                date: BigInt(Date.now()) * 1_000_000n,
-                maintenanceType: "OilChange",
-                createdAt: BigInt(Date.now()) * 1_000_000n,
-                partsUsed: [],
-                workOrderId: newWoId,
-              }
-            : null,
-        );
-      }
-      setMaintenanceModalOpen(true);
-      toast.info(
-        newWoId !== undefined
-          ? `Schedule completed! ${formatWONumber(newWoId)} auto-assigned. Fill in the maintenance record.`
-          : "Schedule completed! Please fill in the maintenance record.",
+      await qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
+
+      // Step 3: Show success toast with WO number
+      const woLabel =
+        newWoId !== undefined ? formatWONumber(newWoId) : "a new work order";
+      toast.success(
+        `Schedule completed — ${woLabel} created in Work Orders as Open`,
       );
     } catch {
       toast.error("Failed to mark complete");
@@ -820,7 +743,9 @@ export function ServiceSchedulesPage() {
                               {intervalLabel(s.intervalDays)}
                             </td>
                             <td className="px-5 py-3.5 text-muted-foreground">
-                              {lastDone != null ? formatDate(lastDone) : "—"}
+                              {lastDone != null
+                                ? formatDate(lastDone)
+                                : "\u2014"}
                             </td>
                             <td className="px-5 py-3.5">
                               <StatusBadge schedule={s} />
@@ -855,45 +780,44 @@ export function ServiceSchedulesPage() {
                                   onClick={() => openEdit(s)}
                                   className="h-7 w-7 p-0"
                                 >
-                                  <Pencil className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3 h-3" />
                                 </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      data-ocid={`service-schedules.delete_button.${idx + 1}`}
-                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent data-ocid="service-schedules.dialog">
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Schedule?
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This will permanently remove the service
-                                        schedule for{" "}
-                                        <strong>{s.serviceType}</strong>. This
-                                        action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel data-ocid="service-schedules.cancel_button">
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        data-ocid="service-schedules.confirm_button"
-                                        className="bg-destructive hover:bg-destructive/90"
-                                        onClick={() => handleDelete(s.id)}
+                                {isAdmin && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        data-ocid={`service-schedules.delete_button.${idx + 1}`}
+                                        className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                       >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent data-ocid="service-schedules.dialog">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Delete Schedule?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel data-ocid="service-schedules.cancel_button">
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          data-ocid="service-schedules.confirm_button"
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          onClick={() => handleDelete(s.id)}
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -976,7 +900,7 @@ export function ServiceSchedulesPage() {
                   <SelectContent>
                     {(vehicles ?? []).map((v: Vehicle) => (
                       <SelectItem key={v.id.toString()} value={v.id.toString()}>
-                        {v.name} — {v.licensePlate}
+                        {v.name} \u2014 {v.licensePlate}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1171,83 +1095,6 @@ export function ServiceSchedulesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Maintenance Record Modal (opened after completing a schedule) */}
-      <MaintenanceModal
-        open={maintenanceModalOpen}
-        onSaved={() => {
-          completionSavedRef.current = true;
-          // Also mark the associated work order as complete in the Work Orders section
-          if (actor && completionRecord?.workOrderId !== undefined) {
-            actor
-              .completeWorkOrder(completionRecord.workOrderId)
-              .then(() => {
-                qc.invalidateQueries({ queryKey: ["workOrders"] });
-              })
-              .catch((err: unknown) => {
-                console.error(
-                  "[ServiceSchedules] failed to complete work order:",
-                  err,
-                );
-              });
-          }
-        }}
-        onClose={() => {
-          if (!completionSavedRef.current && completionSnapshot) {
-            // Revert the schedule back to its pre-completion state.
-            // Convert lastCompletedDate from Candid [] | [bigint] → bigint | undefined
-            // so the Candid encoder doesn't get a type mismatch.
-            const revertLcd: bigint | undefined = lcdToOptional(
-              completionSnapshot.lastCompletedDate,
-            );
-            const revertData: {
-              id: bigint;
-              vehicleId: bigint;
-              serviceType: string;
-              intervalDays: bigint;
-              nextDueDate: bigint;
-              lastCompletedDate?: bigint;
-              notes: string;
-              status: string;
-              createdAt: bigint;
-            } = {
-              id: completionSnapshot.id,
-              vehicleId: completionSnapshot.vehicleId,
-              serviceType: completionSnapshot.serviceType,
-              intervalDays: completionSnapshot.intervalDays,
-              nextDueDate: completionSnapshot.nextDueDate,
-              lastCompletedDate: revertLcd,
-              notes: completionSnapshot.notes,
-              status: completionSnapshot.status,
-              createdAt: completionSnapshot.createdAt,
-            };
-            console.log(
-              "[ServiceSchedules] reverting schedule to pre-completion state:",
-              revertData,
-            );
-            (actor as any)
-              .updateServiceSchedule(completionSnapshot.id, revertData)
-              .then(() => {
-                qc.invalidateQueries({ queryKey: ["serviceSchedules"] });
-                toast.info("Service schedule reverted to Open.");
-              })
-              .catch((err: unknown) => {
-                console.error("[ServiceSchedules] revert failed:", err);
-              });
-          }
-          setMaintenanceModalOpen(false);
-          setCompletionRecord(null);
-          setCompletionSnapshot(null);
-          setNewWorkOrderNumber("");
-          completionSavedRef.current = false;
-        }}
-        record={completionRecord}
-        vehicles={vehicles ?? []}
-        completedBy={completedByName}
-        workOrderNumber={newWorkOrderNumber || undefined}
-        requireCompletion={true}
-        completionType="schedule"
-      />
     </div>
   );
 }

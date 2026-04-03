@@ -1,40 +1,37 @@
 # FleetGuard
 
 ## Current State
-The sign-up flow on LoginPage immediately triggers Internet Identity (II) login when the user clicks "Sign Up — New Company". After II auth, the OnboardingPage collects company info (name, industry, fleet size, phone) in step 2, then profile name in step 3, then payment in step 4.
+
+- Service Schedules: when a schedule is marked complete, a work order is **immediately created as `Completed`** status, then `completeWorkOrder` is called again on save — redundant and wrong. The work order never appears as `Open` in the Work Orders section.
+- Work Orders: when marked complete there, opens MaintenanceModal and the record is saved to Maintenance History.
+- Work Orders page: functional flat card list but visually dated — plain cards with no visual hierarchy, no status columns, no modern table/kanban treatment.
+- MaintenancePage: shows all saved maintenance records in a table (Maintenance History).
 
 ## Requested Changes (Diff)
 
 ### Add
-- Pre-login sign-up form on LoginPage (shown when user clicks "Sign Up — New Company") that collects:
-  - Company Name (required)
-  - Industry (dropdown, required)
-  - Number of Vehicles (fleet size selector, required)
-  - Phone Number (optional)
-  - Email (optional)
-- "Continue with Internet Identity" button on pre-login form triggers II login after saving all fields to sessionStorage
-- "Back to Sign in" link to dismiss the pre-login form
+- When a service schedule is completed: create the work order with `status: Open` (not Completed), assign it a WO number, and display it in the Work Orders section as **Open**. Do NOT create the maintenance record yet.
+- When that work order is then marked Complete in the Work Orders section: open the MaintenanceModal, collect the maintenance record, and on save move the record to Maintenance History.
+- Modern, visually appealing redesign of the Work Orders page: status-based visual grouping or a rich card/table layout with color-coded priority/status badges, better typography, action buttons, summary stats bar at the top.
 
 ### Modify
-- `LoginPage.tsx`: instead of immediately calling `login()` on sign-up click, show inline pre-login form. On form submit, save fields to sessionStorage keys (`fleetguard_presignup_company`, `fleetguard_presignup_industry`, `fleetguard_presignup_fleetsize`, `fleetguard_presignup_phone`, `fleetguard_presignup_email`), set `fleetguard_signup_intent=1` in sessionStorage, then call `login()`.
-- `OnboardingPage.tsx`: on mount read and clear the 5 presignup sessionStorage keys. Pre-populate `companyName`, `industry`, `fleetSize`, `phone` states from them. Since company info is already collected, the onboarding welcome step (step 1) should display the company name as a confirmation. The Company Info step (step 2) should be skipped — the welcome step "Get Started" button saves company settings to the backend (using the pre-populated values) and advances directly to step 3 (Your Profile). Update TOTAL_STEPS to 3. Save the email from presignup into the profile save call if the `saveProfile` mutation supports it, otherwise just discard it gracefully.
+- `ServiceSchedulesPage.tsx` — `handleMarkComplete`: change work order creation to `status: Open`. Remove the immediate `completeWorkOrder` call from the `onSaved` callback. Do NOT open the MaintenanceModal from within the schedule completion flow — just create the Open work order, mark the schedule complete on backend, show a toast "Schedule completed — WO-XXXX created and added to Work Orders as Open", and close.
+- `WorkOrdersPage.tsx` — `handleComplete`: keep existing flow (open MaintenanceModal, on save call `completeWorkOrder` and create maintenance record). Also improve the page UI significantly (see Add above).
+- Cancel behavior in service schedule completion: if the schedule was marked complete but the user cancels before the work order was committed, revert the schedule status back to Open (existing logic is correct, just don't open the maintenance modal).
 
 ### Remove
-- The standalone Company Information step (step 2) from OnboardingPage — that data is now collected before login.
+- `onSaved` callback calling `actor.completeWorkOrder` from within ServiceSchedulesPage (that responsibility moves to WorkOrdersPage).
+- Opening MaintenanceModal directly from service schedule completion flow.
 
 ## Implementation Plan
-1. Modify `LoginPage.tsx`:
-   - Add `showSignUpForm` boolean state
-   - Add `signUpCompany`, `signUpIndustry`, `signUpFleetSize`, `signUpPhone`, `signUpEmail` states
-   - "Sign Up — New Company" button sets `showSignUpForm = true` (does NOT call login)
-   - Sign-up form UI: company name input, industry select, fleet size grid, phone input, email input
-   - Form submit handler: validate required fields, save all to sessionStorage, set `fleetguard_signup_intent=1`, call `login()`
-   - Back button resets form and sets `showSignUpForm = false`
-2. Modify `OnboardingPage.tsx`:
-   - Initialize state from sessionStorage presignup keys (and clear them in a useEffect)
-   - Remove step 2 (Company Info form)
-   - Step 1 (Welcome): show company name in heading, show company/industry/fleet summary. "Get Started" button calls `handleCompanyNext()` which saves company settings to backend and advances to step 2 (Profile)
-   - Step 2 (Profile): name input (unchanged)
-   - Step 3 (Payment): unchanged
-   - Step 4: All set
-   - Update `TOTAL_STEPS = 3` and `StepDots` accordingly
+
+1. **ServiceSchedulesPage.tsx**: In `handleMarkComplete`, change `createWorkOrder` payload to `status: WorkOrderStatus.Open`. Remove `maintenanceModalOpen` state and all MaintenanceModal-related code from this page. After creating the open work order and calling `markScheduleComplete`, show toast "Schedule completed — WO-XXXX created in Work Orders as Open" and refresh schedules list. Keep the cancel/revert logic for reverting the schedule if user bails.
+
+2. **WorkOrdersPage.tsx — logic**: The existing `handleComplete` flow is already correct — it opens MaintenanceModal, saves the record to maintenance history, and marks the WO as Completed. No functional changes needed here beyond ensuring the flow works when the WO originated from a service schedule.
+
+3. **WorkOrdersPage.tsx — UI redesign**:
+   - Add a summary stats bar: total WOs, Open count, In Progress count, Completed count — color-coded cards.
+   - Redesign work order cards: larger priority color indicator on left edge, clearer status badge (color-coded), vehicle and mechanic info with icons, WO number in prominent monospace chip.
+   - Add subtle hover states, smooth transitions.
+   - Group or visually differentiate Open/In Progress vs Completed/Cancelled.
+   - Keep all existing functionality (filters, search, complete button, edit, delete, print).
