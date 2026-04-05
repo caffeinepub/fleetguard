@@ -1,70 +1,35 @@
 # FleetGuard
 
 ## Current State
+The signup flow is:
+1. LoginPage collects company name, industry, fleet size, phone, email
+2. User clicks "Continue with Internet Identity" → II login triggers
+3. After II auth, OnboardingPage runs steps 1-4 (confirm details → profile name → billing/payment → dashboard)
 
-FleetGuard is a production-ready multi-tenant fleet maintenance SaaS. The current build includes:
-- Parts inventory with fields: name, partNumber, quantityInStock, minStockLevel, location (category), price
-- Service Schedules form with fields in order: Apply To, Vehicle/Category, Service Type, Interval, Next Due Date, Notes, Active toggle
-- Sidebar navigation: Dashboard, Maintenance (expandable), Fleet, Parts, Vendors, Warranties, Reports, Settings
-- No Documents section exists yet
-- Backend Part types (`PartCore`, `PartFull`) do not include `manufacturerName` or `inventoryLocation`
-- Blob storage component not yet selected
+Billing (Stripe card form) is currently step 3 of the OnboardingPage — it happens AFTER the user has already logged in via Internet Identity.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `manufacturerName` (optional text) field to Parts add/edit dialog
-- `inventoryLocation` (optional text, e.g. "Shelf B2") field to Parts add/edit dialog
-- `manufacturerName` and `inventoryLocation` optional fields to `PartFull` backend type and IDL
-- Side-maps in backend for storing manufacturer name and inventory location per part per company
-- New `"documents"` page type in App.tsx Page union
-- Documents nav item in sidebar, positioned immediately after Reports
-- New `DocumentsPage.tsx` with: file upload (PDFs, images, documents), document list with search, filter by asset/vehicle, click to view/download, print selected
-- Backend document storage using blob-storage component (upload, list, delete, associate with vehicle/asset)
+- A billing/payment step in the **LoginPage signup form** (step 3 of the pre-login flow, after company info is collected)
+- The payment step shows a card form (simulated for test mode, real Stripe CardElement when Stripe PK is configured)
+- A test-mode banner indicating "Test Mode: use any card details to proceed"
+- `fleetguard_billing_completed` flag stored in sessionStorage after successful billing step
+- II login is only triggered after billing step passes
 
 ### Modify
-- Parts `PartCore` and `PartFull` types in `main.mo`: add `manufacturerName : ?Text` and `inventoryLocation : ?Text` as optional side-map fields
-- `toFullPart` function: merge `manufacturerName` and `inventoryLocation` from side-maps
-- `createPart` and `updatePart` backend functions: side-store new optional fields
-- `backend.ts` `PartFull` interface: add `manufacturerName?: [] | [string]` and `inventoryLocation?: [] | [string]`
-- `backend.ts` Candid encoders/decoders for `PartFull`: include new optional fields
-- Parts form `defaultForm` state: add `manufacturerName: ""` and `inventoryLocation: ""`
-- Parts form `openEdit`: populate new fields from part data
-- Parts form `handleSubmit`: pass new fields to backend
-- Parts dialog JSX: add two new Input fields for Manufacturer Name and Inventory Location after Category
-- Service Schedules dialog: move Service Type field block to be the first rendered field (before Apply Schedule To / Vehicle selector)
-- Layout.tsx `topNavItemsAfter`: add Documents item after Reports
+- LoginPage: Add a multi-step signup wizard — Step 1: company details, Step 2: contact info, Step 3: billing/payment
+- OnboardingPage: Skip billing step (Step 3) if `fleetguard_billing_completed` is set in sessionStorage (already paid during signup). Clear the flag after reading it.
+- The simulated card form validates that card holder, card number (16 digits), expiry (MM/YY), and CVV are filled before allowing proceed
+- When Stripe PK is set in localStorage, use real Stripe CardElement; otherwise show the simulated form
+- "Start Free Trial" / "Activate" button in billing step calls `startTrial` on backend (or just proceeds if no actor yet, deferring to onboarding)
 
 ### Remove
-- Nothing removed
+- Nothing removed from existing functionality
 
 ## Implementation Plan
-
-1. Select `blob-storage` component
-2. Update backend `main.mo`:
-   - Add `manufacturerName` and `inventoryLocation` side-maps (`cManufacturers`, `cInventoryLocations`)
-   - Extend `PartFull` type with two optional fields
-   - Update `toFullPart` to merge them
-   - Update `createPart` / `updatePart` to side-store them
-3. Update `backend.ts`:
-   - Add fields to `PartFull` interface
-   - Update Candid encoder/decoder for PartFull
-4. Update `PartsPage.tsx`:
-   - Add `manufacturerName` and `inventoryLocation` to form state
-   - Populate on edit
-   - Pass to handleSubmit
-   - Add two Input fields in dialog (after Category)
-5. Update `ServiceSchedulesPage.tsx`:
-   - Move Service Type JSX block to be first in the form
-6. Update `App.tsx`:
-   - Add `"documents"` to Page union type
-7. Update `Layout.tsx`:
-   - Add Documents nav item after Reports
-8. Create `DocumentsPage.tsx`:
-   - File upload (uses blob-storage)
-   - Document list: name, type icon, associated vehicle, upload date, uploader
-   - Search bar (filter by filename)
-   - Filter by vehicle dropdown
-   - Click row → opens file in new tab or triggers download
-   - Print button for selected documents
-9. Wire DocumentsPage into App.tsx router
+1. Refactor LoginPage signup section into a 3-step mini-wizard: Step 1 (company/industry/fleet), Step 2 (phone/email), Step 3 (billing)
+2. In Step 3, render billing card form with test-mode notice
+3. On billing success, set `sessionStorage.setItem('fleetguard_billing_completed', '1')` and then call `login()` for II
+4. In OnboardingPage, check for `fleetguard_billing_completed` flag; if present, skip the payment step (step 3) — auto-advance past it — and clear the flag
+5. Validate build passes

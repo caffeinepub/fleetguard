@@ -217,7 +217,7 @@ export function OnboardingPage() {
     }
   };
 
-  // Step 2 → 3: save profile
+  // Step 2 → 3 (or 4 if billing already completed pre-login)
   const handleProfileComplete = async () => {
     if (!name.trim()) {
       toast.error("Please enter your name");
@@ -227,7 +227,32 @@ export function OnboardingPage() {
     try {
       await saveProfile.mutateAsync({ name: name.trim() });
       await qc.invalidateQueries({ queryKey: ["callerProfile"] });
-      setStep(3);
+
+      const billingDone =
+        sessionStorage.getItem("fleetguard_billing_done") === "1";
+      if (billingDone) {
+        // Billing was completed before II login — skip the payment step
+        const stripeToken =
+          sessionStorage.getItem("fleetguard_stripe_token") ??
+          companyName.trim();
+        const savedDiscount = sessionStorage.getItem(
+          "fleetguard_presignup_discount",
+        );
+        sessionStorage.removeItem("fleetguard_billing_done");
+        sessionStorage.removeItem("fleetguard_stripe_token");
+        sessionStorage.removeItem("fleetguard_presignup_discount");
+        try {
+          if (savedDiscount) {
+            await (actor as any).applyDiscountCode(savedDiscount);
+          }
+          await (actor as any).startTrial(stripeToken);
+        } catch {
+          // non-fatal: still advance to dashboard
+        }
+        setStep(4);
+      } else {
+        setStep(3);
+      }
     } catch {
       toast.error("Failed to save profile");
     } finally {
