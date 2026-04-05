@@ -1145,7 +1145,16 @@ function CompaniesSection({
   >({});
 
   const loadCompanyUsers = async (companyName: string) => {
-    if (!actor) return;
+    if (!actor) {
+      toast.error("Actor not ready — please wait a moment and try again");
+      return;
+    }
+    if (!devKey) {
+      toast.error(
+        "Dev key missing — please reload the page with ?devKey=FLEETGUARD_DEV_2026",
+      );
+      return;
+    }
     setUsersLoading((prev) => ({ ...prev, [companyName]: true }));
     try {
       const users = await (actor as any).getCompanyUsersWithKey(
@@ -1153,12 +1162,28 @@ function CompaniesSection({
         companyName,
       );
       setCompanyUsers((prev) => ({ ...prev, [companyName]: users }));
-    } catch {
-      toast.error("Failed to load users");
+    } catch (err) {
+      console.error("getCompanyUsersWithKey error:", err);
+      toast.error(
+        `Failed to load users: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setUsersLoading((prev) => ({ ...prev, [companyName]: false }));
     }
   };
+
+  // Auto-load users when actor becomes available and a company is expanded
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional
+  useEffect(() => {
+    if (
+      actor &&
+      expandedCompany &&
+      !companyUsers[expandedCompany] &&
+      !usersLoading[expandedCompany]
+    ) {
+      loadCompanyUsers(expandedCompany);
+    }
+  }, [actor, expandedCompany]);
 
   const handleToggleExpand = (companyName: string) => {
     if (expandedCompany === companyName) {
@@ -1434,7 +1459,6 @@ function CompaniesSection({
                   role: "Mechanic",
                 };
                 return (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: table rows
                   <React.Fragment key={c.companyName}>
                     <TableRow
                       style={{
