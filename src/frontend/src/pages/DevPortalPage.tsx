@@ -51,6 +51,7 @@ import {
   RefreshCw,
   Send,
   Shield,
+  ShieldOff,
   Sun,
   Tag,
   Trash2,
@@ -160,8 +161,10 @@ export default function DevPortalPage() {
 
   const devKey = localStorage.getItem("devKey") || "";
 
-  const { identity, login, loginStatus } = useInternetIdentity();
+  const { identity, login, loginStatus, clear } = useInternetIdentity();
   const isLoggedIn = !!identity;
+  const ALLOWED_PRINCIPAL =
+    "l2xzu-ft66n-jzv6h-q472w-d6bfg-jzjjk-pa7eu-hjqs7-3nbyd-he5gs-4qe";
 
   // Queries
   const companiesQuery = useAllCompanyRegistrationsWithKey(devKey);
@@ -271,6 +274,72 @@ export default function DevPortalPage() {
           >
             Secured by Advanced Cryptography · 100% onchain
           </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Access Denied — wrong principal
+  if (isLoggedIn && identity?.getPrincipal().toString() !== ALLOWED_PRINCIPAL) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          background: darkMode
+            ? "oklch(0.13 0.04 255)"
+            : "oklch(0.97 0.005 255)",
+        }}
+      >
+        <Toaster />
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md p-10 rounded-2xl border text-center"
+          style={{
+            background: darkMode ? "oklch(0.18 0.05 255)" : "white",
+            borderColor: darkMode
+              ? "oklch(0.28 0.05 255)"
+              : "oklch(0.90 0.01 255)",
+          }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+            style={{ background: "oklch(0.18 0.06 15)" }}
+          >
+            <ShieldOff
+              className="w-7 h-7"
+              style={{ color: "oklch(0.65 0.18 15)" }}
+            />
+          </div>
+          <h1
+            className="text-2xl font-bold mb-2"
+            style={{ color: "oklch(0.65 0.18 15)" }}
+          >
+            Access Denied
+          </h1>
+          <p
+            className="text-sm mb-8"
+            style={{
+              color: darkMode ? "oklch(0.65 0.02 255)" : "oklch(0.45 0.02 255)",
+            }}
+          >
+            This portal is restricted to the FleetGuard developer account. You
+            are signed in with a different identity.
+          </p>
+          <Button
+            data-ocid="dev_portal.access_denied.sign_out.button"
+            onClick={() => {
+              clear();
+              localStorage.removeItem("devKey");
+            }}
+            className="w-full h-11 font-semibold"
+            style={{
+              background: "oklch(0.65 0.18 15)",
+              color: "white",
+            }}
+          >
+            Sign Out
+          </Button>
         </motion.div>
       </div>
     );
@@ -405,6 +474,24 @@ export default function DevPortalPage() {
           </button>
           <button
             type="button"
+            data-ocid="dev_portal.logout.button"
+            onClick={() => {
+              clear();
+              localStorage.removeItem("devKey");
+              window.location.replace(window.location.origin);
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
+            style={{
+              background: "oklch(0.22 0.06 255)",
+              color: "oklch(0.65 0.15 15)",
+              border: "1px solid oklch(0.65 0.15 15 / 0.3)",
+            }}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            Log Out
+          </button>
+          <button
+            type="button"
             data-ocid="dev_portal.dark_mode.toggle"
             onClick={() => setDarkMode(!darkMode)}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
@@ -498,6 +585,25 @@ export default function DevPortalPage() {
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline">Exit</span>
+          </button>
+          <button
+            type="button"
+            data-ocid="dev_portal.logout.header.button"
+            onClick={() => {
+              clear();
+              localStorage.removeItem("devKey");
+              window.location.replace(window.location.origin);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: "oklch(0.65 0.15 15 / 0.15)",
+              color: "oklch(0.65 0.15 15)",
+              border: "1px solid oklch(0.65 0.15 15 / 0.3)",
+            }}
+            title="Log out of Internet Identity"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Log Out</span>
           </button>
         </header>
 
