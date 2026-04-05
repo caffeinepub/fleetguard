@@ -10,6 +10,7 @@ import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useCallerProfile, useGetCompanySettings } from "./hooks/useQueries";
 import { DashboardPage } from "./pages/DashboardPage";
 import DevPortalPage from "./pages/DevPortalPage";
+import { DocumentsPage } from "./pages/DocumentsPage";
 import { InviteAcceptPage } from "./pages/InviteAcceptPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
@@ -38,6 +39,7 @@ export type Page =
   | "vendors"
   | "warranties"
   | "reports"
+  | "documents"
   | "settings"
   | "invite-accept"
   | "dev-portal"
@@ -212,6 +214,8 @@ function AppContent() {
         return <WarrantiesPage />;
       case "reports":
         return <ReportsPage />;
+      case "documents":
+        return <DocumentsPage />;
       case "settings":
         return <SettingsPage onNavigate={navigate} />;
       case "privacy-policy":

@@ -849,6 +849,37 @@ export function ServiceSchedulesPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Service type */}
+            <div className="space-y-1.5">
+              <Label htmlFor="ss-svctype">Service Type *</Label>
+              <Select
+                value={form.serviceType}
+                onValueChange={(v) => setF("serviceType", v)}
+              >
+                <SelectTrigger
+                  id="ss-svctype"
+                  data-ocid="service-schedules.select"
+                >
+                  <SelectValue placeholder="Select service type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SERVICE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.serviceType === "Custom" && (
+                <Input
+                  data-ocid="service-schedules.input"
+                  placeholder="Enter custom service type"
+                  value={form.customServiceType}
+                  onChange={(e) => setF("customServiceType", e.target.value)}
+                />
+              )}
+            </div>
+
             {/* Scope selector (new schedules only) */}
             {!editSchedule && (
               <div className="space-y-1.5">
@@ -974,37 +1005,6 @@ export function ServiceSchedulesPage() {
                     {form.vehicleIds.length > 1 ? "s" : ""} selected
                   </p>
                 )}
-            </div>
-
-            {/* Service type */}
-            <div className="space-y-1.5">
-              <Label htmlFor="ss-svctype">Service Type *</Label>
-              <Select
-                value={form.serviceType}
-                onValueChange={(v) => setF("serviceType", v)}
-              >
-                <SelectTrigger
-                  id="ss-svctype"
-                  data-ocid="service-schedules.select"
-                >
-                  <SelectValue placeholder="Select service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SERVICE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.serviceType === "Custom" && (
-                <Input
-                  data-ocid="service-schedules.input"
-                  placeholder="Enter custom service type"
-                  value={form.customServiceType}
-                  onChange={(e) => setF("customServiceType", e.target.value)}
-                />
-              )}
             </div>
 
             {/* Interval */}

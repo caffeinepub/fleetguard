@@ -72,6 +72,47 @@ const PART_CATEGORIES = [
   "Other",
 ];
 
+// ---------------------------------------------------------------------------
+// Extra part metadata (manufacturer, location) stored locally per part ID
+// since backend PartFull does not yet have these fields
+// ---------------------------------------------------------------------------
+interface PartMeta {
+  manufacturerName: string;
+  inventoryLocation: string;
+}
+
+const PART_META_KEY = "fleetguard_part_meta";
+
+function loadPartMeta(): Record<string, PartMeta> {
+  try {
+    const raw = localStorage.getItem(PART_META_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePartMeta(meta: Record<string, PartMeta>) {
+  try {
+    localStorage.setItem(PART_META_KEY, JSON.stringify(meta));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function getMetaForPart(partId: string): PartMeta {
+  const meta = loadPartMeta();
+  return meta[partId] ?? { manufacturerName: "", inventoryLocation: "" };
+}
+
+function setMetaForPart(partId: string, data: PartMeta) {
+  const meta = loadPartMeta();
+  meta[partId] = data;
+  savePartMeta(meta);
+}
+
+// ---------------------------------------------------------------------------
+
 const defaultForm = {
   name: "",
   partNumber: "",
@@ -79,6 +120,8 @@ const defaultForm = {
   minStockLevel: "",
   location: "Engine",
   price: "",
+  manufacturerName: "",
+  inventoryLocation: "",
 };
 
 function getPartPrice(p: { price?: number | null | number[] | [] }): number {
@@ -134,10 +177,13 @@ export function PartsPage() {
   const filtered = (
     parts?.filter((p: Part) => {
       const q = search.toLowerCase();
+      const meta = getMetaForPart(p.id.toString());
       const matchSearch =
         p.name.toLowerCase().includes(q) ||
         p.partNumber.toLowerCase().includes(q) ||
-        p.location.toLowerCase().includes(q);
+        p.location.toLowerCase().includes(q) ||
+        meta.manufacturerName.toLowerCase().includes(q) ||
+        meta.inventoryLocation.toLowerCase().includes(q);
       const qty = Number(p.quantityInStock);
       const min = Number(p.minStockLevel);
       const matchStock =
@@ -175,6 +221,7 @@ export function PartsPage() {
 
   const openEdit = (p: Part) => {
     setEditPart(p);
+    const meta = getMetaForPart(p.id.toString());
     setForm({
       name: p.name,
       partNumber: p.partNumber,
@@ -182,6 +229,8 @@ export function PartsPage() {
       minStockLevel: p.minStockLevel.toString(),
       location: p.location || "Engine",
       price: getPartPrice(p) > 0 ? getPartPrice(p).toString() : "",
+      manufacturerName: meta.manufacturerName,
+      inventoryLocation: meta.inventoryLocation,
     });
     setModalOpen(true);
   };
@@ -214,13 +263,20 @@ export function PartsPage() {
       createdAt: editPart?.createdAt ?? nowNs(),
     };
     try {
+      let savedId: bigint;
       if (editPart) {
         await updatePart.mutateAsync({ id: editPart.id, part: data });
+        savedId = editPart.id;
         toast.success("Part updated");
       } else {
-        await createPart.mutateAsync(data);
+        savedId = await createPart.mutateAsync(data);
         toast.success("Part added");
       }
+      // Save extra meta locally
+      setMetaForPart(savedId.toString(), {
+        manufacturerName: form.manufacturerName.trim(),
+        inventoryLocation: form.inventoryLocation.trim(),
+      });
       setModalOpen(false);
     } catch (err) {
       console.error("Failed to save part:", err);
@@ -231,6 +287,10 @@ export function PartsPage() {
   const handleDelete = async (id: bigint) => {
     try {
       await deletePart.mutateAsync(id);
+      // Clean up local meta too
+      const meta = loadPartMeta();
+      delete meta[id.toString()];
+      savePartMeta(meta);
       toast.success("Part deleted");
     } catch {
       toast.error("Failed to delete part");
@@ -245,17 +305,24 @@ export function PartsPage() {
       "Qty In Stock",
       "Min Stock",
       "Category",
+      "Manufacturer",
+      "Inventory Location",
       "Status",
     ];
-    const rows = (parts ?? []).map((p: Part) => [
-      p.name,
-      p.partNumber,
-      `$${getPartPrice(p).toFixed(2)}`,
-      p.quantityInStock.toString(),
-      p.minStockLevel.toString(),
-      p.location,
-      p.quantityInStock <= p.minStockLevel ? "Low Stock" : "In Stock",
-    ]);
+    const rows = (parts ?? []).map((p: Part) => {
+      const meta = getMetaForPart(p.id.toString());
+      return [
+        p.name,
+        p.partNumber,
+        `$${getPartPrice(p).toFixed(2)}`,
+        p.quantityInStock.toString(),
+        p.minStockLevel.toString(),
+        p.location,
+        meta.manufacturerName || "—",
+        meta.inventoryLocation || "—",
+        p.quantityInStock <= p.minStockLevel ? "Low Stock" : "In Stock",
+      ];
+    });
     exportCSV("parts-inventory", headers, rows);
   };
 
@@ -270,7 +337,7 @@ export function PartsPage() {
             <p className="text-muted-foreground text-sm">
               {parts?.length ?? 0} parts tracked
             </p>
-            <span className="text-muted-foreground text-sm">•</span>
+            <span className="text-muted-foreground text-sm">&bull;</span>
             <p className="text-sm font-semibold text-primary">
               Total Inventory Value: $
               {totalInventoryValue.toLocaleString(undefined, {
@@ -386,6 +453,8 @@ export function PartsPage() {
                     "Quantity",
                     "Min Stock",
                     "Category",
+                    "Manufacturer",
+                    "Location",
                     "Status",
                     "Actions",
                   ].map((h) => (
@@ -402,6 +471,7 @@ export function PartsPage() {
                 {filtered.map((p: Part, i: number) => {
                   const isLow = p.quantityInStock <= p.minStockLevel;
                   const price = getPartPrice(p);
+                  const meta = getMetaForPart(p.id.toString());
                   return (
                     <tr
                       key={p.id.toString()}
@@ -419,7 +489,7 @@ export function PartsPage() {
                           `$${price.toFixed(2)}`
                         ) : (
                           <span className="text-muted-foreground text-xs">
-                            —
+                            &mdash;
                           </span>
                         )}
                       </td>
@@ -431,8 +501,26 @@ export function PartsPage() {
                       </td>
                       <td className="px-5 py-4 text-muted-foreground">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-medium">
-                          {p.location || "—"}
+                          {p.location || "&mdash;"}
                         </span>
+                      </td>
+                      <td className="px-5 py-4 text-muted-foreground text-sm">
+                        {meta.manufacturerName || (
+                          <span className="text-muted-foreground/50 text-xs">
+                            &mdash;
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-muted-foreground text-sm">
+                        {meta.inventoryLocation ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-medium">
+                            {meta.inventoryLocation}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/50 text-xs">
+                            &mdash;
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -523,7 +611,10 @@ export function PartsPage() {
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={(o) => !o && setModalOpen(false)}>
-        <DialogContent className="max-w-md" data-ocid="parts.modal">
+        <DialogContent
+          className="max-w-md max-h-[90vh] overflow-y-auto"
+          data-ocid="parts.modal"
+        >
           <DialogHeader>
             <DialogTitle>{editPart ? "Edit Part" : "Add Part"}</DialogTitle>
           </DialogHeader>
@@ -600,6 +691,28 @@ export function PartsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Manufacturer Name */}
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="p-manufacturer">Manufacturer Name</Label>
+                <Input
+                  id="p-manufacturer"
+                  data-ocid="parts.input"
+                  value={form.manufacturerName}
+                  onChange={(e) => set("manufacturerName", e.target.value)}
+                  placeholder="e.g. Bosch"
+                />
+              </div>
+              {/* Inventory Location */}
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="p-invloc">Inventory Location</Label>
+                <Input
+                  id="p-invloc"
+                  data-ocid="parts.input"
+                  value={form.inventoryLocation}
+                  onChange={(e) => set("inventoryLocation", e.target.value)}
+                  placeholder="e.g. Shelf B2"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -631,7 +744,9 @@ export function PartsPage() {
       >
         <DialogContent className="max-w-2xl" data-ocid="parts.dialog">
           <DialogHeader>
-            <DialogTitle>Usage History — {usageHistoryPart?.name}</DialogTitle>
+            <DialogTitle>
+              Usage History &mdash; {usageHistoryPart?.name}
+            </DialogTitle>
           </DialogHeader>
           {(() => {
             const usageRecords = (allMaintenanceRecords ?? [])

@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Code2,
   FileBarChart,
+  FolderOpen,
   History,
   LayoutDashboard,
   LogOut,
@@ -63,6 +64,7 @@ const topNavItemsAfter = [
   { id: "vendors" as Page, label: "Vendors", icon: Store },
   { id: "warranties" as Page, label: "Warranties", icon: ShieldCheck },
   { id: "reports" as Page, label: "Reports", icon: FileBarChart },
+  { id: "documents" as Page, label: "Documents", icon: FolderOpen },
 ];
 
 const maintenanceSubItems = [
@@ -400,7 +402,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 </Avatar>
               </TooltipTrigger>
               <TooltipContent side="right">
-                {displayName} \u00b7 {roleName}
+                {displayName} &middot; {roleName}
               </TooltipContent>
             </Tooltip>
             <Tooltip>
