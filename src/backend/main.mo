@@ -1150,4 +1150,85 @@ actor {
       };
     };
   };
+  // ─── Developer User Management (devKey-bypass) ───────────────────────────────
+
+  // Get all users for any company (dev portal use)
+  public query func getCompanyUsersWithKey(devKey : Text, companyId : Text) : async [CompanyUserInfo] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let roleMap = getOrCreateP(cFleetRoles, companyId);
+    let result = List.empty<CompanyUserInfo>();
+    for ((p, role) in roleMap.entries()) {
+      result.add({
+        principal = p;
+        profile = userProfiles.get(p);
+        role = role;
+      });
+    };
+    result.toArray();
+  };
+
+  // Remove a user from a company — immediate access revocation
+  public shared func removeUserFromCompanyWithKey(devKey : Text, companyId : Text, user : Principal) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    getOrCreateP(cFleetRoles, companyId).remove(user);
+    userCompanyMap.remove(user);
+    accessControlState.userRoles.remove(user);
+  };
+
+  // Change a user's fleet role in any company
+  public shared func setUserFleetRoleWithKey(devKey : Text, companyId : Text, user : Principal, role : FleetRole) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    getOrCreateP(cFleetRoles, companyId).add(user, role);
+  };
+
+  // Add a user directly to a company (dev-initiated enrollment)
+  public shared func addUserToCompanyWithKey(devKey : Text, companyId : Text, user : Principal, role : FleetRole) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    switch (cSettings.get(companyId)) {
+      case (null) { Runtime.trap("Company not found") };
+      case (_) {};
+    };
+    userCompanyMap.add(user, companyId);
+    getOrCreateP(cFleetRoles, companyId).add(user, role);
+    if (accessControlState.userRoles.get(user) == null) {
+      accessControlState.userRoles.add(user, #user);
+    };
+  };
+
+  // Fully delete a company and immediately revoke access for all its users
+  public shared func deleteCompanyWithKey(devKey : Text, companyId : Text) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let roleMap = getOrCreateP(cFleetRoles, companyId);
+    for ((p, _) in roleMap.entries()) {
+      userCompanyMap.remove(p);
+      accessControlState.userRoles.remove(p);
+    };
+    cVehicles.remove(companyId);
+    cVehCounters.remove(companyId);
+    cParts.remove(companyId);
+    cPrices.remove(companyId);
+    cCategories.remove(companyId);
+    cPartCounters.remove(companyId);
+    cMaint.remove(companyId);
+    cMParts.remove(companyId);
+    cMPartQty.remove(companyId);
+    cMLaborH.remove(companyId);
+    cMLaborC.remove(companyId);
+    cWOLinks.remove(companyId);
+    cMaintCounters.remove(companyId);
+    cWO.remove(companyId);
+    cWOCounters.remove(companyId);
+    cVendors.remove(companyId);
+    cVendorCounters.remove(companyId);
+    cWarranties.remove(companyId);
+    cWarrantyCounters.remove(companyId);
+    cSchedules.remove(companyId);
+    cScheduleCounters.remove(companyId);
+    cFleetRoles.remove(companyId);
+    cSettings.remove(companyId);
+    cCurrency.remove(companyId);
+    cTax.remove(companyId);
+    companyApprovalStore.add(companyId, "deleted");
+  };
+
 };

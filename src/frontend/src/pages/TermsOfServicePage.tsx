@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, FileText, Shield } from "lucide-react";
 import type { Page } from "../App";
 
 interface Props {
@@ -27,242 +27,417 @@ export function TermsOfServicePage({ onNavigate }: Props) {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-12">
+      <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
-            <p className="text-muted-foreground text-sm">
-              Last updated:{" "}
-              {new Date().toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+          {/* Header */}
+          <div className="border-b border-border pb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold">Terms and Conditions</h1>
+                <p className="text-muted-foreground text-sm mt-0.5">
+                  FleetGuard Fleet Management Platform
+                </p>
+              </div>
+            </div>
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-1">
+              <p className="text-sm font-medium">
+                Effective Date: April 1, 2026
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Please read these Terms and Conditions carefully before
+                accessing or using the FleetGuard platform. By creating an
+                account, you agree to be bound by all terms set forth herein.
+              </p>
+            </div>
+          </div>
+
+          {/* Important Notice */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
+            <h2 className="text-base font-semibold text-amber-600 dark:text-amber-400 mb-2">
+              ⚠ Important: Minimum Contract Term
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              By subscribing to FleetGuard, you agree to a{" "}
+              <strong className="text-foreground">
+                minimum contract term of twelve (12) months
+              </strong>
+              . The monthly subscription fee is{" "}
+              <strong className="text-foreground">
+                $499.00 USD plus applicable taxes
+              </strong>{" "}
+              per month. Early termination before the 12-month minimum term will
+              result in the remaining balance being due in full.
             </p>
           </div>
 
-          <p className="text-muted-foreground leading-relaxed">
-            These Terms of Service (&quot;Terms&quot;) govern your access to and
-            use of FleetGuard, a fleet maintenance management platform operated
-            by FleetGuard (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot;
-            or &quot;our&quot;). By accessing or using FleetGuard, you agree to
-            be bound by these Terms.
-          </p>
-
+          {/* Section 1 */}
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              By creating an account or using FleetGuard, you confirm that you
-              are at least 18 years old, have the legal authority to enter into
-              this agreement on behalf of your organization, and agree to comply
-              with these Terms and all applicable laws. If you do not agree to
-              these Terms, you may not use FleetGuard.
+              These Terms and Conditions (&quot;Agreement&quot;) constitute a
+              legally binding contract between you (&quot;Customer,&quot;
+              &quot;you,&quot; or &quot;your&quot;) and FleetGuard
+              (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or
+              &quot;our&quot;). By creating an account, accessing, or using the
+              FleetGuard platform, you represent that:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+              <li>You are at least 18 years of age;</li>
+              <li>
+                You have the legal authority to enter into this Agreement on
+                behalf of your organization;
+              </li>
+              <li>
+                You have read, understood, and agree to be bound by these Terms;
+                and
+              </li>
+              <li>
+                Your organization consents to the minimum contract term and
+                pricing stated herein.
+              </li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed">
+              If you do not agree to these Terms, you must not use FleetGuard.
             </p>
           </section>
 
+          {/* Section 2 */}
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">2. Use of Service</h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>
-                FleetGuard grants you a limited, non-exclusive, non-transferable
-                license to use the platform for your internal business
-                operations. You may use FleetGuard to:
+            <h2 className="text-xl font-semibold">2. Service Description</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              FleetGuard is a cloud-based, multi-tenant Software-as-a-Service
+              (SaaS) fleet maintenance management platform. The platform
+              provides the following features:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+              <li>Vehicle and asset tracking and management;</li>
+              <li>
+                Preventive maintenance scheduling and work order management;
+              </li>
+              <li>Parts inventory management and usage tracking;</li>
+              <li>Maintenance history logging and reporting;</li>
+              <li>
+                Multi-user role-based access control (Admin, Fleet Manager,
+                Mechanic);
+              </li>
+              <li>Document management for asset-related files;</li>
+              <li>CSV data export and print-ready reports.</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed">
+              We reserve the right to modify, enhance, or discontinue features
+              at any time, provided that core fleet management functionality
+              remains available throughout your subscription term.
+            </p>
+          </section>
+
+          {/* Section 3 — Subscription & Billing */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">
+              3. Subscription, Billing &amp; Payment
+            </h2>
+
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
+              <h3 className="font-semibold text-base">3.1 Subscription Fees</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                The FleetGuard subscription is priced at{" "}
+                <strong className="text-foreground">
+                  $499.00 USD per month
+                </strong>
+                , plus any applicable federal, state, provincial, or local
+                taxes. Taxes are calculated based on your billing address and
+                are charged in addition to the base subscription fee. Pricing is
+                subject to change with 30 days&apos; written notice.
               </p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Track and manage vehicle maintenance records</li>
-                <li>Manage parts inventory and work orders</li>
-                <li>Schedule preventive maintenance</li>
-                <li>Manage your fleet management team</li>
-              </ul>
-              <p>You may not use FleetGuard to:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Violate any applicable laws or regulations</li>
-                <li>Transmit harmful, offensive, or misleading content</li>
-                <li>
-                  Attempt to gain unauthorized access to the platform or other
-                  accounts
-                </li>
-                <li>
-                  Reverse engineer or create derivative works of the platform
-                </li>
-                <li>Resell, sublicense, or transfer access to the platform</li>
-              </ul>
+            </div>
+
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
+              <h3 className="font-semibold text-base">
+                3.2 Minimum Contract Term
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                All subscriptions are subject to a{" "}
+                <strong className="text-foreground">
+                  minimum contract term of twelve (12) consecutive months
+                </strong>{" "}
+                from the date your free trial ends (the &quot;Commitment
+                Date&quot;). You acknowledge and agree that you are committing
+                to pay the monthly subscription fee for no fewer than 12 billing
+                cycles.
+              </p>
+            </div>
+
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
+              <h3 className="font-semibold text-base">3.3 Free Trial Period</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                New subscribers receive a{" "}
+                <strong className="text-foreground">7-day free trial</strong>{" "}
+                upon completing registration and providing valid payment
+                information. No charge will be made during the trial period. On
+                Day 8, the first monthly billing cycle begins and $499.00 +
+                applicable taxes will be charged to your payment method. The
+                12-month minimum term commences on Day 8 (the Commitment Date).
+              </p>
+            </div>
+
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
+              <h3 className="font-semibold text-base">3.4 Billing Cycle</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                After the free trial, subscription fees are billed monthly in
+                advance on the same calendar date each month (the &quot;Billing
+                Date&quot;). Payments are processed automatically via the
+                payment method on file. It is your responsibility to maintain a
+                valid payment method. Failed payments may result in service
+                suspension after 7 days&apos; notice.
+              </p>
+            </div>
+
+            <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
+              <h3 className="font-semibold text-base">3.5 Auto-Renewal</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Upon completion of the initial 12-month term, your subscription
+                will automatically renew on a month-to-month basis at the
+                then-current monthly rate, unless you provide written notice of
+                cancellation at least 30 days prior to the renewal date. You may
+                cancel at any time after the 12-month minimum term without
+                penalty.
+              </p>
             </div>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-xl font-semibold">3. User Responsibilities</h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>You are responsible for:</p>
+          {/* Section 4 — Cancellation */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">4. Cancellation Policy</h2>
+
+            <div className="space-y-3 text-muted-foreground">
+              <h3 className="font-semibold text-foreground text-base">
+                4.1 Cancellation Notice
+              </h3>
+              <p className="leading-relaxed">
+                To cancel your subscription, you must provide{" "}
+                <strong className="text-foreground">
+                  written notice at least 30 days in advance
+                </strong>
+                . Notice may be submitted via your account Settings page or by
+                contacting support at legal@fleetguard.app. Your subscription
+                and access to the platform will continue until the end of the
+                final billed period.
+              </p>
+
+              <h3 className="font-semibold text-foreground text-base">
+                4.2 Cancellation After Minimum Term
+              </h3>
+              <p className="leading-relaxed">
+                After the 12-month minimum term has been fulfilled, you may
+                cancel at any time with 30 days&apos; written notice. No
+                additional charges will be incurred for cancellations made after
+                the minimum term. Subscription fees are non-refundable for any
+                partial months.
+              </p>
+
+              <h3 className="font-semibold text-foreground text-base">
+                4.3 Early Termination
+              </h3>
+              <p className="leading-relaxed">
+                If you cancel or terminate your subscription before completing
+                the 12-month minimum term, you agree that the{" "}
+                <strong className="text-foreground">
+                  full remaining balance of the minimum term becomes immediately
+                  due and payable
+                </strong>
+                . For example, if you cancel after 4 months, the remaining 8
+                months of subscription fees ($3,992.00 plus applicable taxes)
+                will be charged to your payment method. FleetGuard reserves the
+                right to pursue collection of early termination fees through all
+                available legal means.
+              </p>
+
+              <h3 className="font-semibold text-foreground text-base">
+                4.4 Termination by FleetGuard
+              </h3>
+              <p className="leading-relaxed">
+                We reserve the right to suspend or terminate your account
+                immediately if you:
+              </p>
               <ul className="list-disc pl-5 space-y-1">
+                <li>Violate any provision of these Terms;</li>
                 <li>
-                  Maintaining the confidentiality of your account credentials
-                </li>
-                <li>All activities that occur under your account</li>
-                <li>
-                  Ensuring the accuracy of data you enter into the platform
+                  Fail to pay subscription fees after 14 days from the due date;
                 </li>
                 <li>
-                  Obtaining appropriate consents from your team members before
-                  adding them
+                  Engage in fraudulent, illegal, or abusive use of the platform;
                 </li>
                 <li>
-                  Complying with applicable data protection and privacy laws
+                  Provide false or misleading information during registration.
                 </li>
               </ul>
-              <p>
-                You must promptly notify us of any unauthorized use of your
-                account or security breach.
+              <p className="leading-relaxed">
+                Termination for cause does not relieve you of the obligation to
+                pay any amounts owed, including any applicable early termination
+                fees.
               </p>
             </div>
           </section>
 
+          {/* Section 5 — User Obligations */}
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">5. User Obligations</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              As a subscriber, you and your authorized users are responsible
+              for:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+              <li>
+                Maintaining the confidentiality and security of your account
+                credentials;
+              </li>
+              <li>
+                All activities that occur under your account, whether authorized
+                or not;
+              </li>
+              <li>
+                Ensuring that all data entered into FleetGuard is accurate and
+                compliant with applicable laws;
+              </li>
+              <li>
+                Obtaining appropriate consents from your team members before
+                adding them to the platform;
+              </li>
+              <li>
+                Complying with all applicable data protection, privacy, and
+                labor laws;
+              </li>
+              <li>
+                Notifying FleetGuard promptly of any unauthorized access or
+                security breach.
+              </li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed">
+              You may not: sublicense, resell, or transfer access to the
+              platform; attempt to reverse engineer or copy the platform; use
+              the platform to store or transmit malicious code; or circumvent
+              any access controls or security measures.
+            </p>
+          </section>
+
+          {/* Section 6 — Data Privacy */}
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              4. Subscription and Billing
+              6. Data Privacy &amp; Security
             </h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>
-                FleetGuard is offered as a subscription service at{" "}
-                <strong className="text-foreground">$499 per month</strong>{" "}
-                ("FleetGuard Pro"). By subscribing, you agree to:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Pay the applicable subscription fees in advance</li>
-                <li>Provide accurate and up-to-date billing information</li>
-                <li>
-                  Subscription fees are non-refundable except as required by law
-                </li>
-              </ul>
-              <p>
-                We reserve the right to modify subscription pricing with at
-                least 30 days&apos; advance notice. Continued use after a price
-                change constitutes acceptance of the new pricing.
-              </p>
-              <p>
-                We may suspend or terminate access to FleetGuard if payment is
-                not received within a reasonable period after the due date.
-              </p>
-            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              FleetGuard operates on a strict multi-tenant architecture with
+              complete data isolation between companies. Your company&apos;s
+              data is never shared with or accessible to other customers.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              You retain full ownership of all data you submit to FleetGuard. By
+              using the platform, you grant FleetGuard a limited, non-exclusive
+              license to store and process your data solely for the purpose of
+              providing the service. We will not sell, share, or use your data
+              for any purpose beyond service delivery.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              Upon termination of your subscription, your data will be retained
+              for 90 days to allow for export, after which it may be permanently
+              deleted. FleetGuard is not liable for any data loss following this
+              retention period.
+            </p>
           </section>
 
+          {/* Section 7 — Intellectual Property */}
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">5. Intellectual Property</h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>
-                FleetGuard and its original content, features, and functionality
-                are and will remain the exclusive property of FleetGuard and its
-                licensors. Our trademarks and trade dress may not be used
-                without our prior written consent.
-              </p>
-              <p>
-                You retain ownership of all data you input into FleetGuard. By
-                using the platform, you grant us a limited license to store and
-                process your data for the purpose of providing the service.
-              </p>
-            </div>
+            <h2 className="text-xl font-semibold">7. Intellectual Property</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              FleetGuard and all its content, features, functionality,
+              trademarks, and software are and remain the exclusive property of
+              FleetGuard and its licensors. Nothing in this Agreement transfers
+              any intellectual property rights to you. You may not use
+              FleetGuard&apos;s name, logos, or branding without prior written
+              consent.
+            </p>
           </section>
 
+          {/* Section 8 — Limitation of Liability */}
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              6. Limitation of Liability
+              8. Limitation of Liability
             </h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>
-                TO THE FULLEST EXTENT PERMITTED BY LAW, FLEETGUARD AND ITS
-                OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE
-                FOR:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>
-                  Indirect, incidental, special, consequential, or punitive
-                  damages
-                </li>
-                <li>
-                  Loss of profits, data, use, goodwill, or other intangible
-                  losses
-                </li>
-                <li>
-                  Damages resulting from unauthorized access to or alteration of
-                  your data
-                </li>
-                <li>Any matter beyond our reasonable control</li>
-              </ul>
-              <p>
-                Our total liability to you for any claims arising out of or
-                relating to these Terms or the service shall not exceed the
-                amount you paid us in the 12 months preceding the claim.
-              </p>
-            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, FLEETGUARD AND
+              ITS OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS SHALL NOT BE LIABLE
+              FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
+              DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA,
+              GOODWILL, OR BUSINESS INTERRUPTION, ARISING FROM YOUR USE OF OR
+              INABILITY TO USE THE PLATFORM.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              IN NO EVENT SHALL FLEETGUARD&apos;S TOTAL LIABILITY TO YOU FOR ANY
+              CLAIMS ARISING OUT OF OR RELATING TO THIS AGREEMENT OR THE SERVICE
+              EXCEED THE TOTAL FEES PAID BY YOU TO FLEETGUARD IN THE 12 MONTHS
+              IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM.
+            </p>
           </section>
 
+          {/* Section 9 — Disclaimer */}
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              7. Disclaimer of Warranties
+              9. Disclaimer of Warranties
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              FleetGuard is provided &quot;as is&quot; and &quot;as
-              available&quot; without warranties of any kind, either express or
-              implied, including but not limited to implied warranties of
-              merchantability, fitness for a particular purpose, and
-              non-infringement. We do not warrant that the service will be
-              uninterrupted, error-free, or completely secure.
+              THE FLEETGUARD PLATFORM IS PROVIDED &quot;AS IS&quot; AND &quot;AS
+              AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+              IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED,
+              ERROR-FREE, OR COMPLETELY SECURE. WE MAKE NO WARRANTIES OF
+              MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR
+              NON-INFRINGEMENT.
             </p>
           </section>
 
+          {/* Section 10 — Governing Law */}
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">8. Termination</h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>Either party may terminate this agreement:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>
-                  <strong className="text-foreground">By you:</strong> Cancel
-                  your subscription at any time. Access continues until the end
-                  of the current billing period.
-                </li>
-                <li>
-                  <strong className="text-foreground">By us:</strong> We may
-                  terminate or suspend your account immediately if you violate
-                  these Terms, fail to pay fees, or for any other reason at our
-                  discretion with reasonable notice.
-                </li>
-              </ul>
+            <h2 className="text-xl font-semibold">
+              10. Governing Law &amp; Dispute Resolution
+            </h2>
+            <p className="text-muted-foreground leading-relaxed">
+              This Agreement shall be governed by and construed in accordance
+              with the laws of the jurisdiction in which FleetGuard is
+              incorporated, without regard to its conflict of law provisions.
+              Any dispute arising from or related to this Agreement shall first
+              be subject to good-faith negotiation for 30 days, after which
+              either party may pursue binding arbitration or litigation in the
+              courts of the applicable jurisdiction.
+            </p>
+          </section>
+
+          {/* Section 11 — Changes */}
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">
+              11. Changes to These Terms
+            </h2>
+            <p className="text-muted-foreground leading-relaxed">
+              FleetGuard reserves the right to amend these Terms at any time.
+              Material changes — including changes to pricing, minimum term, or
+              cancellation policy — will be communicated via email and in-app
+              notification at least 30 days before they take effect. Your
+              continued use of the platform after the effective date of any
+              changes constitutes acceptance of the revised Terms.
+            </p>
+          </section>
+
+          {/* Section 12 — Contact */}
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">12. Contact Information</h2>
+            <div className="space-y-2 text-muted-foreground">
               <p>
-                Upon termination, your right to use FleetGuard ceases
-                immediately. We may retain your data for a period after
-                termination as required by law or our data retention policies.
+                For questions about these Terms, billing inquiries, or
+                cancellation requests:
               </p>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-semibold">9. Governing Law</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              These Terms shall be governed by and construed in accordance with
-              applicable law. Any disputes arising from these Terms or your use
-              of FleetGuard shall be subject to the exclusive jurisdiction of
-              the courts in the applicable jurisdiction.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-semibold">10. Changes to Terms</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              We reserve the right to modify these Terms at any time. We will
-              provide notice of significant changes by updating the "Last
-              updated" date and, where appropriate, notifying you by email. Your
-              continued use of FleetGuard after changes constitutes acceptance
-              of the modified Terms.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-semibold">11. Contact</h2>
-            <div className="space-y-2 text-muted-foreground leading-relaxed">
-              <p>For questions about these Terms, please contact us:</p>
-              <div className="bg-muted/40 rounded-lg p-4 space-y-1">
+              <div className="bg-muted/40 rounded-xl p-5 space-y-1.5">
                 <p className="font-semibold text-foreground">
-                  FleetGuard Support
+                  FleetGuard Legal &amp; Billing
                 </p>
                 <p>
                   Email:{" "}
@@ -282,9 +457,45 @@ export function TermsOfServicePage({ onNavigate }: Props) {
                     fleetguard.app
                   </a>
                 </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Cancellation requests must be submitted in writing (email
+                  accepted) with at least 30 days&apos; notice prior to the next
+                  billing date.
+                </p>
               </div>
             </div>
           </section>
+
+          {/* Summary Box */}
+          <div className="bg-primary/5 border border-primary/20 rounded-xl px-6 py-5 space-y-3">
+            <h3 className="font-bold text-base">Key Terms Summary</h3>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Monthly Fee</p>
+                <p className="font-semibold">$499.00 + applicable taxes</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Free Trial</p>
+                <p className="font-semibold">7 days (payment info required)</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Minimum Contract Term</p>
+                <p className="font-semibold">12 months from trial end</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Cancellation Notice</p>
+                <p className="font-semibold">30 days written notice required</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Early Termination</p>
+                <p className="font-semibold">Remaining term balance due</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">After 12-Month Term</p>
+                <p className="font-semibold">Auto-renews month-to-month</p>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 

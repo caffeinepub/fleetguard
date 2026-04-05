@@ -285,5 +285,10 @@ export interface backendInterface {
     updateVendor(id: bigint, vendor: Vendor): Promise<void>;
     updateWarranty(id: bigint, warranty: Warranty): Promise<void>;
     updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
-    validateDiscountCode(code: string): Promise<DiscountCode | null>;
+    getCompanyUsersWithKey: (devKey: string, companyId: string) => Promise<CompanyUserInfo[]>;
+  removeUserFromCompanyWithKey: (devKey: string, companyId: string, user: Principal) => Promise<void>;
+  setUserFleetRoleWithKey: (devKey: string, companyId: string, user: Principal, role: FleetRole) => Promise<void>;
+  addUserToCompanyWithKey: (devKey: string, companyId: string, user: Principal, role: FleetRole) => Promise<void>;
+  deleteCompanyWithKey: (devKey: string, companyId: string) => Promise<void>;
+  validateDiscountCode(code: string): Promise<DiscountCode | null>;
 }

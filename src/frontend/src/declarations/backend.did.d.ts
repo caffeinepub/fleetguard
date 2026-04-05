@@ -317,6 +317,11 @@ export interface _SERVICE {
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,
   'updateWorkOrder' : ActorMethod<[bigint, WorkOrder], undefined>,
+  'addUserToCompanyWithKey' : ActorMethod<[string, string, Principal, FleetRole], undefined>,
+  'deleteCompanyWithKey' : ActorMethod<[string, string], undefined>,
+  'getCompanyUsersWithKey' : ActorMethod<[string, string], Array<CompanyUserInfo>>,
+  'removeUserFromCompanyWithKey' : ActorMethod<[string, string, Principal], undefined>,
+  'setUserFleetRoleWithKey' : ActorMethod<[string, string, Principal, FleetRole], undefined>,
   'validateDiscountCode' : ActorMethod<[string], [] | [DiscountCode]>,
 }
 export declare const idlService: IDL.ServiceClass;

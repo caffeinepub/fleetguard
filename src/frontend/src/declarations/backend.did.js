@@ -411,6 +411,27 @@ export const idlService = IDL.Service({
   'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
   'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
   'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
+  'addUserToCompanyWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+      [],
+      [],
+    ),
+  'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'getCompanyUsersWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(CompanyUserInfo)],
+      ['query'],
+    ),
+  'removeUserFromCompanyWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal],
+      [],
+      [],
+    ),
+  'setUserFleetRoleWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+      [],
+      [],
+    ),
   'validateDiscountCode' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(DiscountCode)],
@@ -825,6 +846,27 @@ export const idlFactory = ({ IDL }) => {
     'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
     'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
     'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
+    'addUserToCompanyWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+        [],
+        [],
+      ),
+    'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'getCompanyUsersWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(CompanyUserInfo)],
+        ['query'],
+      ),
+    'removeUserFromCompanyWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal],
+        [],
+        [],
+      ),
+    'setUserFleetRoleWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+        [],
+        [],
+      ),
     'validateDiscountCode' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(DiscountCode)],

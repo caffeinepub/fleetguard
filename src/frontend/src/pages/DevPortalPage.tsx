@@ -27,11 +27,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Principal } from "@icp-sdk/core/principal";
 import {
   Activity,
   AlertTriangle,
   Building2,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   CreditCard,
@@ -56,11 +58,12 @@ import {
   Tag,
   Trash2,
   TrendingUp,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -75,7 +78,9 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import type { CompanySettings } from "../backend.d";
+import type { CompanySettings, CompanyUserInfo } from "../backend.d";
+import { FleetRole } from "../backend.d";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   type DiscountCodeRecord,
@@ -163,6 +168,7 @@ export default function DevPortalPage() {
 
   const { identity, login, loginStatus, clear } = useInternetIdentity();
   const isLoggedIn = !!identity;
+  const { actor } = useActor();
   const ALLOWED_PRINCIPAL =
     "l2xzu-ft66n-jzv6h-q472w-d6bfg-jzjjk-pa7eu-hjqs7-3nbyd-he5gs-4qe";
 
@@ -636,6 +642,8 @@ export default function DevPortalPage() {
                     companiesQuery.isLoading || approvalsQuery.isLoading
                   }
                   darkMode={darkMode}
+                  actor={actor}
+                  devKey={devKey}
                   onApprove={(name) =>
                     approveCompany.mutate(
                       { devKey, companyName: name },
@@ -655,6 +663,17 @@ export default function DevPortalPage() {
                       },
                     )
                   }
+                  onDelete={(name) => {
+                    (actor as any)
+                      .deleteCompanyWithKey(devKey, name)
+                      .then(() => {
+                        toast.success(`${name} deleted`);
+                        companiesQuery.refetch();
+                        approvalsQuery.refetch();
+                        subscriptionsQuery.refetch();
+                      })
+                      .catch(() => toast.error("Failed to delete company"));
+                  }}
                   isApproving={approveCompany.isPending}
                   isRejecting={rejectCompany.isPending}
                 />
@@ -1092,8 +1111,11 @@ function CompaniesSection({
   getStatus,
   isLoading,
   darkMode,
+  actor,
+  devKey,
   onApprove,
   onReject,
+  onDelete,
   isApproving,
   isRejecting,
 }: {
@@ -1101,14 +1123,147 @@ function CompaniesSection({
   getStatus: (name: string) => string;
   isLoading: boolean;
   darkMode: boolean;
+  actor: any;
+  devKey: string;
   onApprove: (name: string) => void;
   onReject: (name: string) => void;
+  onDelete: (name: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
+  const [companyUsers, setCompanyUsers] = useState<
+    Record<string, CompanyUserInfo[]>
+  >({});
+  const [usersLoading, setUsersLoading] = useState<Record<string, boolean>>({});
+  const [addUserForm, setAddUserForm] = useState<
+    Record<string, { principalId: string; role: string }>
+  >({});
+
+  const loadCompanyUsers = async (companyName: string) => {
+    if (!actor) return;
+    setUsersLoading((prev) => ({ ...prev, [companyName]: true }));
+    try {
+      const users = await (actor as any).getCompanyUsersWithKey(
+        devKey,
+        companyName,
+      );
+      setCompanyUsers((prev) => ({ ...prev, [companyName]: users }));
+    } catch {
+      toast.error("Failed to load users");
+    } finally {
+      setUsersLoading((prev) => ({ ...prev, [companyName]: false }));
+    }
+  };
+
+  const handleToggleExpand = (companyName: string) => {
+    if (expandedCompany === companyName) {
+      setExpandedCompany(null);
+    } else {
+      setExpandedCompany(companyName);
+      if (!companyUsers[companyName]) {
+        loadCompanyUsers(companyName);
+      }
+    }
+  };
+
+  const handleRoleChange = async (
+    companyName: string,
+    principal: any,
+    newRole: string,
+  ) => {
+    if (!actor) return;
+    const roleObj =
+      newRole === "Admin"
+        ? { Admin: null }
+        : newRole === "FleetManager"
+          ? { FleetManager: null }
+          : { Mechanic: null };
+    try {
+      await (actor as any).setUserFleetRoleWithKey(
+        devKey,
+        companyName,
+        principal,
+        roleObj,
+      );
+      toast.success("Role updated");
+      loadCompanyUsers(companyName);
+    } catch {
+      toast.error("Failed to update role");
+    }
+  };
+
+  const handleRemoveUser = async (companyName: string, principal: any) => {
+    if (!actor) return;
+    try {
+      await (actor as any).removeUserFromCompanyWithKey(
+        devKey,
+        companyName,
+        principal,
+      );
+      toast.success("User removed");
+      loadCompanyUsers(companyName);
+    } catch {
+      toast.error("Failed to remove user");
+    }
+  };
+
+  const handleAddUser = async (companyName: string) => {
+    const form = addUserForm[companyName];
+    if (!form || !form.principalId.trim()) {
+      toast.error("Please enter a principal ID");
+      return;
+    }
+    let parsedPrincipal: any;
+    try {
+      parsedPrincipal = Principal.fromText(form.principalId.trim());
+    } catch {
+      toast.error("Invalid principal ID format");
+      return;
+    }
+    const roleObj =
+      form.role === "Admin"
+        ? { Admin: null }
+        : form.role === "FleetManager"
+          ? { FleetManager: null }
+          : { Mechanic: null };
+    try {
+      await (actor as any).addUserToCompanyWithKey(
+        devKey,
+        companyName,
+        parsedPrincipal,
+        roleObj,
+      );
+      toast.success("User added successfully");
+      setAddUserForm((prev) => ({
+        ...prev,
+        [companyName]: { principalId: "", role: "Mechanic" },
+      }));
+      loadCompanyUsers(companyName);
+    } catch {
+      toast.error("Failed to add user");
+    }
+  };
+
+  const truncatePrincipal = (p: string) => {
+    if (p.length <= 16) return p;
+    return `${p.slice(0, 8)}...${p.slice(-4)}`;
+  };
+
+  const getRoleValue = (role: FleetRole): string => {
+    if (role === FleetRole.Admin || (role as any)?.Admin !== undefined)
+      return "Admin";
+    if (
+      role === FleetRole.FleetManager ||
+      (role as any)?.FleetManager !== undefined
+    )
+      return "FleetManager";
+    return "Mechanic";
+  };
 
   const cardStyle = {
     background: darkMode ? "oklch(0.18 0.05 255)" : "white",
@@ -1161,6 +1316,47 @@ function CompaniesSection({
             >
               {isRejecting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Reject & Block
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Delete Company Dialog */}
+      <Dialog
+        open={!!confirmDelete}
+        onOpenChange={(o) => !o && setConfirmDelete(null)}
+      >
+        <DialogContent data-ocid="companies.delete.dialog">
+          <DialogHeader>
+            <DialogTitle>Delete Company</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to permanently delete{" "}
+            <strong>{confirmDelete}</strong>? This will immediately remove all
+            users' access and cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDelete(null)}
+              data-ocid="companies.delete.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              data-ocid="companies.delete.confirm_button"
+              onClick={() => {
+                if (confirmDelete) {
+                  onDelete(confirmDelete);
+                  setConfirmDelete(null);
+                  if (expandedCompany === confirmDelete) {
+                    setExpandedCompany(null);
+                  }
+                }
+              }}
+            >
+              Delete Permanently
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1230,77 +1426,445 @@ function CompaniesSection({
             <TableBody>
               {filtered.map((c, i) => {
                 const status = getStatus(c.companyName);
+                const isExpanded = expandedCompany === c.companyName;
+                const users = companyUsers[c.companyName] || [];
+                const isLoadingUsers = usersLoading[c.companyName] || false;
+                const userForm = addUserForm[c.companyName] || {
+                  principalId: "",
+                  role: "Mechanic",
+                };
                 return (
-                  <TableRow
-                    key={c.companyName}
-                    style={{
-                      borderColor: darkMode
-                        ? "oklch(0.24 0.06 255)"
-                        : "oklch(0.93 0.01 255)",
-                    }}
-                    data-ocid={`companies.table.row.${i + 1}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0"
-                          style={{
-                            background: "oklch(0.65 0.2 150 / 0.15)",
-                            color: "oklch(0.65 0.2 150)",
-                          }}
-                        >
-                          {c.companyName?.[0]?.toUpperCase()}
-                        </div>
-                        <span className="font-medium text-sm">
-                          {c.companyName}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{c.industry}</TableCell>
-                    <TableCell className="text-sm">{c.fleetSize}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={status} />
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatDate(c.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        {status !== "approved" && status !== "active" && (
-                          <Button
-                            size="sm"
-                            disabled={isApproving}
-                            data-ocid={`companies.approve_button.${i + 1}`}
-                            onClick={() => onApprove(c.companyName)}
-                            className="h-7 px-3 text-xs font-medium"
+                  // biome-ignore lint/suspicious/noArrayIndexKey: table rows
+                  <React.Fragment key={c.companyName}>
+                    <TableRow
+                      style={{
+                        borderColor: darkMode
+                          ? "oklch(0.24 0.06 255)"
+                          : "oklch(0.93 0.01 255)",
+                        background: isExpanded
+                          ? darkMode
+                            ? "oklch(0.20 0.06 255)"
+                            : "oklch(0.96 0.01 255)"
+                          : undefined,
+                      }}
+                      data-ocid={`companies.table.row.${i + 1}`}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleExpand(c.companyName)}
+                            className="p-1 rounded-lg transition-colors hover:opacity-70"
+                            data-ocid={`companies.expand.toggle.${i + 1}`}
+                            title={isExpanded ? "Collapse" : "Expand users"}
+                          >
+                            <ChevronDown
+                              className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                              style={{ color: "oklch(0.65 0.03 255)" }}
+                            />
+                          </button>
+                          <div
+                            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0"
                             style={{
-                              background: "oklch(0.65 0.2 150)",
-                              color: "white",
+                              background: "oklch(0.65 0.2 150 / 0.15)",
+                              color: "oklch(0.65 0.2 150)",
                             }}
                           >
-                            {isApproving ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Check className="w-3 h-3 mr-1" />
-                            )}
-                            Approve
-                          </Button>
-                        )}
-                        {status !== "rejected" && (
+                            {c.companyName?.[0]?.toUpperCase()}
+                          </div>
+                          <span className="font-medium text-sm">
+                            {c.companyName}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{c.industry}</TableCell>
+                      <TableCell className="text-sm">{c.fleetSize}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={status} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(c.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                          {status !== "approved" && status !== "active" && (
+                            <Button
+                              size="sm"
+                              disabled={isApproving}
+                              data-ocid={`companies.approve_button.${i + 1}`}
+                              onClick={() => onApprove(c.companyName)}
+                              className="h-7 px-3 text-xs font-medium"
+                              style={{
+                                background: "oklch(0.65 0.2 150)",
+                                color: "white",
+                              }}
+                            >
+                              {isApproving ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3 mr-1" />
+                              )}
+                              Approve
+                            </Button>
+                          )}
+                          {status !== "rejected" && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              data-ocid={`companies.reject_button.${i + 1}`}
+                              onClick={() => setConfirmReject(c.companyName)}
+                              className="h-7 px-3 text-xs font-medium"
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="destructive"
-                            data-ocid={`companies.reject_button.${i + 1}`}
-                            onClick={() => setConfirmReject(c.companyName)}
-                            className="h-7 px-3 text-xs font-medium"
+                            data-ocid={`companies.delete_button.${i + 1}`}
+                            onClick={() => setConfirmDelete(c.companyName)}
+                            className="h-7 px-3 text-xs font-medium opacity-80 hover:opacity-100"
                           >
-                            <X className="w-3 h-3 mr-1" />
-                            Reject
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Delete
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Expanded Users Panel */}
+                    {isExpanded && (
+                      <TableRow
+                        key={`${c.companyName}-users`}
+                        style={{
+                          borderColor: darkMode
+                            ? "oklch(0.24 0.06 255)"
+                            : "oklch(0.93 0.01 255)",
+                        }}
+                      >
+                        <TableCell colSpan={6} className="p-0">
+                          <div
+                            className="px-5 py-4 space-y-4"
+                            style={{
+                              background: darkMode
+                                ? "oklch(0.15 0.05 255)"
+                                : "oklch(0.97 0.01 255)",
+                              borderTop: `1px solid ${darkMode ? "oklch(0.22 0.06 255)" : "oklch(0.90 0.01 255)"}`,
+                            }}
+                            data-ocid={`companies.users.panel.${i + 1}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Users
+                                  className="w-4 h-4"
+                                  style={{ color: "oklch(0.65 0.2 150)" }}
+                                />
+                                <h4
+                                  className="font-semibold text-sm"
+                                  style={{
+                                    color: darkMode
+                                      ? "white"
+                                      : "oklch(0.18 0.08 255)",
+                                  }}
+                                >
+                                  Users — {c.companyName}
+                                </h4>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 opacity-60 hover:opacity-100"
+                                onClick={() => loadCompanyUsers(c.companyName)}
+                                title="Refresh users"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+
+                            {/* Users Table */}
+                            {isLoadingUsers ? (
+                              <div className="space-y-2">
+                                {[1, 2].map((k) => (
+                                  <Skeleton key={k} className="w-full h-9" />
+                                ))}
+                              </div>
+                            ) : users.length === 0 ? (
+                              <div
+                                className="text-sm py-4 text-center rounded-xl"
+                                style={{
+                                  color: darkMode
+                                    ? "oklch(0.55 0.03 255)"
+                                    : "oklch(0.6 0.03 255)",
+                                  background: darkMode
+                                    ? "oklch(0.18 0.05 255)"
+                                    : "oklch(0.94 0.01 255)",
+                                }}
+                                data-ocid={`companies.users.empty_state.${i + 1}`}
+                              >
+                                No users found for this company
+                              </div>
+                            ) : (
+                              <div
+                                className="rounded-xl overflow-hidden"
+                                style={{
+                                  border: `1px solid ${darkMode ? "oklch(0.24 0.06 255)" : "oklch(0.88 0.01 255)"}`,
+                                }}
+                                data-ocid={`companies.users.table.${i + 1}`}
+                              >
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr
+                                      style={{
+                                        background: darkMode
+                                          ? "oklch(0.20 0.06 255)"
+                                          : "oklch(0.95 0.01 255)",
+                                        borderBottom: `1px solid ${darkMode ? "oklch(0.24 0.06 255)" : "oklch(0.88 0.01 255)"}`,
+                                      }}
+                                    >
+                                      <th
+                                        className="text-left px-3 py-2 font-medium text-xs"
+                                        style={{
+                                          color: darkMode
+                                            ? "oklch(0.65 0.03 255)"
+                                            : "oklch(0.5 0.03 255)",
+                                        }}
+                                      >
+                                        Name
+                                      </th>
+                                      <th
+                                        className="text-left px-3 py-2 font-medium text-xs"
+                                        style={{
+                                          color: darkMode
+                                            ? "oklch(0.65 0.03 255)"
+                                            : "oklch(0.5 0.03 255)",
+                                        }}
+                                      >
+                                        Principal ID
+                                      </th>
+                                      <th
+                                        className="text-left px-3 py-2 font-medium text-xs"
+                                        style={{
+                                          color: darkMode
+                                            ? "oklch(0.65 0.03 255)"
+                                            : "oklch(0.5 0.03 255)",
+                                        }}
+                                      >
+                                        Role
+                                      </th>
+                                      <th
+                                        className="text-right px-3 py-2 font-medium text-xs"
+                                        style={{
+                                          color: darkMode
+                                            ? "oklch(0.65 0.03 255)"
+                                            : "oklch(0.5 0.03 255)",
+                                        }}
+                                      >
+                                        Action
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {users.map((user, ui) => {
+                                      const principalStr =
+                                        user.principal.toString();
+                                      const _profileArr =
+                                        user.profile as unknown as Array<{
+                                          name: string;
+                                        }>;
+                                      const profileName =
+                                        Array.isArray(_profileArr) &&
+                                        _profileArr.length > 0
+                                          ? _profileArr[0]?.name
+                                          : ((user.profile as any)?.name ??
+                                            null);
+                                      return (
+                                        <tr
+                                          key={principalStr}
+                                          data-ocid={`companies.users.item.${ui + 1}`}
+                                          style={{
+                                            borderTop:
+                                              ui > 0
+                                                ? `1px solid ${darkMode ? "oklch(0.22 0.06 255)" : "oklch(0.91 0.01 255)"}`
+                                                : undefined,
+                                          }}
+                                        >
+                                          <td
+                                            className="px-3 py-2.5"
+                                            style={{
+                                              color: darkMode
+                                                ? "oklch(0.85 0.01 255)"
+                                                : "oklch(0.25 0.04 255)",
+                                            }}
+                                          >
+                                            {profileName || (
+                                              <span
+                                                style={{
+                                                  color: darkMode
+                                                    ? "oklch(0.5 0.03 255)"
+                                                    : "oklch(0.65 0.03 255)",
+                                                }}
+                                              >
+                                                No name set
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            <code
+                                              className="text-xs px-1.5 py-0.5 rounded"
+                                              style={{
+                                                background: darkMode
+                                                  ? "oklch(0.22 0.06 255)"
+                                                  : "oklch(0.93 0.01 255)",
+                                                color: darkMode
+                                                  ? "oklch(0.72 0.03 255)"
+                                                  : "oklch(0.4 0.04 255)",
+                                              }}
+                                            >
+                                              {truncatePrincipal(principalStr)}
+                                            </code>
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            <Select
+                                              value={getRoleValue(user.role)}
+                                              onValueChange={(val) =>
+                                                handleRoleChange(
+                                                  c.companyName,
+                                                  user.principal,
+                                                  val,
+                                                )
+                                              }
+                                            >
+                                              <SelectTrigger
+                                                className="h-7 text-xs w-36"
+                                                data-ocid={`companies.users.role.select.${ui + 1}`}
+                                              >
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="Admin">
+                                                  Admin
+                                                </SelectItem>
+                                                <SelectItem value="FleetManager">
+                                                  Fleet Manager
+                                                </SelectItem>
+                                                <SelectItem value="Mechanic">
+                                                  Mechanic
+                                                </SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </td>
+                                          <td className="px-3 py-2.5 text-right">
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                                              data-ocid={`companies.users.delete_button.${ui + 1}`}
+                                              onClick={() =>
+                                                handleRemoveUser(
+                                                  c.companyName,
+                                                  user.principal,
+                                                )
+                                              }
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                              Remove
+                                            </Button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            {/* Add User Form */}
+                            <div
+                              className="rounded-xl p-4 space-y-3"
+                              style={{
+                                background: darkMode
+                                  ? "oklch(0.18 0.05 255)"
+                                  : "white",
+                                border: `1px solid ${darkMode ? "oklch(0.26 0.06 255)" : "oklch(0.88 0.01 255)"}`,
+                              }}
+                              data-ocid={`companies.add_user.panel.${i + 1}`}
+                            >
+                              <h5
+                                className="text-xs font-semibold flex items-center gap-1.5"
+                                style={{
+                                  color: darkMode
+                                    ? "oklch(0.72 0.03 255)"
+                                    : "oklch(0.35 0.04 255)",
+                                }}
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                Add User to {c.companyName}
+                              </h5>
+                              <div className="flex flex-wrap gap-2">
+                                <Input
+                                  placeholder="Enter principal ID (e.g. xxxxx-xxxxx-...)"
+                                  value={userForm.principalId}
+                                  onChange={(e) =>
+                                    setAddUserForm((prev) => ({
+                                      ...prev,
+                                      [c.companyName]: {
+                                        ...userForm,
+                                        principalId: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="h-8 text-xs flex-1 min-w-48"
+                                  data-ocid={`companies.add_user.input.${i + 1}`}
+                                />
+                                <Select
+                                  value={userForm.role}
+                                  onValueChange={(val) =>
+                                    setAddUserForm((prev) => ({
+                                      ...prev,
+                                      [c.companyName]: {
+                                        ...userForm,
+                                        role: val,
+                                      },
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger
+                                    className="h-8 text-xs w-36"
+                                    data-ocid={`companies.add_user.role.select.${i + 1}`}
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Admin">Admin</SelectItem>
+                                    <SelectItem value="FleetManager">
+                                      Fleet Manager
+                                    </SelectItem>
+                                    <SelectItem value="Mechanic">
+                                      Mechanic
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  onClick={() => handleAddUser(c.companyName)}
+                                  data-ocid={`companies.add_user.button.${i + 1}`}
+                                  style={{
+                                    background: "oklch(0.65 0.2 150)",
+                                    color: "white",
+                                  }}
+                                >
+                                  <UserPlus className="w-3.5 h-3.5 mr-1" />
+                                  Add User
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </TableBody>

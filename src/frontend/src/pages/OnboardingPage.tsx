@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
@@ -160,6 +161,9 @@ export function OnboardingPage() {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // T&C checkbox state (step 1)
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
   // CC step
   const [cardHolder, setCardHolder] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -194,6 +198,10 @@ export function OnboardingPage() {
 
   // Step 1 → 2: save company settings and advance
   const handleCompanyNext = async () => {
+    if (!termsAccepted) {
+      toast.error("Please agree to the Terms & Conditions to continue");
+      return;
+    }
     if (!companyName.trim()) {
       toast.error("Please enter your company name");
       return;
@@ -448,13 +456,14 @@ export function OnboardingPage() {
                   <span className="text-muted-foreground">
                     {" "}
                     &mdash; start free for 7 days, then{" "}
-                    <strong>$499/month</strong>. Cancel anytime.
+                    <strong>$499/month + tax</strong>. Minimum 12-month contract
+                    term.
                   </span>
                 </div>
               </div>
 
               {/* Admin info box */}
-              <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-start gap-3 mb-7">
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex items-start gap-3 mb-6">
                 <Shield className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div className="text-xs">
                   <span className="font-semibold text-primary">
@@ -468,11 +477,65 @@ export function OnboardingPage() {
                 </div>
               </div>
 
+              {/* Terms & Conditions Checkbox */}
+              <div
+                className="border border-border/60 rounded-xl px-4 py-4 mb-5 bg-muted/20"
+                data-ocid="onboarding.terms.panel"
+              >
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="terms-accept"
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) =>
+                      setTermsAccepted(checked === true)
+                    }
+                    data-ocid="onboarding.terms.checkbox"
+                    className="mt-0.5 shrink-0"
+                  />
+                  <label
+                    htmlFor="terms-accept"
+                    className="text-sm leading-relaxed cursor-pointer select-none"
+                  >
+                    I agree to the{" "}
+                    <a
+                      href="/terms-of-service"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                      data-ocid="onboarding.terms.link"
+                    >
+                      Terms &amp; Conditions
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                      data-ocid="onboarding.privacy.link"
+                    >
+                      Privacy Policy
+                    </a>
+                    . I understand this is a{" "}
+                    <strong>minimum 1-year contract</strong> at{" "}
+                    <strong>$499 + tax per month</strong>.
+                  </label>
+                </div>
+                {!termsAccepted && (
+                  <p className="text-xs text-muted-foreground mt-2 ml-7">
+                    You must agree to the Terms &amp; Conditions to create an
+                    account.
+                  </p>
+                )}
+              </div>
+
               <Button
                 data-ocid="onboarding.primary_button"
                 className="w-full h-12 text-base font-semibold gap-2"
                 onClick={handleCompanyNext}
-                disabled={saving}
+                disabled={saving || !termsAccepted}
               >
                 {saving ? (
                   <>
@@ -558,8 +621,8 @@ export function OnboardingPage() {
                   </span>
                   <span className="text-muted-foreground">
                     {" "}
-                    &mdash; then $499/month + applicable taxes. Cancel anytime
-                    before trial ends.
+                    &mdash; then $499/month + applicable taxes. Minimum 12-month
+                    contract term applies.
                   </span>
                 </div>
               </div>
