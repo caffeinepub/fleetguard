@@ -1141,6 +1141,9 @@ function CompaniesSection({
     Record<string, CompanyUserInfo[]>
   >({});
   const [usersLoading, setUsersLoading] = useState<Record<string, boolean>>({});
+  const [usersError, setUsersError] = useState<Record<string, string | null>>(
+    {},
+  );
   const [addUserForm, setAddUserForm] = useState<
     Record<string, { principalId: string; role: string }>
   >({});
@@ -1162,9 +1165,9 @@ function CompaniesSection({
       setCompanyUsers((prev) => ({ ...prev, [companyName]: users }));
     } catch (err) {
       console.error("getCompanyUsersWithKey error:", err);
-      toast.error(
-        `Failed to load users: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      setUsersError((prev) => ({ ...prev, [companyName]: msg }));
+      toast.error(`Failed to load users: ${msg}`);
     } finally {
       setUsersLoading((prev) => ({ ...prev, [companyName]: false }));
     }
@@ -1176,7 +1179,7 @@ function CompaniesSection({
     if (
       actor &&
       expandedCompany &&
-      !companyUsers[expandedCompany] &&
+      (!companyUsers[expandedCompany] || usersError[expandedCompany]) &&
       !usersLoading[expandedCompany]
     ) {
       loadCompanyUsers(expandedCompany);
@@ -1200,23 +1203,25 @@ function CompaniesSection({
     newRole: string,
   ) => {
     if (!actor) return;
-    const roleObj =
+    const roleEnum: FleetRole =
       newRole === "Admin"
-        ? { Admin: null }
+        ? FleetRole.Admin
         : newRole === "FleetManager"
-          ? { FleetManager: null }
-          : { Mechanic: null };
+          ? FleetRole.FleetManager
+          : FleetRole.Mechanic;
     try {
       await actor.setUserFleetRoleWithKey(
         devKey,
         companyName,
         principal,
-        roleObj,
+        roleEnum,
       );
       toast.success("Role updated");
       loadCompanyUsers(companyName);
-    } catch {
-      toast.error("Failed to update role");
+    } catch (err) {
+      toast.error(
+        `Failed to update role: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
 
@@ -1226,8 +1231,10 @@ function CompaniesSection({
       await actor.removeUserFromCompanyWithKey(devKey, companyName, principal);
       toast.success("User removed");
       loadCompanyUsers(companyName);
-    } catch {
-      toast.error("Failed to remove user");
+    } catch (err) {
+      toast.error(
+        `Failed to remove user: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
 
@@ -1244,18 +1251,18 @@ function CompaniesSection({
       toast.error("Invalid principal ID format");
       return;
     }
-    const roleObj =
+    const roleEnum: FleetRole =
       form.role === "Admin"
-        ? { Admin: null }
+        ? FleetRole.Admin
         : form.role === "FleetManager"
-          ? { FleetManager: null }
-          : { Mechanic: null };
+          ? FleetRole.FleetManager
+          : FleetRole.Mechanic;
     try {
       await actor.addUserToCompanyWithKey(
         devKey,
         companyName,
         parsedPrincipal,
-        roleObj,
+        roleEnum,
       );
       toast.success("User added successfully");
       setAddUserForm((prev) => ({
@@ -1263,8 +1270,10 @@ function CompaniesSection({
         [companyName]: { principalId: "", role: "Mechanic" },
       }));
       loadCompanyUsers(companyName);
-    } catch {
-      toast.error("Failed to add user");
+    } catch (err) {
+      toast.error(
+        `Failed to add user: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
 
@@ -1606,6 +1615,26 @@ function CompaniesSection({
                                 {[1, 2].map((k) => (
                                   <Skeleton key={k} className="w-full h-9" />
                                 ))}
+                              </div>
+                            ) : usersError[c.companyName] ? (
+                              <div className="py-4 text-center space-y-2">
+                                <p className="text-sm text-red-400">
+                                  {usersError[c.companyName]}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setUsersError((prev) => ({
+                                      ...prev,
+                                      [c.companyName]: null,
+                                    }));
+                                    loadCompanyUsers(c.companyName);
+                                  }}
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 mr-1" />{" "}
+                                  Retry
+                                </Button>
                               </div>
                             ) : users.length === 0 ? (
                               <div
