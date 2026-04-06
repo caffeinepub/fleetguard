@@ -215,6 +215,7 @@ export interface backendInterface {
     createVendor(vendor: Vendor): Promise<bigint>;
     createWarranty(warranty: Warranty): Promise<bigint>;
     createWorkOrder(wo: WorkOrder): Promise<bigint>;
+    deleteCompanyWithKey(devKey: string, companyId: string): Promise<void>;
     deleteDiscountCode(code: string): Promise<void>;
     deleteDiscountCodeWithKey(devKey: string, id: bigint): Promise<void>;
     deletePart(id: bigint): Promise<void>;
@@ -244,6 +245,10 @@ export interface backendInterface {
     getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
     getCompanySettings(): Promise<CompanySettings | null>;
     getCompanyUsers(): Promise<Array<CompanyUserInfo>>;
+    getCompanyUsersWithKey(devKey: string, companyId: string): Promise<Array<CompanyUserInfo>>;
+    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal): Promise<void>;
+    setUserFleetRoleWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal, role: FleetRole): Promise<void>;
+    addUserToCompanyWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal, role: FleetRole): Promise<void>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
     getDiscountCodes(): Promise<Array<DiscountCode>>;

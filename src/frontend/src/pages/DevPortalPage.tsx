@@ -664,7 +664,8 @@ export default function DevPortalPage() {
                     )
                   }
                   onDelete={(name) => {
-                    (actor as any)
+                    if (!actor) return;
+                    actor
                       .deleteCompanyWithKey(devKey, name)
                       .then(() => {
                         toast.success(`${name} deleted`);
@@ -1157,10 +1158,7 @@ function CompaniesSection({
     }
     setUsersLoading((prev) => ({ ...prev, [companyName]: true }));
     try {
-      const users = await (actor as any).getCompanyUsersWithKey(
-        devKey,
-        companyName,
-      );
+      const users = await actor.getCompanyUsersWithKey(devKey, companyName);
       setCompanyUsers((prev) => ({ ...prev, [companyName]: users }));
     } catch (err) {
       console.error("getCompanyUsersWithKey error:", err);
@@ -1209,7 +1207,7 @@ function CompaniesSection({
           ? { FleetManager: null }
           : { Mechanic: null };
     try {
-      await (actor as any).setUserFleetRoleWithKey(
+      await actor.setUserFleetRoleWithKey(
         devKey,
         companyName,
         principal,
@@ -1225,11 +1223,7 @@ function CompaniesSection({
   const handleRemoveUser = async (companyName: string, principal: any) => {
     if (!actor) return;
     try {
-      await (actor as any).removeUserFromCompanyWithKey(
-        devKey,
-        companyName,
-        principal,
-      );
+      await actor.removeUserFromCompanyWithKey(devKey, companyName, principal);
       toast.success("User removed");
       loadCompanyUsers(companyName);
     } catch {
@@ -1257,7 +1251,7 @@ function CompaniesSection({
           ? { FleetManager: null }
           : { Mechanic: null };
     try {
-      await (actor as any).addUserToCompanyWithKey(
+      await actor.addUserToCompanyWithKey(
         devKey,
         companyName,
         parsedPrincipal,

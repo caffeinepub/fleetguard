@@ -315,6 +315,7 @@ export interface backendInterface {
     createVendor(vendor: Vendor): Promise<bigint>;
     createWarranty(warranty: Warranty): Promise<bigint>;
     createWorkOrder(wo: WorkOrder): Promise<bigint>;
+    deleteCompanyWithKey(devKey: string, companyId: string): Promise<void>;
     deleteDiscountCode(code: string): Promise<void>;
     deleteDiscountCodeWithKey(devKey: string, id: bigint): Promise<void>;
     deletePart(id: bigint): Promise<void>;
@@ -344,6 +345,7 @@ export interface backendInterface {
     getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
     getCompanySettings(): Promise<CompanySettings | null>;
     getCompanyUsers(): Promise<Array<CompanyUserInfo>>;
+    getCompanyUsersWithKey(devKey: string, companyId: string): Promise<Array<CompanyUserInfo>>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
     getDiscountCodes(): Promise<Array<DiscountCode>>;
@@ -374,6 +376,9 @@ export interface backendInterface {
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
+    setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
+    addUserToCompanyWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
+    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
@@ -737,6 +742,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteDiscountCode(arg0);
+            return result;
+        }
+    }
+    async deleteCompanyWithKey(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteCompanyWithKey(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteCompanyWithKey(arg0, arg1);
             return result;
         }
     }
@@ -1130,6 +1149,62 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getCompanyUsers();
             return from_candid_vec_n71(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getCompanyUsersWithKey(arg0: string, arg1: string): Promise<Array<CompanyUserInfo>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCompanyUsersWithKey(arg0, arg1);
+                return from_candid_vec_n71(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCompanyUsersWithKey(arg0, arg1);
+            return from_candid_vec_n71(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async removeUserFromCompanyWithKey(arg0: string, arg1: string, arg2: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async setUserFleetRoleWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
+            return result;
+        }
+    }
+    async addUserToCompanyWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
+            return result;
         }
     }
     async getDashboardStats(): Promise<DashboardStats> {
