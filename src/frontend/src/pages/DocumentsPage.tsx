@@ -42,6 +42,7 @@ import { useActor } from "../hooks/useActor";
 export interface LocalDocument {
   id: string;
   fileName: string;
+  displayName?: string;
   fileType: string;
   fileSize: number;
   vehicleId: string | null;
@@ -110,6 +111,15 @@ function getFileBadgeColor(fileName: string): string {
   return "bg-muted text-muted-foreground";
 }
 
+function isImageFile(fileName: string): boolean {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
+}
+
+function isPdfFile(fileName: string): boolean {
+  return fileName.split(".").pop()?.toLowerCase() === "pdf";
+}
+
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
@@ -155,10 +165,15 @@ export function DocumentsPage() {
   // Upload modal
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocName, setUploadDocName] = useState("");
   const [uploadVehicleId, setUploadVehicleId] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview dialog
+  const [previewDoc, setPreviewDoc] = useState<LocalDocument | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Selection for print
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -168,7 +183,8 @@ export function DocumentsPage() {
 
   // Filtered list
   const filtered = documents.filter((doc) => {
-    const matchSearch = doc.fileName
+    const displayName = doc.displayName ?? doc.fileName;
+    const matchSearch = displayName
       .toLowerCase()
       .includes(search.toLowerCase());
     const matchVehicle =
@@ -181,7 +197,7 @@ export function DocumentsPage() {
   const getVehicleName = (vehicleId: string | null): string => {
     if (!vehicleId) return "General";
     const v = (vehicles ?? []).find((v) => v.id.toString() === vehicleId);
-    return v ? `${v.name} \u2014 ${v.licensePlate}` : "Unknown Asset";
+    return v ? `${v.name} (${v.licensePlate})` : "Unknown Asset";
   };
 
   // -------------------------------------------------------------------------
@@ -190,6 +206,14 @@ export function DocumentsPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setUploadFile(file);
+  };
+
+  const resetUploadModal = () => {
+    setUploadFile(null);
+    setUploadDocName("");
+    setUploadVehicleId("");
+    setUploadProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleUpload = async () => {
@@ -230,6 +254,7 @@ export function DocumentsPage() {
       const newDoc: LocalDocument = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         fileName: uploadFile.name,
+        displayName: uploadDocName.trim() || uploadFile.name,
         fileType:
           uploadFile.type || uploadFile.name.split(".").pop() || "unknown",
         fileSize: uploadFile.size,
@@ -247,14 +272,11 @@ export function DocumentsPage() {
       saveDocs(companyId, updated);
 
       setUploadProgress(100);
-      toast.success(`"${uploadFile.name}" uploaded successfully`);
+      toast.success(`"${newDoc.displayName}" uploaded successfully`);
 
       // Reset modal state
       setUploadOpen(false);
-      setUploadFile(null);
-      setUploadVehicleId("");
-      setUploadProgress(0);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      resetUploadModal();
     } catch (err) {
       console.error(err);
       toast.error("Upload failed. Please try again.");
@@ -346,7 +368,7 @@ export function DocumentsPage() {
         (d, i) =>
           `<tr>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${i + 1}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:500">${d.fileName}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:500">${d.displayName ?? d.fileName}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${d.fileType}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${getVehicleName(d.vehicleId)}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${formatDate(d.uploadedAt)}</td>
@@ -376,7 +398,7 @@ export function DocumentsPage() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>File Name</th>
+                <th>Document Name</th>
                 <th>Type</th>
                 <th>Asset / Vehicle</th>
                 <th>Upload Date</th>
@@ -452,7 +474,7 @@ export function DocumentsPage() {
             <SelectItem value="none">General (No Asset)</SelectItem>
             {(vehicles ?? []).map((v) => (
               <SelectItem key={v.id.toString()} value={v.id.toString()}>
-                {v.name} \u2014 {v.licensePlate}
+                {v.name} ({v.licensePlate})
               </SelectItem>
             ))}
           </SelectContent>
@@ -509,7 +531,7 @@ export function DocumentsPage() {
               data-ocid="documents.checkbox"
             />
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex-1">
-              File Name
+              Document Name
             </span>
             <span className="hidden md:block text-xs font-semibold text-muted-foreground uppercase tracking-wide w-40">
               Asset / Vehicle
@@ -542,13 +564,16 @@ export function DocumentsPage() {
                 <button
                   type="button"
                   className="flex items-center gap-3 flex-1 min-w-0 text-left group"
-                  onClick={() => handleView(doc)}
-                  title={`Open ${doc.fileName}`}
+                  onClick={() => {
+                    setPreviewDoc(doc);
+                    setPreviewOpen(true);
+                  }}
+                  title={`Preview ${doc.displayName ?? doc.fileName}`}
                 >
                   {getFileIcon(doc.fileName)}
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                      {doc.fileName}
+                      {doc.displayName ?? doc.fileName}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span
@@ -616,13 +641,37 @@ export function DocumentsPage() {
       {/* Upload Modal */}
       <Dialog
         open={uploadOpen}
-        onOpenChange={(o) => !isUploading && setUploadOpen(o)}
+        onOpenChange={(o) => {
+          if (!isUploading) {
+            setUploadOpen(o);
+            if (!o) resetUploadModal();
+          }
+        }}
       >
         <DialogContent className="max-w-md" data-ocid="documents.dialog">
           <DialogHeader>
             <DialogTitle>Upload Document</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Document name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-name">Document Name</Label>
+              <Input
+                id="doc-name"
+                placeholder={
+                  uploadFile
+                    ? uploadFile.name
+                    : "e.g. Engine Service Manual 2024"
+                }
+                value={uploadDocName}
+                onChange={(e) => setUploadDocName(e.target.value)}
+                data-ocid="documents.input"
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional. If left blank, the file name will be used.
+              </p>
+            </div>
+
             {/* File input */}
             <div className="space-y-1.5">
               <Label htmlFor="doc-file">File *</Label>
@@ -688,7 +737,7 @@ export function DocumentsPage() {
                   </SelectItem>
                   {(vehicles ?? []).map((v) => (
                     <SelectItem key={v.id.toString()} value={v.id.toString()}>
-                      {v.name} \u2014 {v.licensePlate}
+                      {v.name} ({v.licensePlate})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -711,9 +760,7 @@ export function DocumentsPage() {
               variant="outline"
               onClick={() => {
                 setUploadOpen(false);
-                setUploadFile(null);
-                setUploadVehicleId("");
-                if (fileInputRef.current) fileInputRef.current.value = "";
+                resetUploadModal();
               }}
               disabled={isUploading}
               data-ocid="documents.cancel_button"
@@ -736,9 +783,106 @@ export function DocumentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Preview Dialog */}
+      <Dialog
+        open={previewOpen}
+        onOpenChange={(o) => {
+          setPreviewOpen(o);
+          if (!o) setPreviewDoc(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl" data-ocid="documents.modal">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-4">
+              {previewDoc
+                ? (previewDoc.displayName ?? previewDoc.fileName)
+                : ""}
+            </DialogTitle>
+          </DialogHeader>
+
+          {previewDoc && (
+            <div className="py-2">
+              {isImageFile(previewDoc.fileName) ? (
+                <div className="flex items-center justify-center bg-muted/30 rounded-lg p-2">
+                  <img
+                    src={previewDoc.dataUrl}
+                    alt={previewDoc.displayName ?? previewDoc.fileName}
+                    className="max-h-[70vh] w-auto object-contain rounded"
+                  />
+                </div>
+              ) : isPdfFile(previewDoc.fileName) ? (
+                <iframe
+                  src={previewDoc.dataUrl}
+                  title={previewDoc.displayName ?? previewDoc.fileName}
+                  width="100%"
+                  height="500px"
+                  className="rounded border border-border"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    {getFileIcon(previewDoc.fileName)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      Preview not available for this file type
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {previewDoc.fileName.split(".").pop()?.toUpperCase() ??
+                        "FILE"}{" "}
+                      files cannot be previewed in the browser.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => previewDoc && handleDownload(previewDoc)}
+                    data-ocid="documents.secondary_button"
+                  >
+                    <Download size={15} /> Download File
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {previewDoc &&
+              (isImageFile(previewDoc.fileName) ||
+                isPdfFile(previewDoc.fileName)) && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => previewDoc && handleView(previewDoc)}
+                  data-ocid="documents.secondary_button"
+                >
+                  Open in Tab
+                </Button>
+              )}
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => previewDoc && handleDownload(previewDoc)}
+              data-ocid="documents.secondary_button"
+            >
+              <Download size={15} /> Download
+            </Button>
+            <Button
+              onClick={() => {
+                setPreviewOpen(false);
+                setPreviewDoc(null);
+              }}
+              data-ocid="documents.close_button"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirm Dialog */}
       <Dialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <DialogContent className="max-w-sm" data-ocid="documents.modal">
+        <DialogContent className="max-w-sm" data-ocid="documents.dialog">
           <DialogHeader>
             <DialogTitle>Delete Document?</DialogTitle>
           </DialogHeader>
