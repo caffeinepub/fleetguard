@@ -24,13 +24,16 @@ import {
 import {
   Building2,
   Check,
+  ClipboardCheck,
   Copy,
   CreditCard,
   Link,
   Loader2,
+  Plus,
   Settings,
   Shield,
   Tag,
+  Trash2,
   Upload,
   User,
   UserPlus,
@@ -38,17 +41,20 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FleetRole } from "../backend";
-import type { CompanySettings } from "../backend";
+import { ChecklistItemStatus, FleetRole } from "../backend";
+import type { CompanySettings, InspectionChecklist } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
   useCompanyUsers,
+  useCreateInspectionChecklist,
   useCreateInviteToken,
+  useDeleteInspectionChecklist,
   useGetCompanySettings,
   useGetDefaultCurrency,
   useGetSubscriptionStatus,
+  useInspectionChecklists,
   useInviteTokens,
   useIsAdmin,
   useSaveCompanySettings,
@@ -56,6 +62,7 @@ import {
   useSetUserFleetRole,
 } from "../hooks/useQueries";
 import { useTaxSettings } from "../hooks/useTaxSettings";
+import { nowNs } from "../lib/helpers";
 
 const fleetRoleLabel: Record<string, string> = {
   [FleetRole.Admin]: "Administrator",
@@ -104,6 +111,14 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const [taxLabel, setTaxLabel] = useState(taxSettings.taxLabel);
   const [taxRate, setTaxRate] = useState(String(taxSettings.taxRate));
   const [taxEnabled, setTaxEnabled] = useState(taxSettings.enabled);
+
+  // Inspection checklist state
+  const { data: inspectionChecklists, isLoading: checklistsLoading } =
+    useInspectionChecklists();
+  const createChecklist = useCreateInspectionChecklist();
+  const deleteChecklist = useDeleteInspectionChecklist();
+  const [newChecklistItemLabel, setNewChecklistItemLabel] = useState("");
+  const [addingChecklistItem, setAddingChecklistItem] = useState(false);
 
   // Promo code
   const { actor } = useActor();
@@ -357,6 +372,47 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
         onError: () => toast.error("Failed to update role"),
       },
     );
+  };
+
+  const handleAddChecklistItem = async () => {
+    if (!newChecklistItemLabel.trim()) return;
+    setAddingChecklistItem(true);
+    try {
+      const checklist: InspectionChecklist = {
+        id: 0n,
+        vehicleId: 0n,
+        inspectorName: "System",
+        createdAt: nowNs(),
+        notes: newChecklistItemLabel.trim(),
+        overallStatus: "template",
+        mileage: 0n,
+        items: [
+          {
+            id: 0n,
+            itemLabel: newChecklistItemLabel.trim(),
+            category: "Custom",
+            status: ChecklistItemStatus.NA,
+            notes: "",
+          },
+        ],
+      };
+      await createChecklist.mutateAsync(checklist);
+      setNewChecklistItemLabel("");
+      toast.success("Custom item added");
+    } catch {
+      toast.error("Failed to add item");
+    } finally {
+      setAddingChecklistItem(false);
+    }
+  };
+
+  const handleDeleteChecklistItem = async (id: bigint) => {
+    try {
+      await deleteChecklist.mutateAsync(id);
+      toast.success("Item removed");
+    } catch {
+      toast.error("Failed to remove item");
+    }
   };
 
   return (
@@ -1053,6 +1109,100 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
                   </Table>
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Inspection Checklist — admin only */}
+      {isAdmin && (
+        <Card className="shadow-card border-0">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <ClipboardCheck size={16} /> Inspection Checklist
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manage custom inspection items for your company. Default items
+              (Tires, Brakes, etc.) are always included and cannot be removed.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Default items note */}
+            <div className="p-3 rounded-lg bg-muted/30 border border-border text-xs text-muted-foreground">
+              <strong>Default items always included:</strong> Tires &amp;
+              Wheels, Brakes, Headlights &amp; Taillights, Turn Signals,
+              Windshield &amp; Wipers, Engine Oil, Coolant Level, Brake Fluid,
+              Battery, Belts &amp; Hoses, Suspension, Exhaust System, Horn,
+              Mirrors, Seatbelts.
+            </div>
+
+            {/* Custom items list */}
+            {checklistsLoading ? (
+              <div
+                className="space-y-2"
+                data-ocid="settings.checklist.loading_state"
+              >
+                {[1, 2].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : !inspectionChecklists || inspectionChecklists.length === 0 ? (
+              <div
+                className="text-center py-6 text-muted-foreground text-sm"
+                data-ocid="settings.checklist.empty_state"
+              >
+                <ClipboardCheck className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No custom items yet. Add items below.
+              </div>
+            ) : (
+              <div className="space-y-2" data-ocid="settings.checklist.list">
+                {inspectionChecklists.map((item, idx) => (
+                  <div
+                    key={item.id.toString()}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border bg-muted/20"
+                    data-ocid={`settings.checklist.item.${idx + 1}`}
+                  >
+                    <span className="text-sm font-medium">
+                      {item.items[0]?.itemLabel ?? item.notes}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteChecklistItem(item.id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label="Remove item"
+                      data-ocid={`settings.checklist.delete.${idx + 1}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new item */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New checklist item (e.g. Fluid Leaks)"
+                value={newChecklistItemLabel}
+                onChange={(e) => setNewChecklistItemLabel(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddChecklistItem()}
+                className="h-10"
+                data-ocid="settings.checklist.input"
+              />
+              <Button
+                size="sm"
+                onClick={handleAddChecklistItem}
+                disabled={addingChecklistItem || !newChecklistItemLabel.trim()}
+                className="h-10 gap-1.5 shrink-0"
+                data-ocid="settings.checklist.add_button"
+              >
+                {addingChecklistItem ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Plus size={14} />
+                )}
+                Add Item
+              </Button>
             </div>
           </CardContent>
         </Card>

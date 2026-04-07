@@ -13,19 +13,6 @@ export interface CompanyUserInfo {
     profile?: UserProfile;
 }
 export type Time = bigint;
-export interface WorkOrder {
-    id: bigint;
-    completedDate?: Time;
-    status: WorkOrderStatus;
-    title: string;
-    scheduledDate?: Time;
-    createdAt: Time;
-    description: string;
-    notes: string;
-    priority: WorkOrderPriority;
-    assignedMechanic: string;
-    vehicleId: bigint;
-}
 export interface SubscriptionRecord {
     status: string;
     plan: string;
@@ -55,24 +42,6 @@ export interface Vehicle {
     year: bigint;
     notes: string;
 }
-export interface ServiceSchedule {
-    id: bigint;
-    status: string;
-    serviceType: string;
-    lastCompletedDate?: Time;
-    nextDueDate: Time;
-    createdAt: Time;
-    intervalDays: bigint;
-    notes: string;
-    vehicleId: bigint;
-}
-export interface DashboardStats {
-    activeVehicles: bigint;
-    totalVehicles: bigint;
-    upcomingMaintenanceCount: bigint;
-    overdueCount: bigint;
-    lowStockPartsCount: bigint;
-}
 export interface PartFull {
     id: bigint;
     partNumber: string;
@@ -83,18 +52,6 @@ export interface PartFull {
     category?: string;
     price?: number;
     location: string;
-}
-export interface Warranty {
-    id: bigint;
-    provider: string;
-    expiryDate: Time;
-    cost: number;
-    coverageDetails: string;
-    createdAt: Time;
-    description: string;
-    notes: string;
-    vehicleId: bigint;
-    startDate: Time;
 }
 export interface TaxSettings {
     taxEnabled: boolean;
@@ -129,13 +86,6 @@ export interface Vendor {
     category: string;
     phone: string;
 }
-export interface PartQuantity {
-    quantity: bigint;
-    partId: bigint;
-}
-export interface UserProfile {
-    name: string;
-}
 export interface MaintenanceRecordFull {
     id: bigint;
     mileage: bigint;
@@ -153,6 +103,105 @@ export interface MaintenanceRecordFull {
     laborCost?: number;
     vehicleId: bigint;
 }
+export interface WorkOrder {
+    id: bigint;
+    completedDate?: Time;
+    status: WorkOrderStatus;
+    title: string;
+    scheduledDate?: Time;
+    createdAt: Time;
+    description: string;
+    notes: string;
+    priority: WorkOrderPriority;
+    assignedMechanic: string;
+    vehicleId: bigint;
+}
+export interface DashboardStats {
+    activeVehicles: bigint;
+    totalVehicles: bigint;
+    upcomingMaintenanceCount: bigint;
+    overdueCount: bigint;
+    lowStockPartsCount: bigint;
+}
+export interface ServiceSchedule {
+    id: bigint;
+    status: string;
+    serviceType: string;
+    lastCompletedDate?: Time;
+    nextDueDate: Time;
+    createdAt: Time;
+    intervalDays: bigint;
+    notes: string;
+    vehicleId: bigint;
+}
+export interface Warranty {
+    id: bigint;
+    provider: string;
+    expiryDate: Time;
+    cost: number;
+    coverageDetails: string;
+    createdAt: Time;
+    description: string;
+    notes: string;
+    vehicleId: bigint;
+    startDate: Time;
+}
+export interface VehicleImportValidationResult {
+    parsedVehicle?: Vehicle;
+    errors: Array<string>;
+    rowIndex: bigint;
+    warnings: Array<string>;
+    isValid: boolean;
+}
+export interface Notification {
+    id: bigint;
+    title: string;
+    relatedEntityType?: string;
+    createdAt: Time;
+    isRead: boolean;
+    relatedEntityId?: bigint;
+    message: string;
+    severity: NotificationSeverity;
+}
+export interface InspectionChecklist {
+    id: bigint;
+    mileage: bigint;
+    inspectorName: string;
+    createdAt: Time;
+    notes: string;
+    items: Array<ChecklistItem>;
+    overallStatus: string;
+    vehicleId: bigint;
+}
+export interface ChecklistItem {
+    id: bigint;
+    status: ChecklistItemStatus;
+    itemLabel: string;
+    notes: string;
+    category: string;
+}
+export interface VehicleImportRow {
+    model: string;
+    vehicleType: string;
+    licensePlate: string;
+    make: string;
+    name: string;
+    year: bigint;
+    rowIndex: bigint;
+    notes: string;
+}
+export interface UserProfile {
+    name: string;
+}
+export interface PartQuantity {
+    quantity: bigint;
+    partId: bigint;
+}
+export enum ChecklistItemStatus {
+    NA = "NA",
+    Fail = "Fail",
+    Pass = "Pass"
+}
 export enum FleetRole {
     FleetManager = "FleetManager",
     Mechanic = "Mechanic",
@@ -168,6 +217,11 @@ export enum MaintenanceType {
     Electrical = "Electrical",
     Other = "Other",
     EngineCheck = "EngineCheck"
+}
+export enum NotificationSeverity {
+    Info = "Info",
+    Critical = "Critical",
+    Warning = "Warning"
 }
 export enum UserRole {
     admin = "admin",
@@ -208,8 +262,10 @@ export interface backendInterface {
     completeWorkOrder(id: bigint): Promise<bigint>;
     createDiscountCode(discount: DiscountCode): Promise<bigint>;
     createDiscountCodeWithKey(devKey: string, discount: DiscountCode): Promise<bigint>;
+    createInspectionChecklist(checklist: InspectionChecklist): Promise<bigint>;
     createInviteToken(email: string, role: FleetRole): Promise<string>;
     createMaintenanceRecord(record: MaintenanceRecordFull): Promise<bigint>;
+    createNotification(notif: Notification): Promise<bigint>;
     createPart(part: PartFull): Promise<bigint>;
     createServiceSchedule(schedule: ServiceSchedule): Promise<bigint>;
     createVehicle(vehicle: Vehicle): Promise<bigint>;
@@ -219,6 +275,8 @@ export interface backendInterface {
     deleteCompanyWithKey(devKey: string, companyId: string): Promise<void>;
     deleteDiscountCode(code: string): Promise<void>;
     deleteDiscountCodeWithKey(devKey: string, id: bigint): Promise<void>;
+    deleteInspectionChecklist(id: bigint): Promise<void>;
+    deleteNotification(id: bigint): Promise<void>;
     deletePart(id: bigint): Promise<void>;
     deleteServiceSchedule(id: bigint): Promise<void>;
     deleteVehicle(id: bigint): Promise<void>;
@@ -229,7 +287,9 @@ export interface backendInterface {
     getAllCompanyRegistrations(): Promise<Array<CompanySettings>>;
     getAllCompanyRegistrationsWithKey(devKey: string): Promise<Array<CompanySettings>>;
     getAllDiscountCodesWithKey(devKey: string): Promise<Array<DiscountCode>>;
+    getAllInspectionChecklists(): Promise<Array<InspectionChecklist>>;
     getAllMaintenanceRecords(): Promise<Array<MaintenanceRecordFull>>;
+    getAllNotifications(): Promise<Array<Notification>>;
     getAllParts(): Promise<Array<PartFull>>;
     getAllServiceSchedules(): Promise<Array<ServiceSchedule>>;
     getAllSubscriptions(): Promise<Array<SubscriptionRecord>>;
@@ -250,6 +310,8 @@ export interface backendInterface {
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
     getDiscountCodes(): Promise<Array<DiscountCode>>;
+    getInspectionChecklist(id: bigint): Promise<InspectionChecklist>;
+    getInspectionChecklistsByVehicle(vehicleId: bigint): Promise<Array<InspectionChecklist>>;
     getInviteTokens(): Promise<Array<InviteToken>>;
     getLowStockParts(): Promise<Array<PartFull>>;
     getMaintenanceRecord(id: bigint): Promise<MaintenanceRecordFull>;
@@ -258,6 +320,7 @@ export interface backendInterface {
     getPart(id: bigint): Promise<PartFull>;
     getSubscriptionStatus(companyName: string): Promise<SubscriptionRecord | null>;
     getTaxSettings(): Promise<TaxSettings | null>;
+    getUnreadNotificationCount(): Promise<bigint>;
     getUpcomingMaintenance(): Promise<Array<MaintenanceRecordFull>>;
     getUserFleetRole(user: Principal): Promise<FleetRole | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
@@ -268,6 +331,8 @@ export interface backendInterface {
     getWorkOrder(id: bigint): Promise<WorkOrder>;
     getWorkOrdersByVehicle(vehicleId: bigint): Promise<Array<WorkOrder>>;
     isCallerAdmin(): Promise<boolean>;
+    markAllNotificationsRead(): Promise<void>;
+    markNotificationRead(id: bigint): Promise<void>;
     markScheduleComplete(id: bigint): Promise<void>;
     redeemInviteToken(token: string): Promise<FleetRole>;
     rejectCompany(companyName: string): Promise<void>;
@@ -281,6 +346,7 @@ export interface backendInterface {
     setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;
+    updateInspectionChecklist(id: bigint, checklist: InspectionChecklist): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
     updatePart(id: bigint, part: PartFull): Promise<void>;
     updateServiceSchedule(id: bigint, schedule: ServiceSchedule): Promise<void>;
@@ -290,5 +356,6 @@ export interface backendInterface {
     updateVendor(id: bigint, vendor: Vendor): Promise<void>;
     updateWarranty(id: bigint, warranty: Warranty): Promise<void>;
     updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
+    validateBulkVehicleImport(rows: Array<VehicleImportRow>): Promise<Array<VehicleImportValidationResult>>;
     validateDiscountCode(code: string): Promise<DiscountCode | null>;
 }

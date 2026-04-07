@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
   Calendar,
+  ClipboardCheck,
   FilterX,
   Hash,
   Pencil,
@@ -16,6 +17,7 @@ import {
 import { useMemo, useState } from "react";
 import { MaintenanceType, VehicleStatus } from "../backend";
 import type { MaintenanceRecordFull } from "../backend";
+import { InspectionChecklistModal } from "../components/InspectionChecklistModal";
 import { MaintenanceModal } from "../components/MaintenanceModal";
 import { VehicleModal } from "../components/VehicleModal";
 import {
@@ -37,6 +39,8 @@ interface Props {
   onNavigate: (page: Page, params?: Record<string, unknown>) => void;
 }
 
+type TabId = "history" | "inspections";
+
 export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
   const { data: vehicle, isLoading: vLoading } = useVehicle(vehicleId);
   const { data: records, isLoading: rLoading } =
@@ -45,9 +49,11 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
   const { data: companySettings } = useGetCompanySettings();
   const [mModalOpen, setMModalOpen] = useState(false);
   const [vModalOpen, setVModalOpen] = useState(false);
+  const [inspectionOpen, setInspectionOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<MaintenanceRecordFull | null>(
     null,
   );
+  const [activeTab, setActiveTab] = useState<TabId>("history");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -55,8 +61,16 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
   const sortedRecords =
     records?.slice().sort((a, b) => Number(b.date - a.date)) ?? [];
 
+  const maintenanceRecords = sortedRecords.filter(
+    (r) => String(r.maintenanceType) !== String(MaintenanceType.Inspection),
+  );
+
+  const inspectionRecords = sortedRecords.filter(
+    (r) => String(r.maintenanceType) === String(MaintenanceType.Inspection),
+  );
+
   const filteredRecords = useMemo(() => {
-    return sortedRecords.filter((r) => {
+    return maintenanceRecords.filter((r) => {
       const recDate = new Date(Number(r.date) / 1_000_000);
       if (dateFrom) {
         const from = new Date(dateFrom);
@@ -71,7 +85,7 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
       if (typeFilter && String(r.maintenanceType) !== typeFilter) return false;
       return true;
     });
-  }, [sortedRecords, dateFrom, dateTo, typeFilter]);
+  }, [maintenanceRecords, dateFrom, dateTo, typeFilter]);
 
   const hasActiveFilters = dateFrom || dateTo || typeFilter;
 
@@ -81,7 +95,23 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
     setTypeFilter("");
   };
 
-  const maintenanceTypes = Object.values(MaintenanceType) as MaintenanceType[];
+  const maintenanceTypes = Object.values(MaintenanceType).filter(
+    (t) => t !== MaintenanceType.Inspection,
+  ) as MaintenanceType[];
+
+  const parseInspectionSummary = (description: string) => {
+    const lines = description.split("\n");
+    const passCount = lines.filter((l) => l.includes("✓ PASS")).length;
+    const failCount = lines.filter((l) => l.includes("✗ FAIL")).length;
+    return { passCount, failCount };
+  };
+
+  const tabClass = (tab: TabId) =>
+    `px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+      activeTab === tab
+        ? "bg-primary text-primary-foreground shadow-sm"
+        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+    }`;
 
   return (
     <>
@@ -98,7 +128,7 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
         }
       `}</style>
 
-      {/* Print header — hidden on screen, shown in print */}
+      {/* Print header */}
       <div
         className="print-header hidden items-start justify-between mb-6 pb-4 border-b-2 border-gray-300"
         style={{ display: "none" }}
@@ -247,232 +277,387 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
           </Card>
         )}
 
-        {/* Maintenance History */}
-        <div className="flex items-center justify-between no-print">
-          <h2 className="text-lg font-semibold">Maintenance History</h2>
-          <Button
-            className="gap-2"
-            onClick={() => {
-              setEditRecord(null);
-              setMModalOpen(true);
-            }}
-            data-ocid="vehicle_detail.primary_button"
+        {/* Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-xl w-fit no-print">
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            className={tabClass("history")}
           >
-            <Plus size={16} /> Add Record
-          </Button>
+            Maintenance History
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("inspections")}
+            className={tabClass("inspections")}
+          >
+            <span className="flex items-center gap-1.5">
+              <ClipboardCheck size={14} />
+              Inspections
+              {inspectionRecords.length > 0 && (
+                <span className="ml-1 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-semibold">
+                  {inspectionRecords.length}
+                </span>
+              )}
+            </span>
+          </button>
         </div>
 
-        {/* Filter Row */}
-        {sortedRecords.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 no-print p-4 bg-muted/30 rounded-xl border border-border/40">
-            <div className="flex items-center gap-1.5">
-              <Calendar size={14} className="text-muted-foreground" />
-              <label
-                htmlFor="filter-from"
-                className="text-xs text-muted-foreground font-medium"
-              >
-                From
-              </label>
-              <input
-                id="filter-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-ocid="vehicle_detail.input"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <label
-                htmlFor="filter-to"
-                className="text-xs text-muted-foreground font-medium"
-              >
-                To
-              </label>
-              <input
-                id="filter-to"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-ocid="vehicle_detail.input"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <label
-                htmlFor="filter-type"
-                className="text-xs text-muted-foreground font-medium"
-              >
-                Type
-              </label>
-              <select
-                id="filter-type"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-ocid="vehicle_detail.select"
-              >
-                <option value="">All Types</option>
-                {maintenanceTypes.map((t) => (
-                  <option key={t} value={String(t)}>
-                    {maintenanceTypeLabel[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {hasActiveFilters && (
+        {/* Maintenance History Tab */}
+        {activeTab === "history" && (
+          <>
+            <div className="flex items-center justify-between no-print">
+              <h2 className="text-lg font-semibold">Maintenance History</h2>
               <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-muted-foreground h-8"
-                onClick={clearFilters}
-                data-ocid="vehicle_detail.secondary_button"
-              >
-                <FilterX size={14} /> Clear Filters
-              </Button>
-            )}
-            {hasActiveFilters && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                Showing {filteredRecords.length} of {sortedRecords.length}{" "}
-                records
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="bg-card rounded-xl shadow-card border-0 overflow-hidden">
-          {rLoading ? (
-            <div
-              className="p-6 space-y-3"
-              data-ocid="vehicle_detail.loading_state"
-            >
-              {["a", "b", "c"].map((k) => (
-                <Skeleton key={k} className="h-14 w-full" />
-              ))}
-            </div>
-          ) : sortedRecords.length === 0 ? (
-            <div
-              data-ocid="vehicle_detail.empty_state"
-              className="text-center py-16"
-            >
-              <p className="text-muted-foreground font-medium">
-                No maintenance records yet
-              </p>
-              <Button
-                className="mt-4 gap-2"
+                className="gap-2"
                 onClick={() => {
                   setEditRecord(null);
                   setMModalOpen(true);
                 }}
+                data-ocid="vehicle_detail.primary_button"
               >
-                <Plus size={16} /> Add First Record
+                <Plus size={16} /> Add Record
               </Button>
             </div>
-          ) : filteredRecords.length === 0 ? (
-            <div
-              data-ocid="vehicle_detail.empty_state"
-              className="text-center py-12"
-            >
-              <p className="text-muted-foreground font-medium">
-                No records match your filters
-              </p>
-              <Button
-                variant="ghost"
-                className="mt-3 gap-1.5"
-                onClick={clearFilters}
-              >
-                <FilterX size={14} /> Clear Filters
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table
-                className="w-full text-sm"
-                data-ocid="vehicle_detail.table"
-              >
-                <thead className="bg-muted/50">
-                  <tr>
-                    {[
-                      "Type",
-                      "Date",
-                      "Description",
-                      "Mileage",
-                      "Cost",
-                      "Technician",
-                      "Next Service",
-                      isAdmin ? "Actions" : "",
-                    ]
-                      .filter(Boolean)
-                      .map((h) => (
-                        <th
-                          key={h}
-                          className="text-left text-xs font-semibold text-muted-foreground px-5 py-3.5 uppercase tracking-wide"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {filteredRecords.map(
-                    (r: MaintenanceRecordFull, i: number) => (
-                      <tr
-                        key={r.id.toString()}
-                        data-ocid={`vehicle_detail.item.${i + 1}`}
-                        className="hover:bg-muted/20 transition-colors"
-                      >
-                        <td className="px-5 py-4">
-                          <Badge
-                            variant="secondary"
-                            className="text-xs whitespace-nowrap"
-                          >
-                            {maintenanceTypeLabel[r.maintenanceType]}
-                          </Badge>
-                        </td>
-                        <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
-                          {formatDate(r.date)}
-                        </td>
-                        <td className="px-5 py-4 max-w-xs">
-                          <p className="truncate">{r.description}</p>
-                        </td>
-                        <td className="px-5 py-4 text-muted-foreground">
-                          {r.mileage.toLocaleString()} mi
-                        </td>
-                        <td className="px-5 py-4 font-medium">
-                          {formatCurrency(r.cost)}
-                        </td>
-                        <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
-                          {r.technicianName}
-                        </td>
-                        <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
-                          {r.nextServiceDate
-                            ? formatDate(r.nextServiceDate)
-                            : "—"}
-                        </td>
-                        {isAdmin && (
-                          <td className="px-5 py-4 no-print">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              data-ocid={`vehicle_detail.edit_button.${i + 1}`}
-                              onClick={() => {
-                                setEditRecord(r);
-                                setMModalOpen(true);
-                              }}
+
+            {/* Filter Row */}
+            {maintenanceRecords.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 no-print p-4 bg-muted/30 rounded-xl border border-border/40">
+                <div className="flex items-center gap-1.5">
+                  <Calendar size={14} className="text-muted-foreground" />
+                  <label
+                    htmlFor="filter-from"
+                    className="text-xs text-muted-foreground font-medium"
+                  >
+                    From
+                  </label>
+                  <input
+                    id="filter-from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-ocid="vehicle_detail.input"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <label
+                    htmlFor="filter-to"
+                    className="text-xs text-muted-foreground font-medium"
+                  >
+                    To
+                  </label>
+                  <input
+                    id="filter-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-ocid="vehicle_detail.input"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <label
+                    htmlFor="filter-type"
+                    className="text-xs text-muted-foreground font-medium"
+                  >
+                    Type
+                  </label>
+                  <select
+                    id="filter-type"
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="text-sm px-2 py-1.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-ocid="vehicle_detail.select"
+                  >
+                    <option value="">All Types</option>
+                    {maintenanceTypes.map((t) => (
+                      <option key={t} value={String(t)}>
+                        {maintenanceTypeLabel[t]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground h-8"
+                    onClick={clearFilters}
+                    data-ocid="vehicle_detail.secondary_button"
+                  >
+                    <FilterX size={14} /> Clear Filters
+                  </Button>
+                )}
+                {hasActiveFilters && (
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Showing {filteredRecords.length} of{" "}
+                    {maintenanceRecords.length} records
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="bg-card rounded-xl shadow-card border-0 overflow-hidden">
+              {rLoading ? (
+                <div
+                  className="p-6 space-y-3"
+                  data-ocid="vehicle_detail.loading_state"
+                >
+                  {["a", "b", "c"].map((k) => (
+                    <Skeleton key={k} className="h-14 w-full" />
+                  ))}
+                </div>
+              ) : maintenanceRecords.length === 0 ? (
+                <div
+                  data-ocid="vehicle_detail.empty_state"
+                  className="text-center py-16"
+                >
+                  <p className="text-muted-foreground font-medium">
+                    No maintenance records yet
+                  </p>
+                  <Button
+                    className="mt-4 gap-2"
+                    onClick={() => {
+                      setEditRecord(null);
+                      setMModalOpen(true);
+                    }}
+                  >
+                    <Plus size={16} /> Add First Record
+                  </Button>
+                </div>
+              ) : filteredRecords.length === 0 ? (
+                <div
+                  data-ocid="vehicle_detail.empty_state"
+                  className="text-center py-12"
+                >
+                  <p className="text-muted-foreground font-medium">
+                    No records match your filters
+                  </p>
+                  <Button
+                    variant="ghost"
+                    className="mt-3 gap-1.5"
+                    onClick={clearFilters}
+                  >
+                    <FilterX size={14} /> Clear Filters
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full text-sm"
+                    data-ocid="vehicle_detail.table"
+                  >
+                    <thead className="bg-muted/50">
+                      <tr>
+                        {[
+                          "Type",
+                          "Date",
+                          "Description",
+                          "Mileage",
+                          "Cost",
+                          "Technician",
+                          "Next Service",
+                          isAdmin ? "Actions" : "",
+                        ]
+                          .filter(Boolean)
+                          .map((h) => (
+                            <th
+                              key={h}
+                              className="text-left text-xs font-semibold text-muted-foreground px-5 py-3.5 uppercase tracking-wide"
                             >
-                              <Pencil size={14} />
-                            </Button>
-                          </td>
-                        )}
+                              {h}
+                            </th>
+                          ))}
                       </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {filteredRecords.map(
+                        (r: MaintenanceRecordFull, i: number) => (
+                          <tr
+                            key={r.id.toString()}
+                            data-ocid={`vehicle_detail.item.${i + 1}`}
+                            className="hover:bg-muted/20 transition-colors"
+                          >
+                            <td className="px-5 py-4">
+                              <Badge
+                                variant="secondary"
+                                className="text-xs whitespace-nowrap"
+                              >
+                                {maintenanceTypeLabel[r.maintenanceType]}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                              {formatDate(r.date)}
+                            </td>
+                            <td className="px-5 py-4 max-w-xs">
+                              <p className="truncate">{r.description}</p>
+                            </td>
+                            <td className="px-5 py-4 text-muted-foreground">
+                              {r.mileage.toLocaleString()} mi
+                            </td>
+                            <td className="px-5 py-4 font-medium">
+                              {formatCurrency(r.cost)}
+                            </td>
+                            <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                              {r.technicianName}
+                            </td>
+                            <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                              {r.nextServiceDate
+                                ? formatDate(r.nextServiceDate)
+                                : "—"}
+                            </td>
+                            {isAdmin && (
+                              <td className="px-5 py-4 no-print">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  data-ocid={`vehicle_detail.edit_button.${i + 1}`}
+                                  onClick={() => {
+                                    setEditRecord(r);
+                                    setMModalOpen(true);
+                                  }}
+                                >
+                                  <Pencil size={14} />
+                                </Button>
+                              </td>
+                            )}
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {/* Inspections Tab */}
+        {activeTab === "inspections" && (
+          <>
+            <div className="flex items-center justify-between no-print">
+              <h2 className="text-lg font-semibold">Inspection History</h2>
+              {vehicle && (
+                <Button
+                  className="gap-2"
+                  onClick={() => setInspectionOpen(true)}
+                  data-ocid="vehicle_detail.inspection_button"
+                >
+                  <ClipboardCheck size={16} /> Run New Inspection
+                </Button>
+              )}
+            </div>
+
+            <div className="bg-card rounded-xl shadow-card border-0 overflow-hidden">
+              {rLoading ? (
+                <div className="p-6 space-y-3">
+                  {["a", "b", "c"].map((k) => (
+                    <Skeleton key={k} className="h-14 w-full" />
+                  ))}
+                </div>
+              ) : inspectionRecords.length === 0 ? (
+                <div
+                  data-ocid="vehicle_detail.inspections.empty_state"
+                  className="text-center py-16"
+                >
+                  <ClipboardCheck className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium">
+                    No inspections yet
+                  </p>
+                  <p className="text-muted-foreground/60 text-sm mt-1">
+                    Run your first inspection to track vehicle condition
+                  </p>
+                  {vehicle && (
+                    <Button
+                      className="mt-4 gap-2"
+                      onClick={() => setInspectionOpen(true)}
+                    >
+                      <ClipboardCheck size={16} /> Run First Inspection
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table
+                    className="w-full text-sm"
+                    data-ocid="vehicle_detail.inspections.table"
+                  >
+                    <thead className="bg-muted/50">
+                      <tr>
+                        {[
+                          "Date",
+                          "Inspector",
+                          "Result",
+                          "Summary",
+                          "Notes",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="text-left text-xs font-semibold text-muted-foreground px-5 py-3.5 uppercase tracking-wide"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {inspectionRecords.map((r, i) => {
+                        const { passCount, failCount } = parseInspectionSummary(
+                          r.description,
+                        );
+                        const firstLine = r.description.split("\n")[0] ?? "";
+                        return (
+                          <tr
+                            key={r.id.toString()}
+                            data-ocid={`vehicle_detail.inspection.item.${i + 1}`}
+                            className="hover:bg-muted/20 transition-colors"
+                          >
+                            <td className="px-5 py-4 whitespace-nowrap text-muted-foreground">
+                              {formatDate(r.date)}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              {r.technicianName}
+                            </td>
+                            <td className="px-5 py-4">
+                              {failCount > 0 ? (
+                                <Badge className="bg-destructive/10 text-destructive hover:bg-destructive/10 text-xs">
+                                  Issues Found
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-success/10 text-success hover:bg-success/10 text-xs">
+                                  Passed
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-success font-medium">
+                                  {passCount} pass
+                                </span>
+                                {failCount > 0 && (
+                                  <span className="text-destructive font-medium">
+                                    {failCount} fail
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 max-w-xs">
+                              <p className="truncate text-muted-foreground text-xs">
+                                {firstLine}
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {vehicle && (
           <>
@@ -489,6 +674,11 @@ export function VehicleDetailPage({ vehicleId, onNavigate }: Props) {
             <VehicleModal
               open={vModalOpen}
               onClose={() => setVModalOpen(false)}
+              vehicle={vehicle}
+            />
+            <InspectionChecklistModal
+              open={inspectionOpen}
+              onClose={() => setInspectionOpen(false)}
               vehicle={vehicle}
             />
           </>

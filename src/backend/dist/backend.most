@@ -7,6 +7,15 @@ type ChatMessage__1037536196 =
     senderName : Text;
     senderPrincipal : Text
   };
+type ChecklistItemStatus__175025991 = {#Fail; #NA; #Pass};
+type ChecklistItem__867883729 =
+  {
+    category : Text;
+    id : Nat;
+    itemLabel : Text;
+    notes : Text;
+    status : ChecklistItemStatus__175025991
+  };
 type CompanySettings__115513322 =
   {
     adminPrincipal : Text;
@@ -30,6 +39,17 @@ type DiscountCode__276877349 =
     value : Nat
   };
 type FleetRole__999979268 = {#Admin; #FleetManager; #Mechanic};
+type InspectionChecklist__942331920 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    inspectorName : Text;
+    items : [ChecklistItem__867883729];
+    mileage : Nat;
+    notes : Text;
+    overallStatus : Text;
+    vehicleId : Nat
+  };
 type Int__270357528 = Int__616954475;
 type Int__616954475 = Int;
 type Internal__8484328<K, V> =
@@ -77,6 +97,18 @@ type Nat__490723111 = Nat__920180692;
 type Nat__920180692 = Nat;
 type Node__46230540<K, V> =
   {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type NotificationSeverity__127052655 = {#Critical; #Info; #Warning};
+type Notification__879889657 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    isRead : Bool;
+    message : Text;
+    relatedEntityId : ?Nat;
+    relatedEntityType : ?Text;
+    severity : NotificationSeverity__127052655;
+    title : Text
+  };
 type PartCore__620802191 =
   {
     createdAt : Time__900049286;
@@ -191,6 +223,15 @@ actor {
       var root : Node__46230540<Text, Map__605269027<Nat, Text>>;
       var size : Nat__490723111
     };
+  stable var cChecklistCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cChecklists :
+    {
+      var root :
+        Node__46230540<Text,
+                        Map__605269027<Nat, InspectionChecklist__942331920>>;
+      var size : Nat__490723111
+    };
   stable var cCurrency :
     {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
   stable var cFleetRoles :
@@ -228,6 +269,14 @@ actor {
     };
   stable var cMaintCounters :
     {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cNotifCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cNotifications :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, Notification__879889657>>;
+      var size : Nat__490723111
+    };
   stable var cPartCounters :
     {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
   stable var cParts :

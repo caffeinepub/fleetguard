@@ -10,6 +10,16 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface ChecklistItem {
+  'id' : bigint,
+  'status' : ChecklistItemStatus,
+  'itemLabel' : string,
+  'notes' : string,
+  'category' : string,
+}
+export type ChecklistItemStatus = { 'NA' : null } |
+  { 'Fail' : null } |
+  { 'Pass' : null };
 export interface CompanySettings {
   'adminPrincipal' : string,
   'createdAt' : Time,
@@ -43,6 +53,16 @@ export interface DiscountCode {
 export type FleetRole = { 'FleetManager' : null } |
   { 'Mechanic' : null } |
   { 'Admin' : null };
+export interface InspectionChecklist {
+  'id' : bigint,
+  'mileage' : bigint,
+  'inspectorName' : string,
+  'createdAt' : Time,
+  'notes' : string,
+  'items' : Array<ChecklistItem>,
+  'overallStatus' : string,
+  'vehicleId' : bigint,
+}
 export interface InviteToken {
   'token' : string,
   'usedBy' : [] | [Principal],
@@ -77,6 +97,19 @@ export type MaintenanceType = { 'OilChange' : null } |
   { 'Electrical' : null } |
   { 'Other' : null } |
   { 'EngineCheck' : null };
+export interface Notification {
+  'id' : bigint,
+  'title' : string,
+  'relatedEntityType' : [] | [string],
+  'createdAt' : Time,
+  'isRead' : boolean,
+  'relatedEntityId' : [] | [bigint],
+  'message' : string,
+  'severity' : NotificationSeverity,
+}
+export type NotificationSeverity = { 'Info' : null } |
+  { 'Critical' : null } |
+  { 'Warning' : null };
 export interface PartFull {
   'id' : bigint,
   'partNumber' : string,
@@ -129,6 +162,23 @@ export interface Vehicle {
   'createdAt' : Time,
   'year' : bigint,
   'notes' : string,
+}
+export interface VehicleImportRow {
+  'model' : string,
+  'vehicleType' : string,
+  'licensePlate' : string,
+  'make' : string,
+  'name' : string,
+  'year' : bigint,
+  'rowIndex' : bigint,
+  'notes' : string,
+}
+export interface VehicleImportValidationResult {
+  'parsedVehicle' : [] | [Vehicle],
+  'errors' : Array<string>,
+  'rowIndex' : bigint,
+  'warnings' : Array<string>,
+  'isValid' : boolean,
 }
 export type VehicleStatus = { 'Inactive' : null } |
   { 'Active' : null };
@@ -225,8 +275,10 @@ export interface _SERVICE {
   'completeWorkOrder' : ActorMethod<[bigint], bigint>,
   'createDiscountCode' : ActorMethod<[DiscountCode], bigint>,
   'createDiscountCodeWithKey' : ActorMethod<[string, DiscountCode], bigint>,
+  'createInspectionChecklist' : ActorMethod<[InspectionChecklist], bigint>,
   'createInviteToken' : ActorMethod<[string, FleetRole], string>,
   'createMaintenanceRecord' : ActorMethod<[MaintenanceRecordFull], bigint>,
+  'createNotification' : ActorMethod<[Notification], bigint>,
   'createPart' : ActorMethod<[PartFull], bigint>,
   'createServiceSchedule' : ActorMethod<[ServiceSchedule], bigint>,
   'createVehicle' : ActorMethod<[Vehicle], bigint>,
@@ -236,6 +288,8 @@ export interface _SERVICE {
   'deleteCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'deleteDiscountCode' : ActorMethod<[string], undefined>,
   'deleteDiscountCodeWithKey' : ActorMethod<[string, bigint], undefined>,
+  'deleteInspectionChecklist' : ActorMethod<[bigint], undefined>,
+  'deleteNotification' : ActorMethod<[bigint], undefined>,
   'deletePart' : ActorMethod<[bigint], undefined>,
   'deleteServiceSchedule' : ActorMethod<[bigint], undefined>,
   'deleteVehicle' : ActorMethod<[bigint], undefined>,
@@ -252,7 +306,9 @@ export interface _SERVICE {
     Array<CompanySettings>
   >,
   'getAllDiscountCodesWithKey' : ActorMethod<[string], Array<DiscountCode>>,
+  'getAllInspectionChecklists' : ActorMethod<[], Array<InspectionChecklist>>,
   'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
+  'getAllNotifications' : ActorMethod<[], Array<Notification>>,
   'getAllParts' : ActorMethod<[], Array<PartFull>>,
   'getAllServiceSchedules' : ActorMethod<[], Array<ServiceSchedule>>,
   'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
@@ -279,6 +335,11 @@ export interface _SERVICE {
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
   'getDiscountCodes' : ActorMethod<[], Array<DiscountCode>>,
+  'getInspectionChecklist' : ActorMethod<[bigint], InspectionChecklist>,
+  'getInspectionChecklistsByVehicle' : ActorMethod<
+    [bigint],
+    Array<InspectionChecklist>
+  >,
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
   'getLowStockParts' : ActorMethod<[], Array<PartFull>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
@@ -290,6 +351,7 @@ export interface _SERVICE {
   'getPart' : ActorMethod<[bigint], PartFull>,
   'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
   'getTaxSettings' : ActorMethod<[], [] | [TaxSettings]>,
+  'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getUserFleetRole' : ActorMethod<[Principal], [] | [FleetRole]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -300,6 +362,8 @@ export interface _SERVICE {
   'getWorkOrder' : ActorMethod<[bigint], WorkOrder>,
   'getWorkOrdersByVehicle' : ActorMethod<[bigint], Array<WorkOrder>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'markAllNotificationsRead' : ActorMethod<[], undefined>,
+  'markNotificationRead' : ActorMethod<[bigint], undefined>,
   'markScheduleComplete' : ActorMethod<[bigint], undefined>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'rejectCompany' : ActorMethod<[string], undefined>,
@@ -319,6 +383,10 @@ export interface _SERVICE {
   >,
   'startTrial' : ActorMethod<[string], undefined>,
   'startTrialWithKey' : ActorMethod<[string, string, bigint], undefined>,
+  'updateInspectionChecklist' : ActorMethod<
+    [bigint, InspectionChecklist],
+    undefined
+  >,
   'updateMaintenanceRecord' : ActorMethod<
     [bigint, MaintenanceRecordFull],
     undefined
@@ -337,6 +405,10 @@ export interface _SERVICE {
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,
   'updateWorkOrder' : ActorMethod<[bigint, WorkOrder], undefined>,
+  'validateBulkVehicleImport' : ActorMethod<
+    [Array<VehicleImportRow>],
+    Array<VehicleImportValidationResult>
+  >,
   'validateDiscountCode' : ActorMethod<[string], [] | [DiscountCode]>,
 }
 export declare const idlService: IDL.ServiceClass;

@@ -1,11 +1,17 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Bell,
   CalendarClock,
   ChevronDown,
   ChevronLeft,
@@ -31,14 +37,20 @@ import {
 import type { ElementType, ReactNode } from "react";
 import { useState } from "react";
 import type { Page } from "../App";
-import { FleetRole } from "../backend";
+import { FleetRole, NotificationSeverity } from "../backend";
+import type { Notification } from "../backend";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCallerFleetRole,
   useCallerProfile,
+  useDeleteNotification,
   useGetCompanySettings,
   useIsAdmin,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+  useUnreadNotificationCount,
 } from "../hooks/useQueries";
 
 interface LayoutProps {
@@ -88,10 +100,51 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { data: fleetRole } = useCallerFleetRole();
   const { data: isAdmin } = useIsAdmin();
   const { isDark, toggle: toggleDark } = useDarkMode();
+  const { data: notifications } = useNotifications();
+  const { data: unreadCount } = useUnreadNotificationCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const deleteNotif = useDeleteNotification();
+  const [notifOpen, setNotifOpen] = useState(false);
+
   const principal = identity?.getPrincipal().toString();
   const shortPrincipal = principal ? `${principal.slice(0, 8)}...` : "";
   const displayName = profile?.name || shortPrincipal;
   const initials = profile?.name ? profile.name.slice(0, 2).toUpperCase() : "U";
+
+  const unread = Number(unreadCount ?? 0n);
+
+  const handleNotifClick = (n: Notification) => {
+    if (!n.isRead) markRead.mutate(n.id);
+  };
+
+  const handleClearAll = () => {
+    for (const n of notifications ?? []) {
+      deleteNotif.mutate(n.id);
+    }
+    setNotifOpen(false);
+  };
+
+  const notifIcon = (severity: NotificationSeverity) => {
+    if (
+      severity === NotificationSeverity.Critical ||
+      severity === NotificationSeverity.Warning
+    ) {
+      return <Wrench size={14} className="text-orange-500 shrink-0" />;
+    }
+    return <Bell size={14} className="text-primary shrink-0" />;
+  };
+
+  const relativeTime = (ns: bigint) => {
+    const ms = Number(ns / 1_000_000n);
+    const diff = Date.now() - ms;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
 
   const isMaintenanceActive = MAINTENANCE_PAGES.includes(currentPage);
   const [maintenanceOpen, setMaintenanceOpen] = useState(isMaintenanceActive);
@@ -561,7 +614,107 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             </div>
 
             {/* Right side */}
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1 ml-auto">
+              {/* Notification Bell */}
+              <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    data-ocid="header.notifications.button"
+                    className="relative flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+                    aria-label="Notifications"
+                  >
+                    <Bell size={18} />
+                    {unread > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-80 p-0 shadow-lg"
+                  data-ocid="header.notifications.panel"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                    <h3 className="text-sm font-semibold">Notifications</h3>
+                    {unread > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => markAllRead.mutate()}
+                        className="text-xs text-primary hover:underline"
+                        data-ocid="header.notifications.mark_all_read"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List */}
+                  <div className="max-h-[380px] overflow-y-auto">
+                    {!notifications || notifications.length === 0 ? (
+                      <div
+                        className="flex flex-col items-center justify-center py-10 text-muted-foreground"
+                        data-ocid="header.notifications.empty_state"
+                      >
+                        <Bell size={28} className="mb-2 opacity-30" />
+                        <p className="text-sm font-medium">No notifications</p>
+                        <p className="text-xs mt-0.5 opacity-60">
+                          You're all caught up!
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border/50">
+                        {notifications.map((n) => (
+                          <button
+                            key={n.id.toString()}
+                            type="button"
+                            data-ocid={`header.notifications.item.${n.id}`}
+                            onClick={() => handleNotifClick(n)}
+                            className={`w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors ${!n.isRead ? "bg-primary/3" : ""}`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className="mt-0.5">
+                                {notifIcon(n.severity)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className={`text-sm leading-snug truncate ${!n.isRead ? "font-medium" : "text-muted-foreground"}`}
+                                >
+                                  {n.message}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {relativeTime(n.createdAt)}
+                                </p>
+                              </div>
+                              {!n.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  {notifications && notifications.length > 0 && (
+                    <div className="border-t border-border px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={handleClearAll}
+                        className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        data-ocid="header.notifications.clear_all"
+                      >
+                        Clear all notifications
+                      </button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+
               <button
                 type="button"
                 data-ocid="header.darkmode.toggle"

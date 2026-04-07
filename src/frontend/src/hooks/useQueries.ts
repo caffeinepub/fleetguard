@@ -807,3 +807,170 @@ export function useSetUserFleetRole() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["companyUsers"] }),
   });
 }
+
+// ─── Notifications ─────────────────────────────────────────────────────────
+
+import type { Notification } from "../backend";
+
+export function useNotifications() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Notification[]>({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllNotifications();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useUnreadNotificationCount() {
+  const { actor, isFetching } = useActor();
+  return useQuery<bigint>({
+    queryKey: ["notifications-count"],
+    queryFn: async () => {
+      if (!actor) return 0n;
+      return actor.getUnreadNotificationCount();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.markNotificationRead(id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-count"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      if (!actor) throw new Error("Not connected");
+      return actor.markAllNotificationsRead();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-count"] });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteNotification(id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-count"] });
+    },
+  });
+}
+
+export function useCreateNotification() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (notif: Notification) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createNotification(notif);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-count"] });
+    },
+  });
+}
+
+// ─── Inspection Checklists ─────────────────────────────────────────────────
+
+import type { InspectionChecklist } from "../backend";
+
+export function useInspectionChecklists() {
+  const { actor, isFetching } = useActor();
+  return useQuery<InspectionChecklist[]>({
+    queryKey: ["inspectionChecklists"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllInspectionChecklists();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useInspectionChecklistsByVehicle(vehicleId: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<InspectionChecklist[]>({
+    queryKey: ["inspectionChecklists", vehicleId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getInspectionChecklistsByVehicle(vehicleId);
+    },
+    enabled: !!actor && !isFetching && vehicleId >= 0n,
+  });
+}
+
+export function useCreateInspectionChecklist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (checklist: InspectionChecklist) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.createInspectionChecklist(checklist);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inspectionChecklists"] });
+    },
+  });
+}
+
+export function useDeleteInspectionChecklist() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteInspectionChecklist(id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inspectionChecklists"] });
+    },
+  });
+}
+
+// ─── Bulk Vehicle Import Validation ───────────────────────────────────────
+
+import type {
+  VehicleImportRow,
+  VehicleImportValidationResult,
+} from "../backend";
+
+export function useValidateBulkVehicleImport() {
+  const { actor } = useActor();
+  return useMutation<
+    VehicleImportValidationResult[],
+    Error,
+    VehicleImportRow[]
+  >({
+    mutationFn: (rows: VehicleImportRow[]) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.validateBulkVehicleImport(rows);
+    },
+  });
+}

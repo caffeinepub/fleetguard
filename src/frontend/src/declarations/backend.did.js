@@ -62,6 +62,28 @@ export const DiscountCode = IDL.Record({
   'usedCount' : IDL.Nat,
   'description' : IDL.Text,
 });
+export const ChecklistItemStatus = IDL.Variant({
+  'NA' : IDL.Null,
+  'Fail' : IDL.Null,
+  'Pass' : IDL.Null,
+});
+export const ChecklistItem = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : ChecklistItemStatus,
+  'itemLabel' : IDL.Text,
+  'notes' : IDL.Text,
+  'category' : IDL.Text,
+});
+export const InspectionChecklist = IDL.Record({
+  'id' : IDL.Nat,
+  'mileage' : IDL.Nat,
+  'inspectorName' : IDL.Text,
+  'createdAt' : Time,
+  'notes' : IDL.Text,
+  'items' : IDL.Vec(ChecklistItem),
+  'overallStatus' : IDL.Text,
+  'vehicleId' : IDL.Nat,
+});
 export const PartQuantity = IDL.Record({
   'quantity' : IDL.Nat,
   'partId' : IDL.Nat,
@@ -93,6 +115,21 @@ export const MaintenanceRecordFull = IDL.Record({
   'maintenanceType' : MaintenanceType,
   'laborCost' : IDL.Opt(IDL.Float64),
   'vehicleId' : IDL.Nat,
+});
+export const NotificationSeverity = IDL.Variant({
+  'Info' : IDL.Null,
+  'Critical' : IDL.Null,
+  'Warning' : IDL.Null,
+});
+export const Notification = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'relatedEntityType' : IDL.Opt(IDL.Text),
+  'createdAt' : Time,
+  'isRead' : IDL.Bool,
+  'relatedEntityId' : IDL.Opt(IDL.Nat),
+  'message' : IDL.Text,
+  'severity' : NotificationSeverity,
 });
 export const PartFull = IDL.Record({
   'id' : IDL.Nat,
@@ -207,6 +244,23 @@ export const TaxSettings = IDL.Record({
   'taxLabel' : IDL.Text,
   'taxRate' : IDL.Float64,
 });
+export const VehicleImportRow = IDL.Record({
+  'model' : IDL.Text,
+  'vehicleType' : IDL.Text,
+  'licensePlate' : IDL.Text,
+  'make' : IDL.Text,
+  'name' : IDL.Text,
+  'year' : IDL.Nat,
+  'rowIndex' : IDL.Nat,
+  'notes' : IDL.Text,
+});
+export const VehicleImportValidationResult = IDL.Record({
+  'parsedVehicle' : IDL.Opt(Vehicle),
+  'errors' : IDL.Vec(IDL.Text),
+  'rowIndex' : IDL.Nat,
+  'warnings' : IDL.Vec(IDL.Text),
+  'isValid' : IDL.Bool,
+});
 
 export const idlService = IDL.Service({
   '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -254,8 +308,10 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
+  'createInspectionChecklist' : IDL.Func([InspectionChecklist], [IDL.Nat], []),
   'createInviteToken' : IDL.Func([IDL.Text, FleetRole], [IDL.Text], []),
   'createMaintenanceRecord' : IDL.Func([MaintenanceRecordFull], [IDL.Nat], []),
+  'createNotification' : IDL.Func([Notification], [IDL.Nat], []),
   'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
   'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
   'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
@@ -265,6 +321,8 @@ export const idlService = IDL.Service({
   'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'deleteDiscountCode' : IDL.Func([IDL.Text], [], []),
   'deleteDiscountCodeWithKey' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+  'deleteInspectionChecklist' : IDL.Func([IDL.Nat], [], []),
+  'deleteNotification' : IDL.Func([IDL.Nat], [], []),
   'deletePart' : IDL.Func([IDL.Nat], [], []),
   'deleteServiceSchedule' : IDL.Func([IDL.Nat], [], []),
   'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
@@ -291,11 +349,17 @@ export const idlService = IDL.Service({
       [IDL.Vec(DiscountCode)],
       ['query'],
     ),
+  'getAllInspectionChecklists' : IDL.Func(
+      [],
+      [IDL.Vec(InspectionChecklist)],
+      ['query'],
+    ),
   'getAllMaintenanceRecords' : IDL.Func(
       [],
       [IDL.Vec(MaintenanceRecordFull)],
       ['query'],
     ),
+  'getAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
   'getAllParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
   'getAllServiceSchedules' : IDL.Func(
       [],
@@ -336,6 +400,16 @@ export const idlService = IDL.Service({
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
   'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
   'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
+  'getInspectionChecklist' : IDL.Func(
+      [IDL.Nat],
+      [InspectionChecklist],
+      ['query'],
+    ),
+  'getInspectionChecklistsByVehicle' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(InspectionChecklist)],
+      ['query'],
+    ),
   'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
   'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
   'getMaintenanceRecord' : IDL.Func(
@@ -360,6 +434,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getTaxSettings' : IDL.Func([], [IDL.Opt(TaxSettings)], ['query']),
+  'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getUpcomingMaintenance' : IDL.Func(
       [],
       [IDL.Vec(MaintenanceRecordFull)],
@@ -390,6 +465,8 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'markAllNotificationsRead' : IDL.Func([], [], []),
+  'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
   'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'rejectCompany' : IDL.Func([IDL.Text], [], []),
@@ -411,6 +488,11 @@ export const idlService = IDL.Service({
     ),
   'startTrial' : IDL.Func([IDL.Text], [], []),
   'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+  'updateInspectionChecklist' : IDL.Func(
+      [IDL.Nat, InspectionChecklist],
+      [],
+      [],
+    ),
   'updateMaintenanceRecord' : IDL.Func(
       [IDL.Nat, MaintenanceRecordFull],
       [],
@@ -432,6 +514,11 @@ export const idlService = IDL.Service({
   'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
   'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
   'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
+  'validateBulkVehicleImport' : IDL.Func(
+      [IDL.Vec(VehicleImportRow)],
+      [IDL.Vec(VehicleImportValidationResult)],
+      ['query'],
+    ),
   'validateDiscountCode' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(DiscountCode)],
@@ -496,6 +583,28 @@ export const idlFactory = ({ IDL }) => {
     'usedCount' : IDL.Nat,
     'description' : IDL.Text,
   });
+  const ChecklistItemStatus = IDL.Variant({
+    'NA' : IDL.Null,
+    'Fail' : IDL.Null,
+    'Pass' : IDL.Null,
+  });
+  const ChecklistItem = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : ChecklistItemStatus,
+    'itemLabel' : IDL.Text,
+    'notes' : IDL.Text,
+    'category' : IDL.Text,
+  });
+  const InspectionChecklist = IDL.Record({
+    'id' : IDL.Nat,
+    'mileage' : IDL.Nat,
+    'inspectorName' : IDL.Text,
+    'createdAt' : Time,
+    'notes' : IDL.Text,
+    'items' : IDL.Vec(ChecklistItem),
+    'overallStatus' : IDL.Text,
+    'vehicleId' : IDL.Nat,
+  });
   const PartQuantity = IDL.Record({ 'quantity' : IDL.Nat, 'partId' : IDL.Nat });
   const MaintenanceType = IDL.Variant({
     'OilChange' : IDL.Null,
@@ -524,6 +633,21 @@ export const idlFactory = ({ IDL }) => {
     'maintenanceType' : MaintenanceType,
     'laborCost' : IDL.Opt(IDL.Float64),
     'vehicleId' : IDL.Nat,
+  });
+  const NotificationSeverity = IDL.Variant({
+    'Info' : IDL.Null,
+    'Critical' : IDL.Null,
+    'Warning' : IDL.Null,
+  });
+  const Notification = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'relatedEntityType' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'isRead' : IDL.Bool,
+    'relatedEntityId' : IDL.Opt(IDL.Nat),
+    'message' : IDL.Text,
+    'severity' : NotificationSeverity,
   });
   const PartFull = IDL.Record({
     'id' : IDL.Nat,
@@ -638,6 +762,23 @@ export const idlFactory = ({ IDL }) => {
     'taxLabel' : IDL.Text,
     'taxRate' : IDL.Float64,
   });
+  const VehicleImportRow = IDL.Record({
+    'model' : IDL.Text,
+    'vehicleType' : IDL.Text,
+    'licensePlate' : IDL.Text,
+    'make' : IDL.Text,
+    'name' : IDL.Text,
+    'year' : IDL.Nat,
+    'rowIndex' : IDL.Nat,
+    'notes' : IDL.Text,
+  });
+  const VehicleImportValidationResult = IDL.Record({
+    'parsedVehicle' : IDL.Opt(Vehicle),
+    'errors' : IDL.Vec(IDL.Text),
+    'rowIndex' : IDL.Nat,
+    'warnings' : IDL.Vec(IDL.Text),
+    'isValid' : IDL.Bool,
+  });
   
   return IDL.Service({
     '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -685,12 +826,18 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
+    'createInspectionChecklist' : IDL.Func(
+        [InspectionChecklist],
+        [IDL.Nat],
+        [],
+      ),
     'createInviteToken' : IDL.Func([IDL.Text, FleetRole], [IDL.Text], []),
     'createMaintenanceRecord' : IDL.Func(
         [MaintenanceRecordFull],
         [IDL.Nat],
         [],
       ),
+    'createNotification' : IDL.Func([Notification], [IDL.Nat], []),
     'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
     'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
     'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
@@ -700,6 +847,8 @@ export const idlFactory = ({ IDL }) => {
     'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'deleteDiscountCode' : IDL.Func([IDL.Text], [], []),
     'deleteDiscountCodeWithKey' : IDL.Func([IDL.Text, IDL.Nat], [], []),
+    'deleteInspectionChecklist' : IDL.Func([IDL.Nat], [], []),
+    'deleteNotification' : IDL.Func([IDL.Nat], [], []),
     'deletePart' : IDL.Func([IDL.Nat], [], []),
     'deleteServiceSchedule' : IDL.Func([IDL.Nat], [], []),
     'deleteVehicle' : IDL.Func([IDL.Nat], [], []),
@@ -726,11 +875,17 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(DiscountCode)],
         ['query'],
       ),
+    'getAllInspectionChecklists' : IDL.Func(
+        [],
+        [IDL.Vec(InspectionChecklist)],
+        ['query'],
+      ),
     'getAllMaintenanceRecords' : IDL.Func(
         [],
         [IDL.Vec(MaintenanceRecordFull)],
         ['query'],
       ),
+    'getAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
     'getAllParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
     'getAllServiceSchedules' : IDL.Func(
         [],
@@ -771,6 +926,16 @@ export const idlFactory = ({ IDL }) => {
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
     'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
     'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
+    'getInspectionChecklist' : IDL.Func(
+        [IDL.Nat],
+        [InspectionChecklist],
+        ['query'],
+      ),
+    'getInspectionChecklistsByVehicle' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(InspectionChecklist)],
+        ['query'],
+      ),
     'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
     'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
     'getMaintenanceRecord' : IDL.Func(
@@ -795,6 +960,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getTaxSettings' : IDL.Func([], [IDL.Opt(TaxSettings)], ['query']),
+    'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUpcomingMaintenance' : IDL.Func(
         [],
         [IDL.Vec(MaintenanceRecordFull)],
@@ -825,6 +991,8 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'markAllNotificationsRead' : IDL.Func([], [], []),
+    'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
     'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'rejectCompany' : IDL.Func([IDL.Text], [], []),
@@ -846,6 +1014,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'startTrial' : IDL.Func([IDL.Text], [], []),
     'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+    'updateInspectionChecklist' : IDL.Func(
+        [IDL.Nat, InspectionChecklist],
+        [],
+        [],
+      ),
     'updateMaintenanceRecord' : IDL.Func(
         [IDL.Nat, MaintenanceRecordFull],
         [],
@@ -867,6 +1040,11 @@ export const idlFactory = ({ IDL }) => {
     'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
     'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
     'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
+    'validateBulkVehicleImport' : IDL.Func(
+        [IDL.Vec(VehicleImportRow)],
+        [IDL.Vec(VehicleImportValidationResult)],
+        ['query'],
+      ),
     'validateDiscountCode' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(DiscountCode)],

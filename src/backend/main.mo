@@ -1150,6 +1150,192 @@ actor {
       };
     };
   };
+  // ─── Notifications ───────────────────────────────────────────────────────────
+  public type NotificationSeverity = { #Info; #Warning; #Critical };
+  public type Notification = {
+    id : Nat;
+    title : Text;
+    message : Text;
+    severity : NotificationSeverity;
+    isRead : Bool;
+    relatedEntityType : ?Text;  // e.g. "vehicle", "workOrder", "part"
+    relatedEntityId : ?Nat;
+    createdAt : Time.Time;
+  };
+
+  var cNotifications = Map.empty<Text, Map.Map<Nat, Notification>>();
+  var cNotifCounters = Map.empty<Text, Nat>();
+
+  public shared ({ caller }) func createNotification(notif : Notification) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cNotifCounters, cid);
+    getOrCreate(cNotifications, cid).add(id, { notif with id; isRead = false; createdAt = Time.now() });
+    id;
+  };
+
+  public query ({ caller }) func getAllNotifications() : async [Notification] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cNotifications, requireCompanyId(caller)).values().toArray();
+  };
+
+  public query ({ caller }) func getUnreadNotificationCount() : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cNotifications, cid).values().toArray()
+      .filter(func(n : Notification) : Bool { not n.isRead }).size();
+  };
+
+  public shared ({ caller }) func markNotificationRead(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cNotifications, cid);
+    switch (m.get(id)) {
+      case (null) { Runtime.trap("Notification not found") };
+      case (?n) { m.add(id, { n with isRead = true }) };
+    };
+  };
+
+  public shared ({ caller }) func markAllNotificationsRead() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cNotifications, cid);
+    m.forEach(func(id : Nat, n : Notification) {
+      if (not n.isRead) { m.add(id, { n with isRead = true }) };
+    });
+  };
+
+  public shared ({ caller }) func deleteNotification(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cNotifications, requireCompanyId(caller)).remove(id);
+  };
+
+  // ─── Inspection Checklists ────────────────────────────────────────────────────
+  public type ChecklistItemStatus = { #Pass; #Fail; #NA };
+  public type ChecklistItem = {
+    id : Nat;
+    itemLabel : Text;
+    category : Text;
+    status : ChecklistItemStatus;
+    notes : Text;
+  };
+  public type InspectionChecklist = {
+    id : Nat;
+    vehicleId : Nat;
+    inspectorName : Text;
+    mileage : Nat;
+    items : [ChecklistItem];
+    overallStatus : Text;  // "Pass", "Fail", "Incomplete"
+    notes : Text;
+    createdAt : Time.Time;
+  };
+
+  var cChecklists = Map.empty<Text, Map.Map<Nat, InspectionChecklist>>();
+  var cChecklistCounters = Map.empty<Text, Nat>();
+
+  public shared ({ caller }) func createInspectionChecklist(checklist : InspectionChecklist) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let id = nextId(cChecklistCounters, cid);
+    getOrCreate(cChecklists, cid).add(id, { checklist with id; createdAt = Time.now() });
+    id;
+  };
+
+  public shared ({ caller }) func updateInspectionChecklist(id : Nat, checklist : InspectionChecklist) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let m = getOrCreate(cChecklists, cid);
+    let e = switch (m.get(id)) { case (null) { Runtime.trap("Checklist not found") }; case (?c) c };
+    m.add(id, { checklist with id; createdAt = e.createdAt });
+  };
+
+  public shared ({ caller }) func deleteInspectionChecklist(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cChecklists, requireCompanyId(caller)).remove(id);
+  };
+
+  public query ({ caller }) func getAllInspectionChecklists() : async [InspectionChecklist] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    getOrCreate(cChecklists, requireCompanyId(caller)).values().toArray();
+  };
+
+  public query ({ caller }) func getInspectionChecklistsByVehicle(vehicleId : Nat) : async [InspectionChecklist] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    getOrCreate(cChecklists, cid).values().toArray()
+      .filter(func(c : InspectionChecklist) : Bool { c.vehicleId == vehicleId });
+  };
+
+  public query ({ caller }) func getInspectionChecklist(id : Nat) : async InspectionChecklist {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    switch (getOrCreate(cChecklists, cid).get(id)) {
+      case (null) { Runtime.trap("Checklist not found") };
+      case (?c) c;
+    };
+  };
+
+  // ─── Bulk Vehicle Import Validation ───────────────────────────────────────────
+  public type VehicleImportRow = {
+    rowIndex : Nat;
+    name : Text;
+    licensePlate : Text;
+    make : Text;
+    model : Text;
+    year : Nat;
+    vehicleType : Text;
+    notes : Text;
+  };
+  public type VehicleImportValidationResult = {
+    rowIndex : Nat;
+    isValid : Bool;
+    errors : [Text];
+    warnings : [Text];
+    parsedVehicle : ?Vehicle;
+  };
+
+  public query ({ caller }) func validateBulkVehicleImport(rows : [VehicleImportRow]) : async [VehicleImportValidationResult] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
+    let cid = requireCompanyId(caller);
+    let existingPlates = getOrCreate(cVehicles, cid).values().toArray()
+      .map(func(v : Vehicle) : Text { v.licensePlate.toLower() });
+
+    rows.map(func(row : VehicleImportRow) : VehicleImportValidationResult {
+      let errors = List.empty<Text>();
+      let warnings = List.empty<Text>();
+
+      if (row.name.size() == 0) { errors.add("Name is required") };
+      if (row.licensePlate.size() == 0) { errors.add("License plate is required") };
+      if (row.make.size() == 0) { errors.add("Make is required") };
+      if (row.model.size() == 0) { errors.add("Model is required") };
+      if (row.year < 1900 or row.year > 2100) { errors.add("Year must be between 1900 and 2100") };
+
+      // Duplicate plate check
+      let plateLower = row.licensePlate.toLower();
+      let isDuplicate = existingPlates.any(func(p : Text) : Bool { p == plateLower });
+      if (isDuplicate) { errors.add("License plate already exists in fleet") };
+
+      // Validate vehicle type
+      let validTypes = ["Truck", "Trailer", "Bus", "Van", "Other"];
+      let typeValid = validTypes.any(func(t : Text) : Bool { t == row.vehicleType });
+      if (not typeValid) { warnings.add("Unknown vehicle type '" # row.vehicleType # "' — will use Other") };
+
+      let vType : VehicleType = switch (row.vehicleType) {
+        case ("Truck") #Truck; case ("Trailer") #Trailer;
+        case ("Bus") #Bus; case ("Van") #Van; case (_) #Other;
+      };
+
+      let isValid = errors.isEmpty();
+      let parsedVehicle : ?Vehicle = if (isValid) {
+        ?{ id = 0; name = row.name; vehicleType = vType; licensePlate = row.licensePlate;
+           year = row.year; make = row.make; model = row.model; status = #Active;
+           notes = row.notes; createdAt = Time.now() }
+      } else { null };
+
+      { rowIndex = row.rowIndex; isValid; errors = errors.toArray(); warnings = warnings.toArray(); parsedVehicle };
+    });
+  };
+
   // ─── Developer User Management (devKey-bypass) ───────────────────────────────
 
   // Get all users for any company (dev portal use)
@@ -1228,6 +1414,10 @@ actor {
     cSettings.remove(companyId);
     cCurrency.remove(companyId);
     cTax.remove(companyId);
+    cNotifications.remove(companyId);
+    cNotifCounters.remove(companyId);
+    cChecklists.remove(companyId);
+    cChecklistCounters.remove(companyId);
     companyApprovalStore.add(companyId, "deleted");
   };
 

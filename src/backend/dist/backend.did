@@ -77,6 +77,25 @@ type VehicleStatus =
    Active;
    Inactive;
  };
+type VehicleImportValidationResult = 
+ record {
+   errors: vec text;
+   isValid: bool;
+   parsedVehicle: opt Vehicle;
+   rowIndex: nat;
+   warnings: vec text;
+ };
+type VehicleImportRow = 
+ record {
+   licensePlate: text;
+   make: text;
+   model: text;
+   name: text;
+   notes: text;
+   rowIndex: nat;
+   vehicleType: text;
+   year: nat;
+ };
 type Vehicle = 
  record {
    createdAt: Time;
@@ -142,6 +161,23 @@ type PartFull =
    price: opt float64;
    quantityInStock: nat;
  };
+type NotificationSeverity = 
+ variant {
+   Critical;
+   Info;
+   Warning;
+ };
+type Notification = 
+ record {
+   createdAt: Time;
+   id: nat;
+   isRead: bool;
+   message: text;
+   relatedEntityId: opt nat;
+   relatedEntityType: opt text;
+   severity: NotificationSeverity;
+   title: text;
+ };
 type MaintenanceType = 
  variant {
    Bodywork;
@@ -180,6 +216,17 @@ type InviteToken =
    role: FleetRole;
    token: text;
    usedBy: opt principal;
+ };
+type InspectionChecklist = 
+ record {
+   createdAt: Time;
+   id: nat;
+   inspectorName: text;
+   items: vec ChecklistItem;
+   mileage: nat;
+   notes: text;
+   overallStatus: text;
+   vehicleId: nat;
  };
 type FleetRole = 
  variant {
@@ -221,6 +268,20 @@ type CompanySettings =
    industry: text;
    logoUrl: text;
  };
+type ChecklistItemStatus = 
+ variant {
+   Fail;
+   NA;
+   Pass;
+ };
+type ChecklistItem = 
+ record {
+   category: text;
+   id: nat;
+   itemLabel: text;
+   notes: text;
+   status: ChecklistItemStatus;
+ };
 service : {
   _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
   _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
@@ -243,8 +304,10 @@ service : {
   completeWorkOrder: (id: nat) -> (nat);
   createDiscountCode: (discount: DiscountCode) -> (nat);
   createDiscountCodeWithKey: (devKey: text, discount: DiscountCode) -> (nat);
+  createInspectionChecklist: (checklist: InspectionChecklist) -> (nat);
   createInviteToken: (email: text, role: FleetRole) -> (text);
   createMaintenanceRecord: ("record": MaintenanceRecordFull) -> (nat);
+  createNotification: (notif: Notification) -> (nat);
   createPart: (part: PartFull) -> (nat);
   createServiceSchedule: (schedule: ServiceSchedule) -> (nat);
   createVehicle: (vehicle: Vehicle) -> (nat);
@@ -254,6 +317,8 @@ service : {
   deleteCompanyWithKey: (devKey: text, companyId: text) -> ();
   deleteDiscountCode: (code: text) -> ();
   deleteDiscountCodeWithKey: (devKey: text, id: nat) -> ();
+  deleteInspectionChecklist: (id: nat) -> ();
+  deleteNotification: (id: nat) -> ();
   deletePart: (id: nat) -> ();
   deleteServiceSchedule: (id: nat) -> ();
   deleteVehicle: (id: nat) -> ();
@@ -269,7 +334,9 @@ service : {
   getAllCompanyRegistrationsWithKey: (devKey: text) ->
    (vec CompanySettings) query;
   getAllDiscountCodesWithKey: (devKey: text) -> (vec DiscountCode) query;
+  getAllInspectionChecklists: () -> (vec InspectionChecklist) query;
   getAllMaintenanceRecords: () -> (vec MaintenanceRecordFull) query;
+  getAllNotifications: () -> (vec Notification) query;
   getAllParts: () -> (vec PartFull) query;
   getAllServiceSchedules: () -> (vec ServiceSchedule) query;
   getAllSubscriptions: () -> (vec SubscriptionRecord) query;
@@ -293,6 +360,9 @@ service : {
   getDashboardStats: () -> (DashboardStats) query;
   getDefaultCurrency: () -> (text) query;
   getDiscountCodes: () -> (vec DiscountCode) query;
+  getInspectionChecklist: (id: nat) -> (InspectionChecklist) query;
+  getInspectionChecklistsByVehicle: (vehicleId: nat) ->
+   (vec InspectionChecklist) query;
   getInviteTokens: () -> (vec InviteToken) query;
   getLowStockParts: () -> (vec PartFull) query;
   getMaintenanceRecord: (id: nat) -> (MaintenanceRecordFull) query;
@@ -303,6 +373,7 @@ service : {
   getSubscriptionStatus: (companyName: text) ->
    (opt SubscriptionRecord) query;
   getTaxSettings: () -> (opt TaxSettings) query;
+  getUnreadNotificationCount: () -> (nat) query;
   getUpcomingMaintenance: () -> (vec MaintenanceRecordFull) query;
   getUserFleetRole: (user: principal) -> (opt FleetRole) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
@@ -313,6 +384,8 @@ service : {
   getWorkOrder: (id: nat) -> (WorkOrder) query;
   getWorkOrdersByVehicle: (vehicleId: nat) -> (vec WorkOrder) query;
   isCallerAdmin: () -> (bool) query;
+  markAllNotificationsRead: () -> ();
+  markNotificationRead: (id: nat) -> ();
   markScheduleComplete: (id: nat) -> ();
   redeemInviteToken: (token: text) -> (FleetRole);
   rejectCompany: (companyName: text) -> ();
@@ -328,6 +401,7 @@ service : {
    role: FleetRole) -> ();
   startTrial: (companyName: text) -> ();
   startTrialWithKey: (devKey: text, companyName: text, trialDays: nat) -> ();
+  updateInspectionChecklist: (id: nat, checklist: InspectionChecklist) -> ();
   updateMaintenanceRecord: (id: nat, "record": MaintenanceRecordFull) -> ();
   updatePart: (id: nat, part: PartFull) -> ();
   updateServiceSchedule: (id: nat, schedule: ServiceSchedule) -> ();
@@ -339,5 +413,7 @@ service : {
   updateVendor: (id: nat, vendor: Vendor) -> ();
   updateWarranty: (id: nat, warranty: Warranty) -> ();
   updateWorkOrder: (id: nat, wo: WorkOrder) -> ();
+  validateBulkVehicleImport: (rows: vec VehicleImportRow) ->
+   (vec VehicleImportValidationResult) query;
   validateDiscountCode: (code: text) -> (opt DiscountCode) query;
 }

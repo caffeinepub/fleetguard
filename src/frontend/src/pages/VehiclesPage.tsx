@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -21,19 +28,27 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertTriangle,
+  Check,
   Download,
   Eye,
+  Loader2,
   Pencil,
   Plus,
   Search,
   Trash2,
   Truck,
   Upload,
+  X,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Page } from "../App";
-import type { Vehicle } from "../backend";
+import type {
+  Vehicle,
+  VehicleImportRow,
+  VehicleImportValidationResult,
+} from "../backend";
 import { VehicleStatus, VehicleType } from "../backend";
 import { FleetRole } from "../backend";
 import { VehicleModal } from "../components/VehicleModal";
@@ -43,6 +58,7 @@ import {
   useCallerFleetRole,
   useDeleteVehicle,
   useIsAdmin,
+  useValidateBulkVehicleImport,
 } from "../hooks/useQueries";
 import { exportCSV } from "../lib/exportUtils";
 import { nowNs, vehicleTypeLabel } from "../lib/helpers";
@@ -79,6 +95,200 @@ function mapVehicleType(raw: string): VehicleType {
   return VehicleType.Other;
 }
 
+interface PreviewRow {
+  vehicle: Vehicle;
+  importRow: VehicleImportRow;
+  validation?: VehicleImportValidationResult;
+}
+
+interface ImportPreviewModalProps {
+  open: boolean;
+  rows: PreviewRow[];
+  isValidating: boolean;
+  onConfirm: (validRows: Vehicle[]) => void;
+  onCancel: () => void;
+}
+
+function ImportPreviewModal({
+  open,
+  rows,
+  isValidating,
+  onConfirm,
+  onCancel,
+}: ImportPreviewModalProps) {
+  const validRows = rows.filter((r) => r.validation?.isValid !== false);
+  const invalidCount = rows.filter(
+    (r) => r.validation?.isValid === false,
+  ).length;
+  const warnCount = rows.filter(
+    (r) =>
+      r.validation?.isValid !== false &&
+      (r.validation?.warnings?.length ?? 0) > 0,
+  ).length;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Upload size={18} className="text-primary" />
+            CSV Import Preview
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Summary */}
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border text-sm">
+          <span className="flex items-center gap-1.5 text-success font-medium">
+            <Check size={14} />
+            {validRows.length} ready to import
+          </span>
+          {invalidCount > 0 && (
+            <span className="flex items-center gap-1.5 text-destructive font-medium">
+              <X size={14} />
+              {invalidCount} with errors (will be skipped)
+            </span>
+          )}
+          {warnCount > 0 && (
+            <span className="flex items-center gap-1.5 text-amber-500 font-medium">
+              <AlertTriangle size={14} />
+              {warnCount} with warnings
+            </span>
+          )}
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-y-auto rounded-xl border border-border">
+          {isValidating ? (
+            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+              <Loader2 size={18} className="animate-spin" />
+              Validating rows...
+            </div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40 sticky top-0 z-10">
+                <tr>
+                  {[
+                    "Row",
+                    "Name",
+                    "Type",
+                    "License Plate",
+                    "Year",
+                    "Make / Model",
+                    "Status",
+                    "Validation",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-3 py-2.5 font-semibold text-muted-foreground whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {rows.map((row) => {
+                  const valid = row.validation?.isValid !== false;
+                  const errors = row.validation?.errors ?? [];
+                  const warnings = row.validation?.warnings ?? [];
+                  return (
+                    <tr
+                      key={`${row.vehicle.name}-${row.importRow.rowIndex}`}
+                      className={`transition-colors ${
+                        !valid
+                          ? "bg-destructive/5 hover:bg-destructive/8"
+                          : warnings.length > 0
+                            ? "bg-amber-500/5 hover:bg-amber-500/8"
+                            : "hover:bg-muted/20"
+                      }`}
+                      data-ocid={`vehicles.import.row.${row.importRow.rowIndex}`}
+                    >
+                      <td className="px-3 py-2.5 text-muted-foreground font-mono">
+                        {Number(row.importRow.rowIndex)}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium">
+                        {row.vehicle.name}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {vehicleTypeLabel[row.vehicle.vehicleType]}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <code className="bg-muted px-1.5 py-0.5 rounded font-mono">
+                          {row.vehicle.licensePlate || "—"}
+                        </code>
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {row.vehicle.year.toString()}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {row.vehicle.make} {row.vehicle.model}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                            row.vehicle.status === VehicleStatus.Active
+                              ? "bg-success/10 text-success"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {row.vehicle.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {!row.validation ? (
+                          <span className="text-muted-foreground">Pending</span>
+                        ) : !valid ? (
+                          <div className="flex items-start gap-1 text-destructive">
+                            <X size={13} className="mt-0.5 shrink-0" />
+                            <span>{errors[0] ?? "Invalid"}</span>
+                          </div>
+                        ) : warnings.length > 0 ? (
+                          <div className="flex items-start gap-1 text-amber-600">
+                            <AlertTriangle
+                              size={13}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <span>{warnings[0]}</span>
+                          </div>
+                        ) : (
+                          <span className="flex items-center gap-1 text-success">
+                            <Check size={13} />
+                            Valid
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            data-ocid="vehicles.import.cancel_button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onConfirm(validRows.map((r) => r.vehicle))}
+            disabled={validRows.length === 0 || isValidating}
+            className="gap-2"
+            data-ocid="vehicles.import.confirm_button"
+          >
+            <Upload size={15} />
+            Import {validRows.length} Valid Row
+            {validRows.length !== 1 ? "s" : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function VehiclesPage({ onNavigate }: Props) {
   const { data: vehicles, isLoading } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
@@ -87,6 +297,7 @@ export function VehiclesPage({ onNavigate }: Props) {
   const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
   const deleteVehicle = useDeleteVehicle();
   const bulkCreate = useBulkCreateVehicles();
+  const validateImport = useValidateBulkVehicleImport();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -94,6 +305,8 @@ export function VehiclesPage({ onNavigate }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 
   const filtered = (
     vehicles?.filter((v: Vehicle) => {
@@ -158,23 +371,23 @@ export function VehiclesPage({ onNavigate }: Props) {
       return;
     }
 
-    const vehiclesToImport: Vehicle[] = [];
+    const parsedRows: PreviewRow[] = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVRow(lines[i]);
       const name = cols[nameIdx] ?? "";
       if (!name) continue;
-      vehiclesToImport.push({
+      const vType =
+        typeIdx >= 0 ? mapVehicleType(cols[typeIdx] ?? "") : VehicleType.Other;
+      const year =
+        yearIdx >= 0
+          ? BigInt(Number.parseInt(cols[yearIdx] ?? "2020") || 2020)
+          : 2020n;
+      const vehicle: Vehicle = {
         id: 0n,
         name,
-        vehicleType:
-          typeIdx >= 0
-            ? mapVehicleType(cols[typeIdx] ?? "")
-            : VehicleType.Other,
+        vehicleType: vType,
         licensePlate: plateIdx >= 0 ? (cols[plateIdx] ?? "") : "",
-        year:
-          yearIdx >= 0
-            ? BigInt(Number.parseInt(cols[yearIdx] ?? "2020") || 2020)
-            : 2020n,
+        year,
         make: makeIdx >= 0 ? (cols[makeIdx] ?? "") : "",
         model: modelIdx >= 0 ? (cols[modelIdx] ?? "") : "",
         status:
@@ -183,23 +396,65 @@ export function VehiclesPage({ onNavigate }: Props) {
             : VehicleStatus.Active,
         notes: notesIdx >= 0 ? (cols[notesIdx] ?? "") : "",
         createdAt: nowNs(),
-      });
+      };
+      const importRow: VehicleImportRow = {
+        name,
+        vehicleType: vType,
+        licensePlate: vehicle.licensePlate,
+        year,
+        make: vehicle.make,
+        model: vehicle.model,
+        rowIndex: BigInt(i),
+        notes: vehicle.notes,
+      };
+      parsedRows.push({ vehicle, importRow });
     }
 
-    if (vehiclesToImport.length === 0) {
+    if (parsedRows.length === 0) {
       toast.error("No valid vehicles found in CSV");
       return;
     }
 
+    // Show preview modal while validating
+    setPreviewRows(parsedRows);
+    setPreviewOpen(true);
+
+    // Run validation
+    try {
+      const validationResults = await validateImport.mutateAsync(
+        parsedRows.map((r) => r.importRow),
+      );
+      setPreviewRows((prev) =>
+        prev.map((row, idx) => ({
+          ...row,
+          validation: validationResults[idx],
+        })),
+      );
+    } catch {
+      // Validation failed — allow import without per-row validation
+      setPreviewRows((prev) =>
+        prev.map((row) => ({
+          ...row,
+          validation: {
+            isValid: true,
+            errors: [],
+            warnings: [],
+            rowIndex: row.importRow.rowIndex,
+          },
+        })),
+      );
+    }
+  };
+
+  const handleConfirmImport = async (validRows: Vehicle[]) => {
+    setPreviewOpen(false);
     const importToast = toast.loading(
-      `Importing ${vehiclesToImport.length} vehicle(s)...`,
+      `Importing ${validRows.length} vehicle(s)...`,
     );
     try {
-      await bulkCreate.mutateAsync(vehiclesToImport);
+      await bulkCreate.mutateAsync(validRows);
       toast.dismiss(importToast);
-      toast.success(
-        `Successfully imported ${vehiclesToImport.length} vehicle(s)`,
-      );
+      toast.success(`Successfully imported ${validRows.length} vehicle(s)`);
     } catch {
       toast.dismiss(importToast);
       toast.error("Failed to import vehicles");
@@ -214,7 +469,7 @@ export function VehiclesPage({ onNavigate }: Props) {
       "Year",
       "Type",
       "License Plate",
-      "VehicleStatus",
+      "Status",
     ];
     const rows = (vehicles ?? []).map((v: Vehicle) => [
       v.name,
@@ -261,7 +516,7 @@ export function VehiclesPage({ onNavigate }: Props) {
                 className="gap-2"
                 data-ocid="vehicles.dropzone"
                 onClick={() => csvInputRef.current?.click()}
-                disabled={bulkCreate.isPending}
+                disabled={bulkCreate.isPending || validateImport.isPending}
               >
                 <Upload size={15} /> Import CSV
               </Button>
@@ -306,10 +561,11 @@ export function VehiclesPage({ onNavigate }: Props) {
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger data-ocid="vehicles.status.select" className="w-36">
-            <SelectValue placeholder="All VehicleStatus" />
+            <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All VehicleStatus</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
+
             <SelectItem value={VehicleStatus.Active}>Active</SelectItem>
             <SelectItem value={VehicleStatus.Inactive}>Inactive</SelectItem>
           </SelectContent>
@@ -363,7 +619,7 @@ export function VehiclesPage({ onNavigate }: Props) {
                     "Type",
                     "Year",
                     "License Plate",
-                    "VehicleStatus",
+                    "Status",
                     "Actions",
                   ].map((h) => (
                     <th
@@ -500,6 +756,14 @@ export function VehiclesPage({ onNavigate }: Props) {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         vehicle={editVehicle}
+      />
+
+      <ImportPreviewModal
+        open={previewOpen}
+        rows={previewRows}
+        isValidating={validateImport.isPending}
+        onConfirm={handleConfirmImport}
+        onCancel={() => setPreviewOpen(false)}
       />
     </div>
   );
