@@ -26,6 +26,7 @@ import {
   FileType2,
   FolderOpen,
   Loader2,
+  Pencil,
   Printer,
   Search,
   Trash2,
@@ -181,6 +182,10 @@ export function DocumentsPage() {
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Rename
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
   // Filtered list
   const filtered = documents.filter((doc) => {
     const displayName = doc.displayName ?? doc.fileName;
@@ -297,6 +302,26 @@ export function DocumentsPage() {
     newSelected.delete(id);
     setSelectedIds(newSelected);
     toast.success("Document deleted");
+  };
+
+  // -------------------------------------------------------------------------
+  // Rename
+  // -------------------------------------------------------------------------
+  const handleRename = () => {
+    if (!renameId) return;
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      toast.error("Document name cannot be empty");
+      return;
+    }
+    const updated = documents.map((d) =>
+      d.id === renameId ? { ...d, displayName: trimmed } : d,
+    );
+    setDocuments(updated);
+    saveDocs(companyId, updated);
+    setRenameId(null);
+    setRenameValue("");
+    toast.success("Document renamed");
   };
 
   // -------------------------------------------------------------------------
@@ -542,7 +567,7 @@ export function DocumentsPage() {
             <span className="hidden lg:block text-xs font-semibold text-muted-foreground uppercase tracking-wide w-20">
               Size
             </span>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide w-24 text-right">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide w-32 text-right">
               Actions
             </span>
           </div>
@@ -610,7 +635,20 @@ export function DocumentsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 w-24 justify-end flex-shrink-0">
+                <div className="flex items-center gap-1 w-32 justify-end flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                    title="Rename"
+                    data-ocid={`documents.edit_button.${i + 1}`}
+                    onClick={() => {
+                      setRenameId(doc.id);
+                      setRenameValue(doc.displayName ?? doc.fileName);
+                    }}
+                  >
+                    <Pencil size={14} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -904,6 +942,52 @@ export function DocumentsPage() {
               data-ocid="documents.confirm_button"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Dialog */}
+      <Dialog
+        open={!!renameId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setRenameId(null);
+            setRenameValue("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm" data-ocid="documents.dialog">
+          <DialogHeader>
+            <DialogTitle>Rename Document</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRename()}
+              placeholder="Document name"
+              autoFocus
+              data-ocid="documents.input"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenameId(null);
+                setRenameValue("");
+              }}
+              data-ocid="documents.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRename}
+              disabled={!renameValue.trim()}
+              data-ocid="documents.save_button"
+            >
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
