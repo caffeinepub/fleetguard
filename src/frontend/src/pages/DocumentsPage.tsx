@@ -32,7 +32,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Vehicle } from "../backend";
 import { useActor } from "../hooks/useActor";
@@ -175,6 +175,26 @@ export function DocumentsPage() {
   // Preview dialog
   const [previewDoc, setPreviewDoc] = useState<LocalDocument | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+
+  // Create / revoke blob URL for PDF preview (data: URLs are blocked in iframes)
+  useEffect(() => {
+    if (!previewDoc || !isPdfFile(previewDoc.fileName)) {
+      setPreviewBlobUrl(null);
+      return;
+    }
+    // Convert base64 dataUrl → Blob → object URL
+    const b64 = previewDoc.dataUrl.split(",")[1] ?? "";
+    const byteChars = atob(b64);
+    const byteArray = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+      byteArray[i] = byteChars.charCodeAt(i);
+    }
+    const blob = new Blob([byteArray], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    setPreviewBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [previewDoc]);
 
   // Selection for print
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -849,13 +869,19 @@ export function DocumentsPage() {
                   />
                 </div>
               ) : isPdfFile(previewDoc.fileName) ? (
-                <iframe
-                  src={previewDoc.dataUrl}
-                  title={previewDoc.displayName ?? previewDoc.fileName}
-                  width="100%"
-                  height="500px"
-                  className="rounded border border-border"
-                />
+                previewBlobUrl ? (
+                  <iframe
+                    src={previewBlobUrl}
+                    title={previewDoc.displayName ?? previewDoc.fileName}
+                    width="100%"
+                    height="500px"
+                    className="rounded border border-border"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-[500px] text-muted-foreground text-sm">
+                    Loading preview…
+                  </div>
+                )
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">

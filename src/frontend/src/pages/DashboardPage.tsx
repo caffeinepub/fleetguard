@@ -18,6 +18,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -636,32 +637,37 @@ export function DashboardPage({ onNavigate }: Props) {
       {/* Analytics Row: Top Repair Reasons + Monthly Repair Cost */}
       {(allRecords ?? []).length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Repair Reasons */}
+          {/* Top Repair Reasons — upgraded donut with legend */}
           <Card
             className="shadow-card border-0"
             data-ocid="dashboard.repair_reasons.card"
           >
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold">
                 Top Repair Reasons
               </CardTitle>
             </CardHeader>
             <CardContent>
               {repairReasonData.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No data yet</p>
+                <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground text-sm gap-2">
+                  <span className="text-3xl">🔧</span>
+                  <span>No maintenance records yet</span>
+                </div>
               ) : (
-                <div className="flex items-center gap-4">
-                  <div className="shrink-0">
-                    <ResponsiveContainer width={140} height={140}>
+                <div className="flex flex-col gap-4">
+                  {/* Donut chart — centered with total label */}
+                  <div className="relative flex justify-center">
+                    <ResponsiveContainer width={200} height={200}>
                       <PieChart>
                         <Pie
                           data={repairReasonData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={38}
-                          outerRadius={62}
+                          innerRadius={52}
+                          outerRadius={80}
                           paddingAngle={3}
                           dataKey="count"
+                          strokeWidth={0}
                         >
                           {repairReasonData.map((entry, index) => (
                             <Cell
@@ -669,11 +675,11 @@ export function DashboardPage({ onNavigate }: Props) {
                               fill={
                                 [
                                   "#3b82f6",
-                                  "#6366f1",
+                                  "#7c3aed",
                                   "#f59e0b",
                                   "#10b981",
                                   "#f43f5e",
-                                  "#a78bfa",
+                                  "#06b6d4",
                                 ][index % 6]
                               }
                             />
@@ -685,6 +691,7 @@ export function DashboardPage({ onNavigate }: Props) {
                             border: "1px solid hsl(var(--border))",
                             borderRadius: 8,
                             fontSize: 12,
+                            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
                           }}
                           formatter={(value: number) => [
                             `${value} records`,
@@ -693,109 +700,161 @@ export function DashboardPage({ onNavigate }: Props) {
                         />
                       </PieChart>
                     </ResponsiveContainer>
+                    {/* Center label */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl font-bold text-foreground">
+                        {repairReasonData.reduce((s, r) => s + r.count, 0)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        records
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1 space-y-1.5 min-w-0">
-                    {repairReasonData.map((entry, index) => (
-                      <div key={entry.name} className="flex items-center gap-2">
-                        <span
-                          className="inline-flex items-center justify-center rounded text-white text-xs font-bold px-1.5 py-0.5 shrink-0"
-                          style={{
-                            background: [
-                              "#3b82f6",
-                              "#6366f1",
-                              "#f59e0b",
-                              "#10b981",
-                              "#f43f5e",
-                              "#a78bfa",
-                            ][index % 6],
-                            minWidth: "28px",
-                          }}
+                  {/* Legend rows */}
+                  <div className="space-y-2">
+                    {repairReasonData.map((entry, index) => {
+                      const colors = [
+                        "#3b82f6",
+                        "#7c3aed",
+                        "#f59e0b",
+                        "#10b981",
+                        "#f43f5e",
+                        "#06b6d4",
+                      ];
+                      const total = repairReasonData.reduce(
+                        (s, r) => s + r.count,
+                        0,
+                      );
+                      const pct =
+                        total > 0 ? Math.round((entry.count / total) * 100) : 0;
+                      return (
+                        <div
+                          key={entry.name}
+                          className="flex items-center gap-2.5"
                         >
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <span className="text-sm truncate flex-1 text-foreground">
-                          {entry.name}
-                        </span>
-                        <span className="text-sm font-semibold text-muted-foreground shrink-0">
-                          {entry.count}
-                        </span>
-                      </div>
-                    ))}
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ background: colors[index % 6] }}
+                          />
+                          <span className="text-sm flex-1 truncate text-foreground">
+                            {entry.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {entry.count} ({pct}%)
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Monthly Repair Cost */}
+          {/* Monthly Repair Cost — multi-color bars */}
           <Card
             className="shadow-card border-0"
             data-ocid="dashboard.monthly_cost.card"
           >
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold">
                 Monthly Repair Cost
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={monthlyRepairData}
-                  margin={{ left: 0, right: 10, top: 4, bottom: 4 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="hsl(var(--border))"
-                    opacity={0.4}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{
-                      fontSize: 12,
-                      fill: "hsl(var(--muted-foreground))",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{
-                      fontSize: 11,
-                      fill: "hsl(var(--muted-foreground))",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: number) =>
-                      v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
-                    }
-                    width={36}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-                    formatter={(value: number) => [
-                      `$${value.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      "Total Cost",
-                    ]}
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                    }}
-                    labelStyle={{
-                      color: "hsl(var(--foreground))",
-                      fontWeight: 600,
-                    }}
-                  />
-                  <Bar
-                    dataKey="cost"
-                    radius={[4, 4, 0, 0]}
-                    fill="#3b82f6"
-                    maxBarSize={52}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              {monthlyRepairData.every((d) => d.cost === 0) ? (
+                <div className="flex flex-col items-center justify-center h-[260px] text-muted-foreground text-sm gap-2">
+                  <span className="text-3xl">📊</span>
+                  <span>No cost data yet</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart
+                    data={monthlyRepairData}
+                    margin={{ left: 0, right: 8, top: 20, bottom: 4 }}
+                    barCategoryGap="28%"
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--border))"
+                      opacity={0.35}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{
+                        fontSize: 11,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v: number) =>
+                        v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+                      }
+                      width={44}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }}
+                      formatter={(value: number) => [
+                        `$${value.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        "Total Cost",
+                      ]}
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: 10,
+                        fontSize: 12,
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+                      }}
+                      labelStyle={{
+                        color: "hsl(var(--foreground))",
+                        fontWeight: 600,
+                      }}
+                    />
+                    <Bar dataKey="cost" radius={[6, 6, 0, 0]} maxBarSize={56}>
+                      {monthlyRepairData.map((entry, index) => (
+                        <Cell
+                          key={`bar-${entry.name}`}
+                          fill={
+                            [
+                              "#3b82f6",
+                              "#7c3aed",
+                              "#f59e0b",
+                              "#10b981",
+                              "#f43f5e",
+                              "#06b6d4",
+                            ][index % 6]
+                          }
+                        />
+                      ))}
+                      <LabelList
+                        dataKey="cost"
+                        position="top"
+                        formatter={(v: number) =>
+                          v > 0
+                            ? v >= 1000
+                              ? `$${(v / 1000).toFixed(0)}k`
+                              : `$${v}`
+                            : ""
+                        }
+                        style={{
+                          fontSize: 10,
+                          fill: "hsl(var(--muted-foreground))",
+                          fontWeight: 500,
+                        }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>
