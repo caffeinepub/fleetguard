@@ -63,7 +63,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -164,7 +164,16 @@ export default function DevPortalPage() {
   const [darkMode, setDarkMode] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const devKey = localStorage.getItem("devKey") || "";
+  const devKey = useMemo(() => {
+    const stored = localStorage.getItem("devKey");
+    if (stored) return stored;
+    const param = new URLSearchParams(window.location.search).get("devKey");
+    if (param) {
+      localStorage.setItem("devKey", param);
+      return param;
+    }
+    return "";
+  }, []);
 
   const { identity, login, loginStatus, clear } = useInternetIdentity();
   const isLoggedIn = !!identity;
@@ -1150,7 +1159,7 @@ function CompaniesSection({
 
   const loadCompanyUsers = async (companyName: string) => {
     if (!actor) {
-      toast.error("Actor not ready — please wait a moment and try again");
+      toast.error("Backend not ready — please wait a moment and try again");
       return;
     }
     if (!devKey) {
@@ -1160,9 +1169,11 @@ function CompaniesSection({
       return;
     }
     setUsersLoading((prev) => ({ ...prev, [companyName]: true }));
+    setUsersError((prev) => ({ ...prev, [companyName]: null }));
     try {
       const users = await actor.getCompanyUsersWithKey(devKey, companyName);
       setCompanyUsers((prev) => ({ ...prev, [companyName]: users }));
+      setUsersError((prev) => ({ ...prev, [companyName]: null }));
     } catch (err) {
       console.error("getCompanyUsersWithKey error:", err);
       const msg = err instanceof Error ? err.message : String(err);

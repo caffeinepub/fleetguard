@@ -498,7 +498,7 @@ actor {
     if (roleMap.get(caller) == null) { roleMap.add(caller, #Admin) };
     let alreadyExists = not allCompanyRegistrations
       .filter(func(s : CompanySettings) : Bool { s.companyName == cid }).isEmpty();
-    if (not alreadyExists) { allCompanyRegistrations.add(settings) };
+    if (not alreadyExists) { allCompanyRegistrations.add(settings); if (companyApprovalStore.get(cid) == null) { companyApprovalStore.add(cid, "pending") } };
   };
 
   public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
