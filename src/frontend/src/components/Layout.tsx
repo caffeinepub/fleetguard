@@ -201,7 +201,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors"
               >
                 <img
-                  src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                  src="/assets/generated/fleetguard-icon-transparent.dim_64x64.png"
                   alt="FleetGuard"
                   className="w-7 h-7 object-contain"
                 />
@@ -219,14 +219,16 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
               />
             ) : (
               <img
-                src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
                 alt="FleetGuard"
-                className="w-10 h-10 object-contain flex-shrink-0"
+                className="h-8 w-auto object-contain flex-shrink-0"
               />
             )}
-            <span className="font-semibold text-base tracking-tight text-white truncate flex-1">
-              {companySettings?.companyName || "FleetGuard"}
-            </span>
+            {companySettings?.logoUrl && (
+              <span className="font-semibold text-base tracking-tight text-white truncate flex-1">
+                {companySettings.companyName}
+              </span>
+            )}
             <button
               type="button"
               data-ocid="nav.sidebar.toggle"
@@ -533,25 +535,29 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             {/* Mobile logo */}
             <div className="sm:hidden flex items-center gap-2">
               <img
-                src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
                 alt="FleetGuard"
-                className="w-8 h-8 object-contain"
+                className="h-7 w-auto object-contain"
               />
-              <span className="text-sm font-semibold text-foreground">
-                {companySettings?.companyName || "FleetGuard"}
-              </span>
+              {companySettings?.logoUrl && (
+                <span className="text-sm font-semibold text-foreground">
+                  {companySettings.companyName}
+                </span>
+              )}
             </div>
 
             {/* Desktop header logo + company name */}
             <div className="hidden sm:flex items-center gap-2.5">
               <img
-                src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+                src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
                 alt="FleetGuard"
-                className="w-9 h-9 object-contain"
+                className="h-7 w-auto object-contain"
               />
-              <span className="text-sm font-semibold text-foreground">
-                {companySettings?.companyName || "FleetGuard"}
-              </span>
+              {companySettings?.logoUrl && (
+                <span className="text-sm font-semibold text-foreground">
+                  {companySettings.companyName}
+                </span>
+              )}
             </div>
 
             {/* Right side */}

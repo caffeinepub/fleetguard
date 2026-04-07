@@ -24,19 +24,16 @@ export function SplashScreen() {
             ease: "easeInOut",
           }}
         >
-          <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl">
+          <div className="w-48 h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl px-4">
             <img
-              src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
+              src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
               alt="FleetGuard"
-              className="w-12 h-12 object-contain"
+              className="h-12 w-auto object-contain"
             />
           </div>
           <div className="absolute inset-0 rounded-2xl bg-blue-400/20 blur-xl -z-10" />
         </motion.div>
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            FleetGuard
-          </h1>
           <p className="text-white/50 text-sm mt-1 tracking-wide">
             Fleet Maintenance Platform
           </p>

@@ -49,11 +49,12 @@ export function InviteAcceptPage({ token }: InviteAcceptPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
-            <Shield className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold tracking-tight">FleetGuard</span>
+        <div className="flex items-center justify-center mb-8">
+          <img
+            src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
+            alt="FleetGuard"
+            className="h-8 w-auto object-contain"
+          />
         </div>
 
         <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">

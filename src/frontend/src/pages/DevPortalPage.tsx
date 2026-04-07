@@ -399,15 +399,16 @@ export default function DevPortalPage() {
           className="px-5 py-5 flex items-center gap-3"
           style={{ borderBottom: "1px solid oklch(0.24 0.07 255)" }}
         >
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "oklch(0.65 0.2 150)" }}
-          >
-            <Shield className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-sm text-white">FleetGuard</div>
-            <div className="text-xs" style={{ color: "oklch(0.65 0.2 150)" }}>
+          <div className="flex flex-col gap-0.5">
+            <img
+              src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
+              alt="FleetGuard"
+              className="h-7 w-auto object-contain"
+            />
+            <div
+              className="text-xs font-medium"
+              style={{ color: "oklch(0.65 0.2 150)" }}
+            >
               Dev Portal
             </div>
           </div>

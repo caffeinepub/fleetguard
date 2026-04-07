@@ -324,16 +324,11 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
           transition={{ duration: 0.5 }}
           className="flex items-center gap-3 relative z-10"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
-            <img
-              src="/assets/generated/fleetguard-logo-transparent.dim_64x64.png"
-              alt="FleetGuard"
-              className="w-6 h-6 object-contain"
-            />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-white">
-            FleetGuard
-          </span>
+          <img
+            src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
+            alt="FleetGuard"
+            className="h-8 w-auto object-contain"
+          />
         </motion.div>
 
         <motion.div
@@ -439,9 +434,12 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
             className="w-full max-w-sm"
           >
             <div className="bg-white rounded-2xl p-8 shadow-elevated-lg">
-              <div className="flex items-center gap-2.5 mb-6 lg:hidden">
-                <Shield className="w-6 h-6 text-primary" />
-                <span className="text-xl font-bold">FleetGuard</span>
+              <div className="flex items-center mb-6 lg:hidden">
+                <img
+                  src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
+                  alt="FleetGuard"
+                  className="h-8 w-auto object-contain"
+                />
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-1">
                 Welcome back
@@ -519,9 +517,12 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
             <div className="bg-white rounded-2xl shadow-elevated-lg overflow-hidden">
               {/* Signup wizard header */}
               <div className="px-8 pt-7 pb-4">
-                <div className="flex items-center gap-2.5 mb-1 lg:hidden">
-                  <Shield className="w-6 h-6 text-primary" />
-                  <span className="text-xl font-bold">FleetGuard</span>
+                <div className="flex items-center mb-1 lg:hidden">
+                  <img
+                    src="/assets/generated/fleetguard-logo-new-transparent.dim_200x60.png"
+                    alt="FleetGuard"
+                    className="h-8 w-auto object-contain"
+                  />
                 </div>
                 <button
                   type="button"

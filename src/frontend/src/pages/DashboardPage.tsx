@@ -716,10 +716,10 @@ export function DashboardPage({ onNavigate }: Props) {
                             fill={
                               [
                                 "#3b82f6",
-                                "#7c3aed",
+                                "#a855f7",
                                 "#f59e0b",
                                 "#10b981",
-                                "#f43f5e",
+                                "#ef4444",
                                 "#06b6d4",
                               ][index % 6]
                             }
@@ -728,12 +728,18 @@ export function DashboardPage({ onNavigate }: Props) {
                       </Pie>
                       <Tooltip
                         contentStyle={{
-                          background: "hsl(var(--card))",
+                          background: "hsl(var(--popover))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: 8,
                           fontSize: 12,
-                          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                          color: "hsl(var(--popover-foreground))",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
                         }}
+                        labelStyle={{
+                          color: "hsl(var(--foreground))",
+                          fontWeight: 600,
+                        }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                         formatter={(value: number) => [`${value} records`, ""]}
                       />
                     </PieChart>
@@ -753,10 +759,10 @@ export function DashboardPage({ onNavigate }: Props) {
                   {repairReasonData.map((entry, index) => {
                     const colors = [
                       "#3b82f6",
-                      "#7c3aed",
+                      "#a855f7",
                       "#f59e0b",
                       "#10b981",
-                      "#f43f5e",
+                      "#ef4444",
                       "#06b6d4",
                     ];
                     const total = repairReasonData.reduce(
@@ -816,13 +822,13 @@ export function DashboardPage({ onNavigate }: Props) {
                     strokeDasharray="3 3"
                     vertical={false}
                     stroke="hsl(var(--border))"
-                    opacity={0.35}
+                    opacity={0.5}
                   />
                   <XAxis
                     dataKey="name"
                     tick={{
                       fontSize: 12,
-                      fill: "hsl(var(--muted-foreground))",
+                      fill: "hsl(var(--foreground))",
                     }}
                     axisLine={false}
                     tickLine={false}
@@ -830,7 +836,7 @@ export function DashboardPage({ onNavigate }: Props) {
                   <YAxis
                     tick={{
                       fontSize: 11,
-                      fill: "hsl(var(--muted-foreground))",
+                      fill: "hsl(var(--foreground))",
                     }}
                     axisLine={false}
                     tickLine={false}
@@ -846,16 +852,18 @@ export function DashboardPage({ onNavigate }: Props) {
                       "Total Cost",
                     ]}
                     contentStyle={{
-                      background: "hsl(var(--card))",
+                      background: "hsl(var(--popover))",
                       border: "1px solid hsl(var(--border))",
                       borderRadius: 10,
                       fontSize: 12,
-                      boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+                      color: "hsl(var(--popover-foreground))",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
                     }}
                     labelStyle={{
                       color: "hsl(var(--foreground))",
                       fontWeight: 600,
                     }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
                   />
                   <Bar dataKey="cost" radius={[6, 6, 0, 0]} maxBarSize={56}>
                     {monthlyRepairData.map((entry, index) => (
@@ -864,10 +872,10 @@ export function DashboardPage({ onNavigate }: Props) {
                         fill={
                           [
                             "#3b82f6",
-                            "#7c3aed",
+                            "#a855f7",
                             "#f59e0b",
                             "#10b981",
-                            "#f43f5e",
+                            "#ef4444",
                             "#06b6d4",
                           ][index % 6]
                         }
@@ -884,9 +892,9 @@ export function DashboardPage({ onNavigate }: Props) {
                           : ""
                       }
                       style={{
-                        fontSize: 10,
-                        fill: "hsl(var(--muted-foreground))",
-                        fontWeight: 500,
+                        fontSize: 11,
+                        fill: "hsl(var(--foreground))",
+                        fontWeight: 600,
                       }}
                     />
                   </Bar>
@@ -932,12 +940,18 @@ export function DashboardPage({ onNavigate }: Props) {
                       </Pie>
                       <Tooltip
                         contentStyle={{
-                          background: "hsl(var(--card))",
+                          background: "hsl(var(--popover))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: 8,
                           fontSize: 12,
-                          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                          color: "hsl(var(--popover-foreground))",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
                         }}
+                        labelStyle={{
+                          color: "hsl(var(--foreground))",
+                          fontWeight: 600,
+                        }}
+                        itemStyle={{ color: "hsl(var(--foreground))" }}
                         formatter={(value: number, name: string) => [
                           `${value} order${value !== 1 ? "s" : ""}`,
                           name,
