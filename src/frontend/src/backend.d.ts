@@ -7,23 +7,6 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface MaintenanceRecordFull {
-    id: bigint;
-    mileage: bigint;
-    technicianName: string;
-    partQuantities: Array<PartQuantity>;
-    nextServiceDate?: Time;
-    cost: number;
-    date: Time;
-    createdAt: Time;
-    partsUsed: Array<bigint>;
-    laborHours?: number;
-    description: string;
-    workOrderId?: bigint;
-    maintenanceType: MaintenanceType;
-    laborCost?: number;
-    vehicleId: bigint;
-}
 export interface CompanyUserInfo {
     principal: Principal;
     role: FleetRole;
@@ -153,6 +136,23 @@ export interface PartQuantity {
 export interface UserProfile {
     name: string;
 }
+export interface MaintenanceRecordFull {
+    id: bigint;
+    mileage: bigint;
+    technicianName: string;
+    partQuantities: Array<PartQuantity>;
+    nextServiceDate?: Time;
+    cost: number;
+    date: Time;
+    createdAt: Time;
+    partsUsed: Array<bigint>;
+    laborHours?: number;
+    description: string;
+    workOrderId?: bigint;
+    maintenanceType: MaintenanceType;
+    laborCost?: number;
+    vehicleId: bigint;
+}
 export enum FleetRole {
     FleetManager = "FleetManager",
     Mechanic = "Mechanic",
@@ -198,6 +198,7 @@ export enum WorkOrderStatus {
     Completed = "Completed"
 }
 export interface backendInterface {
+    addUserToCompanyWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     applyDiscountCode(code: string): Promise<void>;
     approveCompany(companyName: string): Promise<void>;
     approveCompanyWithKey(devKey: string, companyName: string): Promise<void>;
@@ -246,9 +247,6 @@ export interface backendInterface {
     getCompanySettings(): Promise<CompanySettings | null>;
     getCompanyUsers(): Promise<Array<CompanyUserInfo>>;
     getCompanyUsersWithKey(devKey: string, companyId: string): Promise<Array<CompanyUserInfo>>;
-    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal): Promise<void>;
-    setUserFleetRoleWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal, role: FleetRole): Promise<void>;
-    addUserToCompanyWithKey(devKey: string, companyId: string, user: import("@icp-sdk/core/principal").Principal, role: FleetRole): Promise<void>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
     getDiscountCodes(): Promise<Array<DiscountCode>>;
@@ -274,11 +272,13 @@ export interface backendInterface {
     redeemInviteToken(token: string): Promise<FleetRole>;
     rejectCompany(companyName: string): Promise<void>;
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
+    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
+    setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
@@ -290,10 +290,5 @@ export interface backendInterface {
     updateVendor(id: bigint, vendor: Vendor): Promise<void>;
     updateWarranty(id: bigint, warranty: Warranty): Promise<void>;
     updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
-    getCompanyUsersWithKey: (devKey: string, companyId: string) => Promise<CompanyUserInfo[]>;
-  removeUserFromCompanyWithKey: (devKey: string, companyId: string, user: Principal) => Promise<void>;
-  setUserFleetRoleWithKey: (devKey: string, companyId: string, user: Principal, role: FleetRole) => Promise<void>;
-  addUserToCompanyWithKey: (devKey: string, companyId: string, user: Principal, role: FleetRole) => Promise<void>;
-  deleteCompanyWithKey: (devKey: string, companyId: string) => Promise<void>;
-  validateDiscountCode(code: string): Promise<DiscountCode | null>;
+    validateDiscountCode(code: string): Promise<DiscountCode | null>;
 }

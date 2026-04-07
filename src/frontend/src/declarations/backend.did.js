@@ -8,16 +8,21 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+export const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
   'method' : IDL.Text,
   'blob_hash' : IDL.Text,
 });
-export const _CaffeineStorageRefillInformation = IDL.Record({
+export const _ImmutableObjectStorageRefillInformation = IDL.Record({
   'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
 });
-export const _CaffeineStorageRefillResult = IDL.Record({
+export const _ImmutableObjectStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const FleetRole = IDL.Variant({
+  'FleetManager' : IDL.Null,
+  'Mechanic' : IDL.Null,
+  'Admin' : IDL.Null,
 });
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
@@ -56,11 +61,6 @@ export const DiscountCode = IDL.Record({
   'discountType' : IDL.Text,
   'usedCount' : IDL.Nat,
   'description' : IDL.Text,
-});
-export const FleetRole = IDL.Variant({
-  'FleetManager' : IDL.Null,
-  'Mechanic' : IDL.Null,
-  'Admin' : IDL.Null,
 });
 export const PartQuantity = IDL.Record({
   'quantity' : IDL.Nat,
@@ -209,33 +209,38 @@ export const TaxSettings = IDL.Record({
 });
 
 export const idlService = IDL.Service({
-  '_caffeineStorageBlobIsLive' : IDL.Func(
-      [IDL.Vec(IDL.Nat8)],
-      [IDL.Bool],
+  '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [IDL.Vec(IDL.Bool)],
       ['query'],
     ),
-  '_caffeineStorageBlobsToDelete' : IDL.Func(
+  '_immutableObjectStorageBlobsToDelete' : IDL.Func(
       [],
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       ['query'],
     ),
-  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+  '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       [],
       [],
     ),
-  '_caffeineStorageCreateCertificate' : IDL.Func(
+  '_immutableObjectStorageCreateCertificate' : IDL.Func(
       [IDL.Text],
-      [_CaffeineStorageCreateCertificateResult],
+      [_ImmutableObjectStorageCreateCertificateResult],
       [],
     ),
-  '_caffeineStorageRefillCashier' : IDL.Func(
-      [IDL.Opt(_CaffeineStorageRefillInformation)],
-      [_CaffeineStorageRefillResult],
+  '_immutableObjectStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+      [_ImmutableObjectStorageRefillResult],
       [],
     ),
-  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+  '_initializeAccessControl' : IDL.Func([], [], []),
+  'addUserToCompanyWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+      [],
+      [],
+    ),
   'applyDiscountCode' : IDL.Func([IDL.Text], [], []),
   'approveCompany' : IDL.Func([IDL.Text], [], []),
   'approveCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -257,6 +262,7 @@ export const idlService = IDL.Service({
   'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
   'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
   'createWorkOrder' : IDL.Func([WorkOrder], [IDL.Nat], []),
+  'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'deleteDiscountCode' : IDL.Func([IDL.Text], [], []),
   'deleteDiscountCodeWithKey' : IDL.Func([IDL.Text, IDL.Nat], [], []),
   'deletePart' : IDL.Func([IDL.Nat], [], []),
@@ -322,6 +328,11 @@ export const idlService = IDL.Service({
     ),
   'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
   'getCompanyUsers' : IDL.Func([], [IDL.Vec(CompanyUserInfo)], ['query']),
+  'getCompanyUsersWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(CompanyUserInfo)],
+      ['query'],
+    ),
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
   'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
   'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
@@ -383,11 +394,21 @@ export const idlService = IDL.Service({
   'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'rejectCompany' : IDL.Func([IDL.Text], [], []),
   'rejectCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'removeUserFromCompanyWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal],
+      [],
+      [],
+    ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
   'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
   'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
+  'setUserFleetRoleWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+      [],
+      [],
+    ),
   'startTrial' : IDL.Func([IDL.Text], [], []),
   'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
   'updateMaintenanceRecord' : IDL.Func(
@@ -411,27 +432,6 @@ export const idlService = IDL.Service({
   'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
   'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
   'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
-  'addUserToCompanyWithKey' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
-      [],
-      [],
-    ),
-  'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'getCompanyUsersWithKey' : IDL.Func(
-      [IDL.Text, IDL.Text],
-      [IDL.Vec(CompanyUserInfo)],
-      ['query'],
-    ),
-  'removeUserFromCompanyWithKey' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Principal],
-      [],
-      [],
-    ),
-  'setUserFleetRoleWithKey' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
-      [],
-      [],
-    ),
   'validateDiscountCode' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(DiscountCode)],
@@ -442,16 +442,21 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
     'method' : IDL.Text,
     'blob_hash' : IDL.Text,
   });
-  const _CaffeineStorageRefillInformation = IDL.Record({
+  const _ImmutableObjectStorageRefillInformation = IDL.Record({
     'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
   });
-  const _CaffeineStorageRefillResult = IDL.Record({
+  const _ImmutableObjectStorageRefillResult = IDL.Record({
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const FleetRole = IDL.Variant({
+    'FleetManager' : IDL.Null,
+    'Mechanic' : IDL.Null,
+    'Admin' : IDL.Null,
   });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
@@ -490,11 +495,6 @@ export const idlFactory = ({ IDL }) => {
     'discountType' : IDL.Text,
     'usedCount' : IDL.Nat,
     'description' : IDL.Text,
-  });
-  const FleetRole = IDL.Variant({
-    'FleetManager' : IDL.Null,
-    'Mechanic' : IDL.Null,
-    'Admin' : IDL.Null,
   });
   const PartQuantity = IDL.Record({ 'quantity' : IDL.Nat, 'partId' : IDL.Nat });
   const MaintenanceType = IDL.Variant({
@@ -640,33 +640,38 @@ export const idlFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
-    '_caffeineStorageBlobIsLive' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
-        [IDL.Bool],
+    '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [IDL.Vec(IDL.Bool)],
         ['query'],
       ),
-    '_caffeineStorageBlobsToDelete' : IDL.Func(
+    '_immutableObjectStorageBlobsToDelete' : IDL.Func(
         [],
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         ['query'],
       ),
-    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+    '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         [],
         [],
       ),
-    '_caffeineStorageCreateCertificate' : IDL.Func(
+    '_immutableObjectStorageCreateCertificate' : IDL.Func(
         [IDL.Text],
-        [_CaffeineStorageCreateCertificateResult],
+        [_ImmutableObjectStorageCreateCertificateResult],
         [],
       ),
-    '_caffeineStorageRefillCashier' : IDL.Func(
-        [IDL.Opt(_CaffeineStorageRefillInformation)],
-        [_CaffeineStorageRefillResult],
+    '_immutableObjectStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+        [_ImmutableObjectStorageRefillResult],
         [],
       ),
-    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_initializeAccessControl' : IDL.Func([], [], []),
+    'addUserToCompanyWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+        [],
+        [],
+      ),
     'applyDiscountCode' : IDL.Func([IDL.Text], [], []),
     'approveCompany' : IDL.Func([IDL.Text], [], []),
     'approveCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -692,6 +697,7 @@ export const idlFactory = ({ IDL }) => {
     'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
     'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
     'createWorkOrder' : IDL.Func([WorkOrder], [IDL.Nat], []),
+    'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'deleteDiscountCode' : IDL.Func([IDL.Text], [], []),
     'deleteDiscountCodeWithKey' : IDL.Func([IDL.Text, IDL.Nat], [], []),
     'deletePart' : IDL.Func([IDL.Nat], [], []),
@@ -757,6 +763,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
     'getCompanyUsers' : IDL.Func([], [IDL.Vec(CompanyUserInfo)], ['query']),
+    'getCompanyUsersWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(CompanyUserInfo)],
+        ['query'],
+      ),
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
     'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
     'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
@@ -818,11 +829,21 @@ export const idlFactory = ({ IDL }) => {
     'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'rejectCompany' : IDL.Func([IDL.Text], [], []),
     'rejectCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'removeUserFromCompanyWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal],
+        [],
+        [],
+      ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
     'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
     'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
+    'setUserFleetRoleWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
+        [],
+        [],
+      ),
     'startTrial' : IDL.Func([IDL.Text], [], []),
     'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
     'updateMaintenanceRecord' : IDL.Func(
@@ -846,27 +867,6 @@ export const idlFactory = ({ IDL }) => {
     'updateVendor' : IDL.Func([IDL.Nat, Vendor], [], []),
     'updateWarranty' : IDL.Func([IDL.Nat, Warranty], [], []),
     'updateWorkOrder' : IDL.Func([IDL.Nat, WorkOrder], [], []),
-    'addUserToCompanyWithKey' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
-        [],
-        [],
-      ),
-    'deleteCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'getCompanyUsersWithKey' : IDL.Func(
-        [IDL.Text, IDL.Text],
-        [IDL.Vec(CompanyUserInfo)],
-        ['query'],
-      ),
-    'removeUserFromCompanyWithKey' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Principal],
-        [],
-        [],
-      ),
-    'setUserFleetRoleWithKey' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
-        [],
-        [],
-      ),
     'validateDiscountCode' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(DiscountCode)],

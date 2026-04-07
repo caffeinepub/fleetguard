@@ -7,16 +7,16 @@ import Text "mo:core/Text";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 
-import AccessControl "authorization/access-control";
-import MixinAuthorization "authorization/MixinAuthorization";
-import MixinStorage "blob-storage/Mixin";
+import AccessControl "mo:caffeineai-authorization/access-control";
+import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
+import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 
 
 
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
-  include MixinStorage();
+  include MixinObjectStorage();
 
   let DEV_KEY : Text = "FLEETGUARD_DEV_2026";
   let DEV_PRINCIPAL = Principal.fromText("2vxsx-fae");

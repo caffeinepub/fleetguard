@@ -89,30 +89,13 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface MaintenanceRecordFull {
-    id: bigint;
-    mileage: bigint;
-    technicianName: string;
-    partQuantities: Array<PartQuantity>;
-    nextServiceDate?: Time;
-    cost: number;
-    date: Time;
-    createdAt: Time;
-    partsUsed: Array<bigint>;
-    laborHours?: number;
-    description: string;
-    workOrderId?: bigint;
-    maintenanceType: MaintenanceType;
-    laborCost?: number;
-    vehicleId: bigint;
-}
 export interface CompanyUserInfo {
     principal: Principal;
     role: FleetRole;
     profile?: UserProfile;
 }
 export type Time = bigint;
-export interface _CaffeineStorageRefillInformation {
+export interface _ImmutableObjectStorageRefillInformation {
     proposed_top_up_amount?: bigint;
 }
 export interface WorkOrder {
@@ -128,6 +111,10 @@ export interface WorkOrder {
     assignedMechanic: string;
     vehicleId: bigint;
 }
+export interface _ImmutableObjectStorageCreateCertificateResult {
+    method: string;
+    blob_hash: string;
+}
 export interface SubscriptionRecord {
     status: string;
     plan: string;
@@ -135,10 +122,6 @@ export interface SubscriptionRecord {
     companyName: string;
     trialEndsAt?: Time;
     startDate?: Time;
-}
-export interface _CaffeineStorageCreateCertificateResult {
-    method: string;
-    blob_hash: string;
 }
 export interface DiscountCode {
     id: bigint;
@@ -171,6 +154,10 @@ export interface ServiceSchedule {
     intervalDays: bigint;
     notes: string;
     vehicleId: bigint;
+}
+export interface _ImmutableObjectStorageRefillResult {
+    success?: boolean;
+    topped_up_amount?: bigint;
 }
 export interface DashboardStats {
     activeVehicles: bigint;
@@ -239,12 +226,25 @@ export interface PartQuantity {
     quantity: bigint;
     partId: bigint;
 }
-export interface _CaffeineStorageRefillResult {
-    success?: boolean;
-    topped_up_amount?: bigint;
-}
 export interface UserProfile {
     name: string;
+}
+export interface MaintenanceRecordFull {
+    id: bigint;
+    mileage: bigint;
+    technicianName: string;
+    partQuantities: Array<PartQuantity>;
+    nextServiceDate?: Time;
+    cost: number;
+    date: Time;
+    createdAt: Time;
+    partsUsed: Array<bigint>;
+    laborHours?: number;
+    description: string;
+    workOrderId?: bigint;
+    maintenanceType: MaintenanceType;
+    laborCost?: number;
+    vehicleId: bigint;
 }
 export enum FleetRole {
     FleetManager = "FleetManager",
@@ -291,13 +291,14 @@ export enum WorkOrderStatus {
     Completed = "Completed"
 }
 export interface backendInterface {
-    _caffeineStorageBlobIsLive(hash: Uint8Array): Promise<boolean>;
-    _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>>;
-    _caffeineStorageConfirmBlobDeletion(blobs: Array<Uint8Array>): Promise<void>;
-    _caffeineStorageCreateCertificate(blobHash: string): Promise<_CaffeineStorageCreateCertificateResult>;
-    _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
-    _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
-    _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    _immutableObjectStorageBlobsAreLive(hashes: Array<Uint8Array>): Promise<Array<boolean>>;
+    _immutableObjectStorageBlobsToDelete(): Promise<Array<Uint8Array>>;
+    _immutableObjectStorageConfirmBlobDeletion(blobs: Array<Uint8Array>): Promise<void>;
+    _immutableObjectStorageCreateCertificate(blobHash: string): Promise<_ImmutableObjectStorageCreateCertificateResult>;
+    _immutableObjectStorageRefillCashier(refillInformation: _ImmutableObjectStorageRefillInformation | null): Promise<_ImmutableObjectStorageRefillResult>;
+    _immutableObjectStorageUpdateGatewayPrincipals(): Promise<void>;
+    _initializeAccessControl(): Promise<void>;
+    addUserToCompanyWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     applyDiscountCode(code: string): Promise<void>;
     approveCompany(companyName: string): Promise<void>;
     approveCompanyWithKey(devKey: string, companyName: string): Promise<void>;
@@ -371,14 +372,13 @@ export interface backendInterface {
     redeemInviteToken(token: string): Promise<FleetRole>;
     rejectCompany(companyName: string): Promise<void>;
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
+    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
     setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
-    addUserToCompanyWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
-    removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
@@ -392,104 +392,118 @@ export interface backendInterface {
     updateWorkOrder(id: bigint, wo: WorkOrder): Promise<void>;
     validateDiscountCode(code: string): Promise<DiscountCode | null>;
 }
-import type { CompanySettings as _CompanySettings, CompanyUserInfo as _CompanyUserInfo, DiscountCode as _DiscountCode, FleetRole as _FleetRole, InviteToken as _InviteToken, MaintenanceRecordFull as _MaintenanceRecordFull, MaintenanceType as _MaintenanceType, PartFull as _PartFull, PartQuantity as _PartQuantity, ServiceSchedule as _ServiceSchedule, SubscriptionRecord as _SubscriptionRecord, TaxSettings as _TaxSettings, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, Vehicle as _Vehicle, VehicleStatus as _VehicleStatus, VehicleType as _VehicleType, WorkOrder as _WorkOrder, WorkOrderPriority as _WorkOrderPriority, WorkOrderStatus as _WorkOrderStatus, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
+import type { CompanySettings as _CompanySettings, CompanyUserInfo as _CompanyUserInfo, DiscountCode as _DiscountCode, FleetRole as _FleetRole, InviteToken as _InviteToken, MaintenanceRecordFull as _MaintenanceRecordFull, MaintenanceType as _MaintenanceType, PartFull as _PartFull, PartQuantity as _PartQuantity, ServiceSchedule as _ServiceSchedule, SubscriptionRecord as _SubscriptionRecord, TaxSettings as _TaxSettings, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, Vehicle as _Vehicle, VehicleStatus as _VehicleStatus, VehicleType as _VehicleType, WorkOrder as _WorkOrder, WorkOrderPriority as _WorkOrderPriority, WorkOrderStatus as _WorkOrderStatus, _ImmutableObjectStorageRefillInformation as __ImmutableObjectStorageRefillInformation, _ImmutableObjectStorageRefillResult as __ImmutableObjectStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
-    async _caffeineStorageBlobIsLive(arg0: Uint8Array): Promise<boolean> {
+    async _immutableObjectStorageBlobsAreLive(arg0: Array<Uint8Array>): Promise<Array<boolean>> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageBlobIsLive(arg0);
+                const result = await this.actor._immutableObjectStorageBlobsAreLive(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageBlobIsLive(arg0);
+            const result = await this.actor._immutableObjectStorageBlobsAreLive(arg0);
             return result;
         }
     }
-    async _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>> {
+    async _immutableObjectStorageBlobsToDelete(): Promise<Array<Uint8Array>> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageBlobsToDelete();
+                const result = await this.actor._immutableObjectStorageBlobsToDelete();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageBlobsToDelete();
+            const result = await this.actor._immutableObjectStorageBlobsToDelete();
             return result;
         }
     }
-    async _caffeineStorageConfirmBlobDeletion(arg0: Array<Uint8Array>): Promise<void> {
+    async _immutableObjectStorageConfirmBlobDeletion(arg0: Array<Uint8Array>): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageConfirmBlobDeletion(arg0);
+                const result = await this.actor._immutableObjectStorageConfirmBlobDeletion(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageConfirmBlobDeletion(arg0);
+            const result = await this.actor._immutableObjectStorageConfirmBlobDeletion(arg0);
             return result;
         }
     }
-    async _caffeineStorageCreateCertificate(arg0: string): Promise<_CaffeineStorageCreateCertificateResult> {
+    async _immutableObjectStorageCreateCertificate(arg0: string): Promise<_ImmutableObjectStorageCreateCertificateResult> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageCreateCertificate(arg0);
+                const result = await this.actor._immutableObjectStorageCreateCertificate(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageCreateCertificate(arg0);
+            const result = await this.actor._immutableObjectStorageCreateCertificate(arg0);
             return result;
         }
     }
-    async _caffeineStorageRefillCashier(arg0: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult> {
+    async _immutableObjectStorageRefillCashier(arg0: _ImmutableObjectStorageRefillInformation | null): Promise<_ImmutableObjectStorageRefillResult> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
-                return from_candid__CaffeineStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor._immutableObjectStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
+                return from_candid__ImmutableObjectStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
-            return from_candid__CaffeineStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
+            const result = await this.actor._immutableObjectStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
+            return from_candid__ImmutableObjectStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
         }
     }
-    async _caffeineStorageUpdateGatewayPrincipals(): Promise<void> {
+    async _immutableObjectStorageUpdateGatewayPrincipals(): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor._caffeineStorageUpdateGatewayPrincipals();
+                const result = await this.actor._immutableObjectStorageUpdateGatewayPrincipals();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._caffeineStorageUpdateGatewayPrincipals();
+            const result = await this.actor._immutableObjectStorageUpdateGatewayPrincipals();
             return result;
         }
     }
-    async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
+    async _initializeAccessControl(): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor._initializeAccessControlWithSecret(arg0);
+                const result = await this.actor._initializeAccessControl();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            const result = await this.actor._initializeAccessControl();
+            return result;
+        }
+    }
+    async addUserToCompanyWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg3));
             return result;
         }
     }
@@ -538,28 +552,28 @@ export class Backend implements backendInterface {
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n8(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n10(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n8(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n10(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
     async bulkCreateVehicles(arg0: Array<Vehicle>): Promise<Array<bigint>> {
         if (this.processError) {
             try {
-                const result = await this.actor.bulkCreateVehicles(to_candid_vec_n10(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.bulkCreateVehicles(to_candid_vec_n12(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.bulkCreateVehicles(to_candid_vec_n10(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.bulkCreateVehicles(to_candid_vec_n12(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -622,14 +636,14 @@ export class Backend implements backendInterface {
     async createInviteToken(arg0: string, arg1: FleetRole): Promise<string> {
         if (this.processError) {
             try {
-                const result = await this.actor.createInviteToken(arg0, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.createInviteToken(arg0, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createInviteToken(arg0, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.createInviteToken(arg0, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
@@ -678,14 +692,14 @@ export class Backend implements backendInterface {
     async createVehicle(arg0: Vehicle): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.createVehicle(to_candid_Vehicle_n11(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.createVehicle(to_candid_Vehicle_n13(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createVehicle(to_candid_Vehicle_n11(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.createVehicle(to_candid_Vehicle_n13(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -731,20 +745,6 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async deleteDiscountCode(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteDiscountCode(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteDiscountCode(arg0);
-            return result;
-        }
-    }
     async deleteCompanyWithKey(arg0: string, arg1: string): Promise<void> {
         if (this.processError) {
             try {
@@ -756,6 +756,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteCompanyWithKey(arg0, arg1);
+            return result;
+        }
+    }
+    async deleteDiscountCode(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteDiscountCode(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteDiscountCode(arg0);
             return result;
         }
     }
@@ -1165,48 +1179,6 @@ export class Backend implements backendInterface {
             return from_candid_vec_n71(this._uploadFile, this._downloadFile, result);
         }
     }
-    async removeUserFromCompanyWithKey(arg0: string, arg1: string, arg2: Principal): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
-            return result;
-        }
-    }
-    async setUserFleetRoleWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
-            return result;
-        }
-    }
-    async addUserToCompanyWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.addUserToCompanyWithKey(arg0, arg1, arg2, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg3));
-            return result;
-        }
-    }
     async getDashboardStats(): Promise<DashboardStats> {
         if (this.processError) {
             try {
@@ -1557,6 +1529,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async removeUserFromCompanyWithKey(arg0: string, arg1: string, arg2: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeUserFromCompanyWithKey(arg0, arg1, arg2);
+            return result;
+        }
+    }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
@@ -1616,14 +1602,28 @@ export class Backend implements backendInterface {
     async setUserFleetRole(arg0: Principal, arg1: FleetRole): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.setUserFleetRole(arg0, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.setUserFleetRole(arg0, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.setUserFleetRole(arg0, to_candid_FleetRole_n17(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.setUserFleetRole(arg0, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async setUserFleetRoleWithKey(arg0: string, arg1: string, arg2: Principal, arg3: FleetRole): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setUserFleetRoleWithKey(arg0, arg1, arg2, to_candid_FleetRole_n8(this._uploadFile, this._downloadFile, arg3));
             return result;
         }
     }
@@ -1728,14 +1728,14 @@ export class Backend implements backendInterface {
     async updateVehicle(arg0: bigint, arg1: Vehicle): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateVehicle(arg0, to_candid_Vehicle_n11(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.updateVehicle(arg0, to_candid_Vehicle_n13(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateVehicle(arg0, to_candid_Vehicle_n11(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.updateVehicle(arg0, to_candid_Vehicle_n13(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
@@ -1841,7 +1841,7 @@ function from_candid_WorkOrderStatus_n60(_uploadFile: (file: ExternalBlob) => Pr
 function from_candid_WorkOrder_n58(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _WorkOrder): WorkOrder {
     return from_candid_record_n59(_uploadFile, _downloadFile, value);
 }
-function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __CaffeineStorageRefillResult): _CaffeineStorageRefillResult {
+function from_candid__ImmutableObjectStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __ImmutableObjectStorageRefillResult): _ImmutableObjectStorageRefillResult {
     return from_candid_record_n5(_uploadFile, _downloadFile, value);
 }
 function from_candid_opt_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Time]): Time | null {
@@ -2252,8 +2252,8 @@ function from_candid_vec_n71(_uploadFile: (file: ExternalBlob) => Promise<Uint8A
 function from_candid_vec_n74(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_InviteToken>): Array<InviteToken> {
     return value.map((x)=>from_candid_InviteToken_n75(_uploadFile, _downloadFile, x));
 }
-function to_candid_FleetRole_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: FleetRole): _FleetRole {
-    return to_candid_variant_n18(_uploadFile, _downloadFile, value);
+function to_candid_FleetRole_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: FleetRole): _FleetRole {
+    return to_candid_variant_n9(_uploadFile, _downloadFile, value);
 }
 function to_candid_MaintenanceRecordFull_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: MaintenanceRecordFull): _MaintenanceRecordFull {
     return to_candid_record_n20(_uploadFile, _downloadFile, value);
@@ -2267,17 +2267,17 @@ function to_candid_PartFull_n23(_uploadFile: (file: ExternalBlob) => Promise<Uin
 function to_candid_ServiceSchedule_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ServiceSchedule): _ServiceSchedule {
     return to_candid_record_n26(_uploadFile, _downloadFile, value);
 }
-function to_candid_UserRole_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
-    return to_candid_variant_n9(_uploadFile, _downloadFile, value);
+function to_candid_UserRole_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
+    return to_candid_variant_n11(_uploadFile, _downloadFile, value);
 }
-function to_candid_VehicleStatus_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleStatus): _VehicleStatus {
-    return to_candid_variant_n14(_uploadFile, _downloadFile, value);
-}
-function to_candid_VehicleType_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleType): _VehicleType {
+function to_candid_VehicleStatus_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleStatus): _VehicleStatus {
     return to_candid_variant_n16(_uploadFile, _downloadFile, value);
 }
-function to_candid_Vehicle_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Vehicle): _Vehicle {
-    return to_candid_record_n12(_uploadFile, _downloadFile, value);
+function to_candid_VehicleType_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleType): _VehicleType {
+    return to_candid_variant_n18(_uploadFile, _downloadFile, value);
+}
+function to_candid_Vehicle_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Vehicle): _Vehicle {
+    return to_candid_record_n14(_uploadFile, _downloadFile, value);
 }
 function to_candid_WorkOrderPriority_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: WorkOrderPriority): _WorkOrderPriority {
     return to_candid_variant_n32(_uploadFile, _downloadFile, value);
@@ -2288,16 +2288,16 @@ function to_candid_WorkOrderStatus_n29(_uploadFile: (file: ExternalBlob) => Prom
 function to_candid_WorkOrder_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: WorkOrder): _WorkOrder {
     return to_candid_record_n28(_uploadFile, _downloadFile, value);
 }
-function to_candid__CaffeineStorageRefillInformation_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CaffeineStorageRefillInformation): __CaffeineStorageRefillInformation {
+function to_candid__ImmutableObjectStorageRefillInformation_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ImmutableObjectStorageRefillInformation): __ImmutableObjectStorageRefillInformation {
     return to_candid_record_n3(_uploadFile, _downloadFile, value);
 }
-function to_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CaffeineStorageRefillInformation | null): [] | [__CaffeineStorageRefillInformation] {
-    return value === null ? candid_none() : candid_some(to_candid__CaffeineStorageRefillInformation_n2(_uploadFile, _downloadFile, value));
+function to_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ImmutableObjectStorageRefillInformation | null): [] | [__ImmutableObjectStorageRefillInformation] {
+    return value === null ? candid_none() : candid_some(to_candid__ImmutableObjectStorageRefillInformation_n2(_uploadFile, _downloadFile, value));
 }
 function to_candid_opt_n80(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Time | null): [] | [_Time] {
     return value === null ? candid_none() : candid_some(value);
 }
-function to_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     status: VehicleStatus;
     model: string;
@@ -2322,9 +2322,9 @@ function to_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8
 } {
     return {
         id: value.id,
-        status: to_candid_VehicleStatus_n13(_uploadFile, _downloadFile, value.status),
+        status: to_candid_VehicleStatus_n15(_uploadFile, _downloadFile, value.status),
         model: value.model,
-        vehicleType: to_candid_VehicleType_n15(_uploadFile, _downloadFile, value.vehicleType),
+        vehicleType: to_candid_VehicleType_n17(_uploadFile, _downloadFile, value.vehicleType),
         licensePlate: value.licensePlate,
         make: value.make,
         name: value.name,
@@ -2498,7 +2498,22 @@ function to_candid_record_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8A
         proposed_top_up_amount: value.proposed_top_up_amount ? candid_some(value.proposed_top_up_amount) : candid_none()
     };
 }
-function to_candid_variant_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleStatus): {
+function to_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
+    admin: null;
+} | {
+    user: null;
+} | {
+    guest: null;
+} {
+    return value == UserRole.admin ? {
+        admin: null
+    } : value == UserRole.user ? {
+        user: null
+    } : value == UserRole.guest ? {
+        guest: null
+    } : value;
+}
+function to_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleStatus): {
     Inactive: null;
 } | {
     Active: null;
@@ -2509,7 +2524,7 @@ function to_candid_variant_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint
         Active: null
     } : value;
 }
-function to_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleType): {
+function to_candid_variant_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: VehicleType): {
     Bus: null;
 } | {
     Van: null;
@@ -2530,21 +2545,6 @@ function to_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint
         Truck: null
     } : value == VehicleType.Other ? {
         Other: null
-    } : value;
-}
-function to_candid_variant_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: FleetRole): {
-    FleetManager: null;
-} | {
-    Mechanic: null;
-} | {
-    Admin: null;
-} {
-    return value == FleetRole.FleetManager ? {
-        FleetManager: null
-    } : value == FleetRole.Mechanic ? {
-        Mechanic: null
-    } : value == FleetRole.Admin ? {
-        Admin: null
     } : value;
 }
 function to_candid_variant_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: MaintenanceType): {
@@ -2624,23 +2624,23 @@ function to_candid_variant_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint
         Critical: null
     } : value;
 }
-function to_candid_variant_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
-    admin: null;
+function to_candid_variant_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: FleetRole): {
+    FleetManager: null;
 } | {
-    user: null;
+    Mechanic: null;
 } | {
-    guest: null;
+    Admin: null;
 } {
-    return value == UserRole.admin ? {
-        admin: null
-    } : value == UserRole.user ? {
-        user: null
-    } : value == UserRole.guest ? {
-        guest: null
+    return value == FleetRole.FleetManager ? {
+        FleetManager: null
+    } : value == FleetRole.Mechanic ? {
+        Mechanic: null
+    } : value == FleetRole.Admin ? {
+        Admin: null
     } : value;
 }
-function to_candid_vec_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<Vehicle>): Array<_Vehicle> {
-    return value.map((x)=>to_candid_Vehicle_n11(_uploadFile, _downloadFile, x));
+function to_candid_vec_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<Vehicle>): Array<_Vehicle> {
+    return value.map((x)=>to_candid_Vehicle_n13(_uploadFile, _downloadFile, x));
 }
 export interface CreateActorOptions {
     agent?: Agent;

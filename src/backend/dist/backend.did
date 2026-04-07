@@ -1,0 +1,343 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type WorkOrderStatus = 
+ variant {
+   Cancelled;
+   Completed;
+   InProgress;
+   Open;
+ };
+type WorkOrderPriority = 
+ variant {
+   Critical;
+   High;
+   Low;
+   Medium;
+ };
+type WorkOrder = 
+ record {
+   assignedMechanic: text;
+   completedDate: opt Time;
+   createdAt: Time;
+   description: text;
+   id: nat;
+   notes: text;
+   priority: WorkOrderPriority;
+   scheduledDate: opt Time;
+   status: WorkOrderStatus;
+   title: text;
+   vehicleId: nat;
+ };
+type Warranty = 
+ record {
+   cost: float64;
+   coverageDetails: text;
+   createdAt: Time;
+   description: text;
+   expiryDate: Time;
+   id: nat;
+   notes: text;
+   provider: text;
+   startDate: Time;
+   vehicleId: nat;
+ };
+type Vendor = 
+ record {
+   address: text;
+   category: text;
+   contactName: text;
+   createdAt: Time;
+   email: text;
+   id: nat;
+   name: text;
+   notes: text;
+   phone: text;
+ };
+type VehicleType = 
+ variant {
+   Bus;
+   Other;
+   Trailer;
+   Truck;
+   Van;
+ };
+type VehicleStatus = 
+ variant {
+   Active;
+   Inactive;
+ };
+type Vehicle = 
+ record {
+   createdAt: Time;
+   id: nat;
+   licensePlate: text;
+   make: text;
+   model: text;
+   name: text;
+   notes: text;
+   status: VehicleStatus;
+   vehicleType: VehicleType;
+   year: nat;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = record {name: text;};
+type Time = int;
+type TaxSettings = 
+ record {
+   taxEnabled: bool;
+   taxLabel: text;
+   taxRate: float64;
+ };
+type SubscriptionRecord = 
+ record {
+   companyName: text;
+   plan: text;
+   startDate: opt Time;
+   status: text;
+   trialEndsAt: opt Time;
+   updatedAt: Time;
+ };
+type ServiceSchedule = 
+ record {
+   createdAt: Time;
+   id: nat;
+   intervalDays: nat;
+   lastCompletedDate: opt Time;
+   nextDueDate: Time;
+   notes: text;
+   serviceType: text;
+   status: text;
+   vehicleId: nat;
+ };
+type PartQuantity = 
+ record {
+   partId: nat;
+   quantity: nat;
+ };
+type PartFull = 
+ record {
+   category: opt text;
+   createdAt: Time;
+   id: nat;
+   location: text;
+   minStockLevel: nat;
+   name: text;
+   partNumber: text;
+   price: opt float64;
+   quantityInStock: nat;
+ };
+type MaintenanceType = 
+ variant {
+   Bodywork;
+   BrakeService;
+   Electrical;
+   EngineCheck;
+   Inspection;
+   OilChange;
+   Other;
+   TireRotation;
+   Transmission;
+ };
+type MaintenanceRecordFull = 
+ record {
+   cost: float64;
+   createdAt: Time;
+   date: Time;
+   description: text;
+   id: nat;
+   laborCost: opt float64;
+   laborHours: opt float64;
+   maintenanceType: MaintenanceType;
+   mileage: nat;
+   nextServiceDate: opt Time;
+   partQuantities: vec PartQuantity;
+   partsUsed: vec nat;
+   technicianName: text;
+   vehicleId: nat;
+   workOrderId: opt nat;
+ };
+type InviteToken = 
+ record {
+   companyId: text;
+   createdAt: Time;
+   email: text;
+   role: FleetRole;
+   token: text;
+   usedBy: opt principal;
+ };
+type FleetRole = 
+ variant {
+   Admin;
+   FleetManager;
+   Mechanic;
+ };
+type DiscountCode = 
+ record {
+   code: text;
+   createdAt: Time;
+   description: text;
+   discountType: text;
+   id: nat;
+   usedCount: nat;
+   value: nat;
+ };
+type DashboardStats = 
+ record {
+   activeVehicles: nat;
+   lowStockPartsCount: nat;
+   overdueCount: nat;
+   totalVehicles: nat;
+   upcomingMaintenanceCount: nat;
+ };
+type CompanyUserInfo = 
+ record {
+   "principal": principal;
+   profile: opt UserProfile;
+   role: FleetRole;
+ };
+type CompanySettings = 
+ record {
+   adminPrincipal: text;
+   companyName: text;
+   contactPhone: text;
+   createdAt: Time;
+   fleetSize: text;
+   industry: text;
+   logoUrl: text;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControl: () -> ();
+  addUserToCompanyWithKey: (devKey: text, companyId: text, user: principal,
+   role: FleetRole) -> ();
+  applyDiscountCode: (code: text) -> ();
+  approveCompany: (companyName: text) -> ();
+  approveCompanyWithKey: (devKey: text, companyName: text) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  bulkCreateVehicles: (vehicleList: vec Vehicle) -> (vec nat);
+  cancelSubscription: (companyName: text) -> ();
+  completeWorkOrder: (id: nat) -> (nat);
+  createDiscountCode: (discount: DiscountCode) -> (nat);
+  createDiscountCodeWithKey: (devKey: text, discount: DiscountCode) -> (nat);
+  createInviteToken: (email: text, role: FleetRole) -> (text);
+  createMaintenanceRecord: ("record": MaintenanceRecordFull) -> (nat);
+  createPart: (part: PartFull) -> (nat);
+  createServiceSchedule: (schedule: ServiceSchedule) -> (nat);
+  createVehicle: (vehicle: Vehicle) -> (nat);
+  createVendor: (vendor: Vendor) -> (nat);
+  createWarranty: (warranty: Warranty) -> (nat);
+  createWorkOrder: (wo: WorkOrder) -> (nat);
+  deleteCompanyWithKey: (devKey: text, companyId: text) -> ();
+  deleteDiscountCode: (code: text) -> ();
+  deleteDiscountCodeWithKey: (devKey: text, id: nat) -> ();
+  deletePart: (id: nat) -> ();
+  deleteServiceSchedule: (id: nat) -> ();
+  deleteVehicle: (id: nat) -> ();
+  deleteVendor: (id: nat) -> ();
+  deleteWarranty: (id: nat) -> ();
+  deleteWorkOrder: (id: nat) -> ();
+  getAllCompanyApprovalsWithKey: (devKey: text) ->
+   (vec record {
+          text;
+          text;
+        }) query;
+  getAllCompanyRegistrations: () -> (vec CompanySettings) query;
+  getAllCompanyRegistrationsWithKey: (devKey: text) ->
+   (vec CompanySettings) query;
+  getAllDiscountCodesWithKey: (devKey: text) -> (vec DiscountCode) query;
+  getAllMaintenanceRecords: () -> (vec MaintenanceRecordFull) query;
+  getAllParts: () -> (vec PartFull) query;
+  getAllServiceSchedules: () -> (vec ServiceSchedule) query;
+  getAllSubscriptions: () -> (vec SubscriptionRecord) query;
+  getAllSubscriptionsWithKey: (devKey: text) ->
+   (vec SubscriptionRecord) query;
+  getAllVehicles: () -> (vec Vehicle) query;
+  getAllVendors: () -> (vec Vendor) query;
+  getAllWarranties: () -> (vec Warranty) query;
+  getAllWorkOrders: () -> (vec WorkOrder) query;
+  getCallerCompanyId: () -> (opt text) query;
+  getCallerFleetRole: () -> (opt FleetRole) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCompanyApprovalStatus: (companyName: text) -> (text) query;
+  getCompanyApprovalStatusWithKey: (devKey: text, companyName: text) ->
+   (text) query;
+  getCompanySettings: () -> (opt CompanySettings) query;
+  getCompanyUsers: () -> (vec CompanyUserInfo) query;
+  getCompanyUsersWithKey: (devKey: text, companyId: text) ->
+   (vec CompanyUserInfo) query;
+  getDashboardStats: () -> (DashboardStats) query;
+  getDefaultCurrency: () -> (text) query;
+  getDiscountCodes: () -> (vec DiscountCode) query;
+  getInviteTokens: () -> (vec InviteToken) query;
+  getLowStockParts: () -> (vec PartFull) query;
+  getMaintenanceRecord: (id: nat) -> (MaintenanceRecordFull) query;
+  getMaintenanceRecordsByVehicle: (vehicleId: nat) ->
+   (vec MaintenanceRecordFull) query;
+  getOverdueMaintenance: () -> (vec MaintenanceRecordFull) query;
+  getPart: (id: nat) -> (PartFull) query;
+  getSubscriptionStatus: (companyName: text) ->
+   (opt SubscriptionRecord) query;
+  getTaxSettings: () -> (opt TaxSettings) query;
+  getUpcomingMaintenance: () -> (vec MaintenanceRecordFull) query;
+  getUserFleetRole: (user: principal) -> (opt FleetRole) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getVehicle: (id: nat) -> (Vehicle) query;
+  getVendor: (id: nat) -> (Vendor) query;
+  getWarrantiesByVehicle: (vehicleId: nat) -> (vec Warranty) query;
+  getWarranty: (id: nat) -> (Warranty) query;
+  getWorkOrder: (id: nat) -> (WorkOrder) query;
+  getWorkOrdersByVehicle: (vehicleId: nat) -> (vec WorkOrder) query;
+  isCallerAdmin: () -> (bool) query;
+  markScheduleComplete: (id: nat) -> ();
+  redeemInviteToken: (token: text) -> (FleetRole);
+  rejectCompany: (companyName: text) -> ();
+  rejectCompanyWithKey: (devKey: text, companyName: text) -> ();
+  removeUserFromCompanyWithKey: (devKey: text, companyId: text, user:
+   principal) -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  saveCompanySettings: (settings: CompanySettings) -> ();
+  saveDefaultCurrency: (currency: text) -> ();
+  saveTaxSettings: (settings: TaxSettings) -> ();
+  setUserFleetRole: (user: principal, role: FleetRole) -> ();
+  setUserFleetRoleWithKey: (devKey: text, companyId: text, user: principal,
+   role: FleetRole) -> ();
+  startTrial: (companyName: text) -> ();
+  startTrialWithKey: (devKey: text, companyName: text, trialDays: nat) -> ();
+  updateMaintenanceRecord: (id: nat, "record": MaintenanceRecordFull) -> ();
+  updatePart: (id: nat, part: PartFull) -> ();
+  updateServiceSchedule: (id: nat, schedule: ServiceSchedule) -> ();
+  updateSubscriptionStatus: (companyName: text, status: text, startDate:
+   opt Time) -> ();
+  updateSubscriptionStatusWithKey: (devKey: text, companyName: text, status:
+   text, startDate: opt Time) -> ();
+  updateVehicle: (id: nat, vehicle: Vehicle) -> ();
+  updateVendor: (id: nat, vendor: Vendor) -> ();
+  updateWarranty: (id: nat, warranty: Warranty) -> ();
+  updateWorkOrder: (id: nat, wo: WorkOrder) -> ();
+  validateDiscountCode: (code: text) -> (opt DiscountCode) query;
+}

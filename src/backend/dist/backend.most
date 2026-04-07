@@ -1,0 +1,408 @@
+// Version: 1.0.0
+type ChatMessage__1037536196 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    message : Text;
+    senderName : Text;
+    senderPrincipal : Text
+  };
+type CompanySettings__115513322 =
+  {
+    adminPrincipal : Text;
+    companyName : Text;
+    contactPhone : Text;
+    createdAt : Time__900049286;
+    fleetSize : Text;
+    industry : Text;
+    logoUrl : Text
+  };
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type DiscountCode__276877349 =
+  {
+    code : Text;
+    createdAt : Time__900049286;
+    description : Text;
+    discountType : Text;
+    id : Nat;
+    usedCount : Nat;
+    value : Nat
+  };
+type FleetRole__999979268 = {#Admin; #FleetManager; #Mechanic};
+type Int__270357528 = Int__616954475;
+type Int__616954475 = Int;
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type InviteToken__32156228 =
+  {
+    companyId : Text;
+    createdAt : Time__900049286;
+    email : Text;
+    role : FleetRole__999979268;
+    token : Text;
+    usedBy : ?Principal
+  };
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type MaintCore__261799166 =
+  {
+    cost : Float;
+    createdAt : Time__900049286;
+    date : Time__900049286;
+    description : Text;
+    id : Nat;
+    maintenanceType : MaintenanceType__465401755;
+    mileage : Nat;
+    nextServiceDate : ?Time__900049286;
+    technicianName : Text;
+    vehicleId : Nat
+  };
+type MaintenanceType__465401755 =
+  {
+    #Bodywork;
+    #BrakeService;
+    #Electrical;
+    #EngineCheck;
+    #Inspection;
+    #OilChange;
+    #Other;
+    #TireRotation;
+    #Transmission
+  };
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type PartCore__620802191 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    location : Text;
+    minStockLevel : Nat;
+    name : Text;
+    partNumber : Text;
+    quantityInStock : Nat
+  };
+type PartQuantity__959356074 = {partId : Nat; quantity : Nat};
+type ServiceSchedule__444523700 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    intervalDays : Nat;
+    lastCompletedDate : ?Time__900049286;
+    nextDueDate : Time__900049286;
+    notes : Text;
+    serviceType : Text;
+    status : Text;
+    vehicleId : Nat
+  };
+type SubscriptionRecord__132754268 =
+  {
+    companyName : Text;
+    plan : Text;
+    startDate : ?Time__900049286;
+    status : Text;
+    trialEndsAt : ?Time__900049286;
+    updatedAt : Time__900049286
+  };
+type TaxSettings__259117869 =
+  {taxEnabled : Bool; taxLabel : Text; taxRate : Float};
+type Time__796480547 = Int__270357528;
+type Time__900049286 = Time__796480547;
+type UserProfile__491224006 = {name : Text};
+type UserRole__1054455867 = {#admin; #guest; #user};
+type VehicleStatus__400369737 = {#Active; #Inactive};
+type VehicleType__174430556 = {#Bus; #Other; #Trailer; #Truck; #Van};
+type Vehicle__218238674 =
+  {
+    createdAt : Time__900049286;
+    id : Nat;
+    licensePlate : Text;
+    make : Text;
+    model : Text;
+    name : Text;
+    notes : Text;
+    status : VehicleStatus__400369737;
+    vehicleType : VehicleType__174430556;
+    year : Nat
+  };
+type Vendor__545299696 =
+  {
+    address : Text;
+    category : Text;
+    contactName : Text;
+    createdAt : Time__900049286;
+    email : Text;
+    id : Nat;
+    name : Text;
+    notes : Text;
+    phone : Text
+  };
+type Warranty__988578628 =
+  {
+    cost : Float;
+    coverageDetails : Text;
+    createdAt : Time__900049286;
+    description : Text;
+    expiryDate : Time__900049286;
+    id : Nat;
+    notes : Text;
+    provider : Text;
+    startDate : Time__900049286;
+    vehicleId : Nat
+  };
+type WorkOrderPriority__794798072 = {#Critical; #High; #Low; #Medium};
+type WorkOrderStatus__1066686710 =
+  {#Cancelled; #Completed; #InProgress; #Open};
+type WorkOrder__288220227 =
+  {
+    assignedMechanic : Text;
+    completedDate : ?Time__900049286;
+    createdAt : Time__900049286;
+    description : Text;
+    id : Nat;
+    notes : Text;
+    priority : WorkOrderPriority__794798072;
+    scheduledDate : ?Time__900049286;
+    status : WorkOrderStatus__1066686710;
+    title : Text;
+    vehicleId : Nat
+  };
+actor {
+  stable DEV_KEY : Text;
+  stable DEV_PRINCIPAL : Principal;
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable var allCompanyRegistrations :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?CompanySettings__115513322]];
+      var elementIndex : Nat__490723111
+    };
+  stable var cCategories :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Text>>;
+      var size : Nat__490723111
+    };
+  stable var cCurrency :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable var cFleetRoles :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Principal, FleetRole__999979268>>;
+      var size : Nat__490723111
+    };
+  stable var cMLaborC :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Float>>;
+      var size : Nat__490723111
+    };
+  stable var cMLaborH :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Float>>;
+      var size : Nat__490723111
+    };
+  stable var cMPartQty :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, [PartQuantity__959356074]>>;
+      var size : Nat__490723111
+    };
+  stable var cMParts :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, [Nat]>>;
+      var size : Nat__490723111
+    };
+  stable var cMaint :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, MaintCore__261799166>>;
+      var size : Nat__490723111
+    };
+  stable var cMaintCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cPartCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cParts :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, PartCore__620802191>>;
+      var size : Nat__490723111
+    };
+  stable var cPrices :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Float>>;
+      var size : Nat__490723111
+    };
+  stable var cScheduleCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cSchedules :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, ServiceSchedule__444523700>>;
+      var size : Nat__490723111
+    };
+  stable var cSettings :
+    {
+      var root : Node__46230540<Text, CompanySettings__115513322>;
+      var size : Nat__490723111
+    };
+  stable var cTax :
+    {
+      var root : Node__46230540<Text, TaxSettings__259117869>;
+      var size : Nat__490723111
+    };
+  stable var cVehCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cVehicles :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Vehicle__218238674>>;
+      var size : Nat__490723111
+    };
+  stable var cVendorCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cVendors :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Vendor__545299696>>;
+      var size : Nat__490723111
+    };
+  stable var cWO :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, WorkOrder__288220227>>;
+      var size : Nat__490723111
+    };
+  stable var cWOCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var cWOLinks :
+    {
+      var root : Node__46230540<Text, Map__605269027<Nat, Nat>>;
+      var size : Nat__490723111
+    };
+  stable var cWarranties :
+    {
+      var root :
+        Node__46230540<Text, Map__605269027<Nat, Warranty__988578628>>;
+      var size : Nat__490723111
+    };
+  stable var cWarrantyCounters :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var chatMessages :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?ChatMessage__1037536196]];
+      var elementIndex : Nat__490723111
+    };
+  stable var companyApprovalStore :
+    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+  stable var companySettings : ?CompanySettings__115513322;
+  stable var defaultCurrency : Text;
+  stable var discountCodeMap :
+    {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
+  stable var discountCodes :
+    {
+      var root : Node__46230540<Nat, DiscountCode__276877349>;
+      var size : Nat__490723111
+    };
+  stable var fleetRoles :
+    {
+      var root : Node__46230540<Principal, FleetRole__999979268>;
+      var size : Nat__490723111
+    };
+  stable var inviteTokens :
+    {
+      var root : Node__46230540<Text, InviteToken__32156228>;
+      var size : Nat__490723111
+    };
+  stable var maintenanceLaborCostStore :
+    {var root : Node__46230540<Nat, Float>; var size : Nat__490723111};
+  stable var maintenanceLaborHoursStore :
+    {var root : Node__46230540<Nat, Float>; var size : Nat__490723111};
+  stable var maintenancePartQuantitiesStore :
+    {
+      var root : Node__46230540<Nat, [PartQuantity__959356074]>;
+      var size : Nat__490723111
+    };
+  stable var maintenancePartsStore :
+    {var root : Node__46230540<Nat, [Nat]>; var size : Nat__490723111};
+  stable var maintenanceRecords :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?MaintCore__261799166]];
+      var elementIndex : Nat__490723111
+    };
+  stable var maintenanceStore :
+    {
+      var root : Node__46230540<Nat, MaintCore__261799166>;
+      var size : Nat__490723111
+    };
+  stable var nextChatId : Nat;
+  stable var nextDiscountCodeId : Nat;
+  stable var nextInviteTokenId : Nat;
+  stable var nextMaintenanceId : Nat;
+  stable var nextPartId : Nat;
+  stable var nextServiceScheduleId : Nat;
+  stable var nextVehicleId : Nat;
+  stable var nextVendorId : Nat;
+  stable var nextWarrantyId : Nat;
+  stable var nextWorkOrderId : Nat;
+  stable var partPriceStore :
+    {var root : Node__46230540<Nat, Float>; var size : Nat__490723111};
+  stable var partStore :
+    {
+      var root : Node__46230540<Nat, PartCore__620802191>;
+      var size : Nat__490723111
+    };
+  stable var serviceSchedules :
+    {
+      var root : Node__46230540<Nat, ServiceSchedule__444523700>;
+      var size : Nat__490723111
+    };
+  stable var subscriptionRecords :
+    {
+      var root : Node__46230540<Text, SubscriptionRecord__132754268>;
+      var size : Nat__490723111
+    };
+  stable var userCompanyMap :
+    {var root : Node__46230540<Principal, Text>; var size : Nat__490723111};
+  stable var userProfiles :
+    {
+      var root : Node__46230540<Principal, UserProfile__491224006>;
+      var size : Nat__490723111
+    };
+  stable var vehicleStore :
+    {
+      var root : Node__46230540<Nat, Vehicle__218238674>;
+      var size : Nat__490723111
+    };
+  stable var vehicles :
+    {
+      var blockIndex : Nat__490723111;
+      var blocks : [var [var ?Vehicle__218238674]];
+      var elementIndex : Nat__490723111
+    };
+  stable var vendorStore :
+    {
+      var root : Node__46230540<Nat, Vendor__545299696>;
+      var size : Nat__490723111
+    };
+  stable var warrantyStore :
+    {
+      var root : Node__46230540<Nat, Warranty__988578628>;
+      var size : Nat__490723111
+    };
+  stable var workOrderLinkStore :
+    {var root : Node__46230540<Nat, Nat>; var size : Nat__490723111};
+  stable var workOrderStore :
+    {
+      var root : Node__46230540<Nat, WorkOrder__288220227>;
+      var size : Nat__490723111
+    }
+};

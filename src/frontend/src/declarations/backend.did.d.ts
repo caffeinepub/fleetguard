@@ -181,34 +181,41 @@ export type WorkOrderStatus = { 'Open' : null } |
   { 'Cancelled' : null } |
   { 'InProgress' : null } |
   { 'Completed' : null };
-export interface _CaffeineStorageCreateCertificateResult {
+export interface _ImmutableObjectStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
 }
-export interface _CaffeineStorageRefillInformation {
+export interface _ImmutableObjectStorageRefillInformation {
   'proposed_top_up_amount' : [] | [bigint],
 }
-export interface _CaffeineStorageRefillResult {
+export interface _ImmutableObjectStorageRefillResult {
   'success' : [] | [boolean],
   'topped_up_amount' : [] | [bigint],
 }
 export interface _SERVICE {
-  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
-  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
-  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+  '_immutableObjectStorageBlobsAreLive' : ActorMethod<
+    [Array<Uint8Array>],
+    Array<boolean>
+  >,
+  '_immutableObjectStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_immutableObjectStorageConfirmBlobDeletion' : ActorMethod<
     [Array<Uint8Array>],
     undefined
   >,
-  '_caffeineStorageCreateCertificate' : ActorMethod<
+  '_immutableObjectStorageCreateCertificate' : ActorMethod<
     [string],
-    _CaffeineStorageCreateCertificateResult
+    _ImmutableObjectStorageCreateCertificateResult
   >,
-  '_caffeineStorageRefillCashier' : ActorMethod<
-    [[] | [_CaffeineStorageRefillInformation]],
-    _CaffeineStorageRefillResult
+  '_immutableObjectStorageRefillCashier' : ActorMethod<
+    [[] | [_ImmutableObjectStorageRefillInformation]],
+    _ImmutableObjectStorageRefillResult
   >,
-  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  '_initializeAccessControl' : ActorMethod<[], undefined>,
+  'addUserToCompanyWithKey' : ActorMethod<
+    [string, string, Principal, FleetRole],
+    undefined
+  >,
   'applyDiscountCode' : ActorMethod<[string], undefined>,
   'approveCompany' : ActorMethod<[string], undefined>,
   'approveCompanyWithKey' : ActorMethod<[string, string], undefined>,
@@ -226,6 +233,7 @@ export interface _SERVICE {
   'createVendor' : ActorMethod<[Vendor], bigint>,
   'createWarranty' : ActorMethod<[Warranty], bigint>,
   'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
+  'deleteCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'deleteDiscountCode' : ActorMethod<[string], undefined>,
   'deleteDiscountCodeWithKey' : ActorMethod<[string, bigint], undefined>,
   'deletePart' : ActorMethod<[bigint], undefined>,
@@ -264,6 +272,10 @@ export interface _SERVICE {
   'getCompanyApprovalStatusWithKey' : ActorMethod<[string, string], string>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
   'getCompanyUsers' : ActorMethod<[], Array<CompanyUserInfo>>,
+  'getCompanyUsersWithKey' : ActorMethod<
+    [string, string],
+    Array<CompanyUserInfo>
+  >,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
   'getDiscountCodes' : ActorMethod<[], Array<DiscountCode>>,
@@ -292,11 +304,19 @@ export interface _SERVICE {
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'rejectCompany' : ActorMethod<[string], undefined>,
   'rejectCompanyWithKey' : ActorMethod<[string, string], undefined>,
+  'removeUserFromCompanyWithKey' : ActorMethod<
+    [string, string, Principal],
+    undefined
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'saveTaxSettings' : ActorMethod<[TaxSettings], undefined>,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
+  'setUserFleetRoleWithKey' : ActorMethod<
+    [string, string, Principal, FleetRole],
+    undefined
+  >,
   'startTrial' : ActorMethod<[string], undefined>,
   'startTrialWithKey' : ActorMethod<[string, string, bigint], undefined>,
   'updateMaintenanceRecord' : ActorMethod<
@@ -317,11 +337,6 @@ export interface _SERVICE {
   'updateVendor' : ActorMethod<[bigint, Vendor], undefined>,
   'updateWarranty' : ActorMethod<[bigint, Warranty], undefined>,
   'updateWorkOrder' : ActorMethod<[bigint, WorkOrder], undefined>,
-  'addUserToCompanyWithKey' : ActorMethod<[string, string, Principal, FleetRole], undefined>,
-  'deleteCompanyWithKey' : ActorMethod<[string, string], undefined>,
-  'getCompanyUsersWithKey' : ActorMethod<[string, string], Array<CompanyUserInfo>>,
-  'removeUserFromCompanyWithKey' : ActorMethod<[string, string, Principal], undefined>,
-  'setUserFleetRoleWithKey' : ActorMethod<[string, string, Principal, FleetRole], undefined>,
   'validateDiscountCode' : ActorMethod<[string], [] | [DiscountCode]>,
 }
 export declare const idlService: IDL.ServiceClass;

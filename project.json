@@ -1,0 +1,26 @@
+{
+  "overview": "FleetGuard is a production-ready, mobile-first SaaS platform for transport companies to log, track, and manage fleet maintenance records. It features strict multi-tenant data isolation, role-based access (Admin, Fleet Manager, Mechanic), Stripe subscription billing, a developer portal, document management, and comprehensive reporting.",
+  "features": [
+    "Multi-tenant fleet maintenance tracking with full data isolation per company",
+    "Role-based access control: Admin, Fleet Manager, Mechanic",
+    "Work orders, service schedules, and maintenance history with auto-assigned WO numbers",
+    "Parts inventory with A-Z search, usage history, and low-stock alerts",
+    "Document management: upload, preview, search, and filter files per asset",
+    "Developer portal with company management, user control, promo codes, and Stripe settings",
+    "Dashboard analytics with repair reason donut chart, monthly cost bar chart, and work order priority widget",
+    "Stripe subscription billing with 7-day free trial and discount code support",
+    "Internet Identity authentication with company-scoped onboarding wizard"
+  ],
+  "category": "productivity",
+  "tags": [
+    "fleet-management",
+    "maintenance",
+    "saas",
+    "multi-tenant",
+    "work-orders",
+    "inventory",
+    "stripe",
+    "internet-identity"
+  ],
+  "last_updated": "2026-04-07T21:37:55.899Z"
+}
