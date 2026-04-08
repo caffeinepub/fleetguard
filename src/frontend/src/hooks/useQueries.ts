@@ -1,6 +1,11 @@
 import { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  SubscriptionRecord,
+  SubscriptionTier,
+  SubscriptionWithVehicleCount,
+} from "../backend";
+import type {
   CompanySettings,
   CompanyUserInfo,
   FleetRole,
@@ -13,13 +18,11 @@ import type {
 import type { UserRole } from "../backend";
 import { useActor } from "./useActor";
 
-// SubscriptionRecord is not yet in backend.d.ts — declare locally
-export interface SubscriptionRecord {
-  companyName: string;
-  status: string;
-  startDate: [] | [bigint];
-  updatedAt: bigint;
-}
+// Re-export typed subscription interfaces from backend
+export type {
+  SubscriptionRecord,
+  SubscriptionWithVehicleCount,
+} from "../backend";
 
 export function useDashboardStats() {
   const { actor, isFetching } = useActor();
@@ -235,13 +238,16 @@ export function useCreateVehicle() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: Vehicle) => {
+    mutationFn: async (v: Vehicle) => {
       if (!actor) throw new Error("Not connected");
-      return actor.createVehicle(v);
+      const result = await actor.createVehicle(v);
+      if (result.__kind__ === "err") throw new Error(result.err);
+      return result.ok;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+      qc.invalidateQueries({ queryKey: ["subscriptionStatus"] });
     },
   });
 }
@@ -281,13 +287,16 @@ export function useBulkCreateVehicles() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vehicles: Vehicle[]) => {
+    mutationFn: async (vehicles: Vehicle[]) => {
       if (!actor) throw new Error("Not connected");
-      return actor.bulkCreateVehicles(vehicles);
+      const result = await actor.bulkCreateVehicles(vehicles);
+      if (result.__kind__ === "err") throw new Error(result.err);
+      return result.ok;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       qc.invalidateQueries({ queryKey: ["dashboardStats"] });
+      qc.invalidateQueries({ queryKey: ["subscriptionStatus"] });
     },
   });
 }
@@ -524,10 +533,7 @@ export function useGetSubscriptionStatus(companyName: string | undefined) {
     enabled: !!actor && !isFetching && !!companyName,
     queryFn: async (): Promise<SubscriptionRecord | null> => {
       if (!actor || !companyName) return null;
-      const result = (await (actor as any).getSubscriptionStatus(
-        companyName,
-      )) as [] | [SubscriptionRecord];
-      return result.length > 0 ? (result[0] as SubscriptionRecord) : null;
+      return actor.getSubscriptionStatus(companyName);
     },
   });
 }
@@ -545,7 +551,6 @@ export function useGetAllSubscriptions() {
     },
   });
 }
-
 export function useGetDefaultCurrency() {
   const { actor, isFetching } = useActor();
   return useQuery<string>({
@@ -624,11 +629,11 @@ export function useAllCompanyRegistrationsWithKey(devKey: string) {
 
 export function useAllSubscriptionsWithKey(devKey: string) {
   const { actor, isFetching } = useActor();
-  return useQuery<SubscriptionRecord[]>({
+  return useQuery<SubscriptionWithVehicleCount[]>({
     queryKey: ["allSubscriptions", devKey],
     queryFn: async () => {
       if (!actor || !devKey) return [];
-      return (actor as any).getAllSubscriptionsWithKey(devKey);
+      return actor.getAllSubscriptionsWithKey(devKey);
     },
     enabled: !!actor && !isFetching && !!devKey,
   });
@@ -775,6 +780,26 @@ export function useStartTrialWithKey() {
     mutationFn: ({ devKey, companyName, trialDays = 7n }) => {
       if (!actor) throw new Error("Not connected");
       return (actor as any).startTrialWithKey(devKey, companyName, trialDays);
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
+      qc.invalidateQueries({ queryKey: ["allSubscriptions", devKey] });
+    },
+  });
+}
+
+export function useSetCompanyTier() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { devKey: string; companyId: string; tier: SubscriptionTier }
+  >({
+    mutationFn: async ({ devKey, companyId, tier }) => {
+      if (!actor) throw new Error("Not connected");
+      const result = await actor.setCompanyTierWithKey(devKey, companyId, tier);
+      if (result.__kind__ === "err") throw new Error(result.err);
+      return result.ok;
     },
     onSuccess: (_: unknown, { devKey }: { devKey: string }) => {
       qc.invalidateQueries({ queryKey: ["allSubscriptions", devKey] });

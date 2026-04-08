@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  Check,
   CheckCircle2,
   ChevronRight,
   CreditCard,
@@ -17,9 +18,11 @@ import {
   Tag,
   Truck,
   Users,
+  Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SubscriptionTier } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSaveCompanySettings, useSaveProfile } from "../hooks/useQueries";
@@ -105,7 +108,49 @@ function StripeCardForm({
   );
 }
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
+
+const TIER_OPTIONS = [
+  {
+    tier: SubscriptionTier.starter,
+    name: "Starter",
+    price: "$99",
+    limit: "Up to 10 vehicles",
+    features: [
+      "10 vehicle limit",
+      "Full maintenance tracking",
+      "Work orders & parts",
+      "3 team members",
+    ],
+    highlight: false,
+  },
+  {
+    tier: SubscriptionTier.growth,
+    name: "Growth",
+    price: "$225",
+    limit: "Up to 25 vehicles",
+    features: [
+      "25 vehicle limit",
+      "All Starter features",
+      "Advanced analytics",
+      "Unlimited team members",
+    ],
+    highlight: true,
+  },
+  {
+    tier: SubscriptionTier.enterprise,
+    name: "Enterprise",
+    price: "$499",
+    limit: "Unlimited vehicles",
+    features: [
+      "Unlimited vehicles",
+      "All Growth features",
+      "Priority support",
+      "Custom integrations",
+    ],
+    highlight: false,
+  },
+];
 
 function StepDots({ current }: { current: number }) {
   return (
@@ -160,6 +205,9 @@ export function OnboardingPage() {
 
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(
+    SubscriptionTier.starter,
+  );
 
   // T&C checkbox state (step 1)
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -196,7 +244,7 @@ export function OnboardingPage() {
     sessionStorage.removeItem("fleetguard_presignup_email");
   }, []);
 
-  // Step 1 → 2: save company settings and advance
+  // Step 1 → 2: save company settings and advance to tier selection
   const handleCompanyNext = async () => {
     if (!termsAccepted) {
       toast.error("Please agree to the Terms & Conditions to continue");
@@ -225,7 +273,14 @@ export function OnboardingPage() {
     }
   };
 
-  // Step 2 → 3 (or 4 if billing already completed pre-login)
+  // Step 2 → 3: tier confirmed, advance to profile
+  const handleTierNext = () => {
+    // Save selected tier to session for trial activation
+    sessionStorage.setItem("fleetguard_selected_tier", selectedTier);
+    setStep(3);
+  };
+
+  // Step 3 → 4 (or 5 if billing already completed pre-login)
   const handleProfileComplete = async () => {
     if (!name.trim()) {
       toast.error("Please enter your name");
@@ -254,12 +309,22 @@ export function OnboardingPage() {
             await (actor as any).applyDiscountCode(savedDiscount);
           }
           await (actor as any).startTrial(stripeToken);
+          // Apply selected tier right after trial starts
+          const savedTier = sessionStorage.getItem("fleetguard_selected_tier");
+          if (savedTier && savedTier !== SubscriptionTier.starter) {
+            try {
+              await actor!.setMySubscriptionTier(savedTier as SubscriptionTier);
+            } catch {
+              // non-fatal: defaults to starter
+            }
+          }
+          sessionStorage.removeItem("fleetguard_selected_tier");
         } catch {
           // non-fatal: still advance to dashboard
         }
-        setStep(4);
+        setStep(5);
       } else {
-        setStep(3);
+        setStep(4);
       }
     } catch {
       toast.error("Failed to save profile");
@@ -300,7 +365,7 @@ export function OnboardingPage() {
     );
   };
 
-  // Step 3 → 4: activate trial
+  // Step 4 → 5: activate trial
   const handleActivateTrial = async () => {
     if (STRIPE_PK && stripeRef.current && stripeElementsRef.current) {
       if (!stripeCardReady) {
@@ -313,16 +378,26 @@ export function OnboardingPage() {
         const { token, error } =
           await stripeRef.current.createToken(cardElement);
         if (error) {
-          toast.error(error.message ?? "Card declined \u2014 please try again");
+          toast.error(error.message ?? "Card declined — please try again");
           return;
         }
         if (discountApplied) {
           await (actor as any).applyDiscountCode(discountApplied.code);
         }
         await (actor as any).startTrial(token?.id ?? companyName.trim());
-        setStep(4);
+        // Apply selected tier right after trial starts
+        const tierKey = sessionStorage.getItem("fleetguard_selected_tier");
+        if (tierKey && tierKey !== SubscriptionTier.starter) {
+          try {
+            await actor!.setMySubscriptionTier(tierKey as SubscriptionTier);
+          } catch {
+            // non-fatal
+          }
+        }
+        sessionStorage.removeItem("fleetguard_selected_tier");
+        setStep(5);
       } catch {
-        setStep(4);
+        setStep(5);
       } finally {
         setActivatingTrial(false);
       }
@@ -338,9 +413,19 @@ export function OnboardingPage() {
         await (actor as any).applyDiscountCode(discountApplied.code);
       }
       await (actor as any).startTrial(companyName.trim());
-      setStep(4);
+      // Apply selected tier right after trial starts
+      const tierKey = sessionStorage.getItem("fleetguard_selected_tier");
+      if (tierKey && tierKey !== SubscriptionTier.starter) {
+        try {
+          await actor!.setMySubscriptionTier(tierKey as SubscriptionTier);
+        } catch {
+          // non-fatal
+        }
+      }
+      sessionStorage.removeItem("fleetguard_selected_tier");
+      setStep(5);
     } catch {
-      setStep(4);
+      setStep(5);
     } finally {
       setActivatingTrial(false);
     }
@@ -360,7 +445,7 @@ export function OnboardingPage() {
           <span className="text-xl font-bold tracking-tight">FleetGuard</span>
         </div>
 
-        {step <= 3 && <StepDots current={step} />}
+        {step <= 4 && <StepDots current={step} />}
 
         <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
           {/* ── Step 1: Welcome & Confirm Company ─────────────────── */}
@@ -455,8 +540,8 @@ export function OnboardingPage() {
                   </span>
                   <span className="text-muted-foreground">
                     {" "}
-                    &mdash; start free for 7 days, then{" "}
-                    <strong>$499/month + tax</strong>. Minimum 12-month contract
+                    &mdash; start free for 7 days. Plans from{" "}
+                    <strong>$99/month + tax</strong>. Minimum 12-month contract
                     term.
                   </span>
                 </div>
@@ -519,8 +604,8 @@ export function OnboardingPage() {
                       Privacy Policy
                     </a>
                     . I understand this is a{" "}
-                    <strong>minimum 1-year contract</strong> at{" "}
-                    <strong>$499 + tax per month</strong>.
+                    <strong>minimum 1-year contract</strong> starting from{" "}
+                    <strong>$99 + tax per month</strong>.
                   </label>
                 </div>
                 {!termsAccepted && (
@@ -550,8 +635,88 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 2: Your Profile ───────────────────────────────── */}
+          {/* ── Step 2: Choose Your Plan ──────────────────────────── */}
           {step === 2 && (
+            <div className="p-8" data-ocid="onboarding.panel">
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-5 h-5 text-primary" />
+                  <h2 className="text-2xl font-bold">Choose Your Plan</h2>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Select the plan that fits your fleet size. You can upgrade at
+                  any time.
+                </p>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                {TIER_OPTIONS.map((option) => (
+                  <button
+                    key={option.tier}
+                    type="button"
+                    data-ocid={`onboarding.tier.${option.tier}`}
+                    onClick={() => setSelectedTier(option.tier)}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                      selectedTier === option.tier
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-base">
+                          {option.name}
+                        </span>
+                        {option.highlight && (
+                          <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">
+                            Popular
+                          </Badge>
+                        )}
+                        {selectedTier === option.tier && (
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-lg">
+                          {option.price}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          /mo + tax
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2 font-medium">
+                      {option.limit}
+                    </p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {option.features.map((f) => (
+                        <span
+                          key={f}
+                          className="text-xs text-muted-foreground flex items-center gap-1"
+                        >
+                          <Check className="w-3 h-3 text-primary shrink-0" />
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                data-ocid="onboarding.primary_button"
+                className="w-full h-12 font-semibold gap-2"
+                onClick={handleTierNext}
+              >
+                Continue with{" "}
+                {TIER_OPTIONS.find((o) => o.tier === selectedTier)?.name} Plan{" "}
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* ── Step 3: Your Profile ───────────────────────────────── */}
+          {step === 3 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold">Your Profile</h2>
@@ -599,8 +764,8 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 3: Activate Free Trial (payment) ─────────────── */}
-          {step === 3 && (
+          {/* ── Step 4: Activate Free Trial (payment) ─────────────── */}
+          {step === 4 && (
             <div className="p-8" data-ocid="onboarding.panel">
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-1">
@@ -621,8 +786,8 @@ export function OnboardingPage() {
                   </span>
                   <span className="text-muted-foreground">
                     {" "}
-                    &mdash; then $499/month + applicable taxes. Minimum 12-month
-                    contract term applies.
+                    &mdash; then charged at your selected plan rate. Minimum
+                    12-month contract term applies.
                   </span>
                 </div>
               </div>
@@ -770,8 +935,8 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 4: All Set ────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── Step 5: All Set ────────────────────────────────────── */}
+          {step === 5 && (
             <div className="p-8 text-center" data-ocid="onboarding.panel">
               <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 className="w-11 h-11 text-emerald-500" />

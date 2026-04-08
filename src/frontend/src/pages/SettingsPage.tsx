@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  ArrowUpRight,
   Building2,
   Check,
   ClipboardCheck,
@@ -41,11 +42,12 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChecklistItemStatus, FleetRole } from "../backend";
+import { ChecklistItemStatus, FleetRole, SubscriptionTier } from "../backend";
 import type { CompanySettings, InspectionChecklist } from "../backend";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
+  useAllVehicles,
   useCallerFleetRole,
   useCompanyUsers,
   useCreateInspectionChecklist,
@@ -106,6 +108,8 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const { data: subscription } = useGetSubscriptionStatus(
     companySettings?.companyName,
   );
+  const { data: vehicles } = useAllVehicles();
+  const vehicleCount = vehicles?.length ?? 0;
   const { data: savedCurrency } = useGetDefaultCurrency();
   const { taxSettings, saveTaxSettings } = useTaxSettings();
   const [taxLabel, setTaxLabel] = useState(taxSettings.taxLabel);
@@ -674,55 +678,186 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border">
-              <div className="space-y-1">
-                <p className="font-semibold text-sm">FleetGuard Pro</p>
-                <p className="text-2xl font-bold">
-                  $499
-                  <span className="text-sm font-normal text-muted-foreground">
-                    /month
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Unlimited vehicles · Full maintenance tracking · Work orders ·
-                  Parts inventory · Team management
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className={`shrink-0 text-xs font-semibold px-3 py-1 capitalize ${getSubBadge(
-                  subscriptionStatus,
-                )}`}
-                data-ocid="settings.panel"
-              >
-                {getSubLabel(subscriptionStatus)}
-              </Badge>
-            </div>
+            {(() => {
+              const tier = subscription?.tier ?? SubscriptionTier.starter;
+              const vehicleLimit = subscription?.vehicleLimit
+                ? Number(subscription.vehicleLimit)
+                : tier === SubscriptionTier.enterprise
+                  ? Number.POSITIVE_INFINITY
+                  : tier === SubscriptionTier.growth
+                    ? 25
+                    : 10;
+              const tierLabels: Record<
+                string,
+                { name: string; price: string }
+              > = {
+                [SubscriptionTier.starter]: { name: "Starter", price: "$99" },
+                [SubscriptionTier.growth]: { name: "Growth", price: "$225" },
+                [SubscriptionTier.enterprise]: {
+                  name: "Enterprise",
+                  price: "$499",
+                },
+              };
+              const tierInfo = tierLabels[tier] ?? {
+                name: "Starter",
+                price: "$99",
+              };
+              const isUnlimited =
+                vehicleLimit === Number.POSITIVE_INFINITY ||
+                vehicleLimit >= 9999;
+              const usagePct = isUnlimited
+                ? 0
+                : Math.min(
+                    100,
+                    Math.round((vehicleCount / vehicleLimit) * 100),
+                  );
+              const atLimit = !isUnlimited && vehicleCount >= vehicleLimit;
 
-            {subscriptionStatus === "active" &&
-              subscriptionStartDate &&
-              subscriptionStartDate.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Active since{" "}
-                  <strong>
-                    {formatSubDate(subscriptionStartDate[0] as bigint)}
-                  </strong>
-                </p>
-              )}
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm">
+                        FleetGuard {tierInfo.name} Plan
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {tierInfo.price}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /month + tax
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {isUnlimited
+                          ? "Unlimited vehicles"
+                          : `Up to ${vehicleLimit} vehicles`}{" "}
+                        · Full maintenance tracking · Work orders · Parts
+                        inventory · Team management
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`shrink-0 text-xs font-semibold px-3 py-1 capitalize ${getSubBadge(subscriptionStatus)}`}
+                      data-ocid="settings.panel"
+                    >
+                      {getSubLabel(subscriptionStatus)}
+                    </Badge>
+                  </div>
 
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <CreditCard className="w-4 h-4 text-primary shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                To activate or manage your subscription, please contact{" "}
-                <a
-                  href="mailto:support@fleetguard.app"
-                  className="text-primary underline hover:no-underline"
-                >
-                  support@fleetguard.app
-                </a>
-                . Our team will assist you with billing.
-              </p>
-            </div>
+                  {/* Vehicle usage progress */}
+                  <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Vehicle Usage</span>
+                      <span
+                        className={`font-semibold ${atLimit ? "text-destructive" : "text-foreground"}`}
+                      >
+                        {vehicleCount} / {isUnlimited ? "∞" : vehicleLimit}
+                      </span>
+                    </div>
+                    {!isUnlimited && (
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            usagePct >= 100
+                              ? "bg-destructive"
+                              : usagePct >= 80
+                                ? "bg-amber-500"
+                                : "bg-primary"
+                          }`}
+                          style={{ width: `${usagePct}%` }}
+                        />
+                      </div>
+                    )}
+                    {atLimit && (
+                      <p className="text-xs text-destructive font-medium">
+                        Vehicle limit reached. Contact your administrator to
+                        upgrade your plan.
+                      </p>
+                    )}
+                  </div>
+
+                  {subscriptionStatus === "active" && subscriptionStartDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Active since{" "}
+                      <strong>
+                        {formatSubDate(subscriptionStartDate as bigint)}
+                      </strong>
+                    </p>
+                  )}
+
+                  {/* Tier pricing table */}
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="px-4 py-2.5 bg-muted/30 border-b border-border">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Available Plans
+                      </p>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {[
+                        {
+                          key: SubscriptionTier.starter,
+                          name: "Starter",
+                          price: "$99",
+                          limit: "Up to 10 vehicles",
+                        },
+                        {
+                          key: SubscriptionTier.growth,
+                          name: "Growth",
+                          price: "$225",
+                          limit: "Up to 25 vehicles",
+                        },
+                        {
+                          key: SubscriptionTier.enterprise,
+                          name: "Enterprise",
+                          price: "$499",
+                          limit: "Unlimited vehicles",
+                        },
+                      ].map((plan) => (
+                        <div
+                          key={plan.key}
+                          className={`flex items-center justify-between px-4 py-3 ${tier === plan.key ? "bg-primary/5" : ""}`}
+                        >
+                          <div>
+                            <span className="text-sm font-medium">
+                              {plan.name}
+                            </span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {plan.limit}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              {plan.price}
+                              <span className="text-xs font-normal text-muted-foreground">
+                                /mo
+                              </span>
+                            </span>
+                            {tier === plan.key && (
+                              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                                Current
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                    <ArrowUpRight className="w-4 h-4 text-primary shrink-0" />
+                    <p className="text-xs text-muted-foreground">
+                      To upgrade your plan or manage billing, contact{" "}
+                      <a
+                        href="mailto:support@fleetguard.app"
+                        className="text-primary underline hover:no-underline"
+                      >
+                        support@fleetguard.app
+                      </a>
+                      . Our team will assist you.
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       )}

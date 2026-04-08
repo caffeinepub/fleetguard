@@ -210,13 +210,24 @@ export const CompanySettings = IDL.Record({
   'industry' : IDL.Text,
   'contactPhone' : IDL.Text,
 });
+export const SubscriptionTier = IDL.Variant({
+  'growth' : IDL.Null,
+  'enterprise' : IDL.Null,
+  'starter' : IDL.Null,
+});
 export const SubscriptionRecord = IDL.Record({
   'status' : IDL.Text,
   'plan' : IDL.Text,
+  'tier' : SubscriptionTier,
   'updatedAt' : Time,
   'companyName' : IDL.Text,
+  'vehicleLimit' : IDL.Nat,
   'trialEndsAt' : IDL.Opt(Time),
   'startDate' : IDL.Opt(Time),
+});
+export const SubscriptionWithVehicleCount = IDL.Record({
+  'vehicleCount' : IDL.Nat,
+  'record' : SubscriptionRecord,
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const CompanyUserInfo = IDL.Record({
@@ -299,7 +310,11 @@ export const idlService = IDL.Service({
   'approveCompany' : IDL.Func([IDL.Text], [], []),
   'approveCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'bulkCreateVehicles' : IDL.Func([IDL.Vec(Vehicle)], [IDL.Vec(IDL.Nat)], []),
+  'bulkCreateVehicles' : IDL.Func(
+      [IDL.Vec(Vehicle)],
+      [IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat), 'err' : IDL.Text })],
+      [],
+    ),
   'cancelSubscription' : IDL.Func([IDL.Text], [], []),
   'completeWorkOrder' : IDL.Func([IDL.Nat], [IDL.Nat], []),
   'createDiscountCode' : IDL.Func([DiscountCode], [IDL.Nat], []),
@@ -314,7 +329,11 @@ export const idlService = IDL.Service({
   'createNotification' : IDL.Func([Notification], [IDL.Nat], []),
   'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
   'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
-  'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
+  'createVehicle' : IDL.Func(
+      [Vehicle],
+      [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+      [],
+    ),
   'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
   'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
   'createWorkOrder' : IDL.Func([WorkOrder], [IDL.Nat], []),
@@ -373,7 +392,7 @@ export const idlService = IDL.Service({
     ),
   'getAllSubscriptionsWithKey' : IDL.Func(
       [IDL.Text],
-      [IDL.Vec(SubscriptionRecord)],
+      [IDL.Vec(SubscriptionWithVehicleCount)],
       ['query'],
     ),
   'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
@@ -480,6 +499,16 @@ export const idlService = IDL.Service({
   'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
   'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
+  'setCompanyTierWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, SubscriptionTier],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'setMySubscriptionTier' : IDL.Func(
+      [SubscriptionTier],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
   'setUserFleetRoleWithKey' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Principal, FleetRole],
@@ -728,13 +757,24 @@ export const idlFactory = ({ IDL }) => {
     'industry' : IDL.Text,
     'contactPhone' : IDL.Text,
   });
+  const SubscriptionTier = IDL.Variant({
+    'growth' : IDL.Null,
+    'enterprise' : IDL.Null,
+    'starter' : IDL.Null,
+  });
   const SubscriptionRecord = IDL.Record({
     'status' : IDL.Text,
     'plan' : IDL.Text,
+    'tier' : SubscriptionTier,
     'updatedAt' : Time,
     'companyName' : IDL.Text,
+    'vehicleLimit' : IDL.Nat,
     'trialEndsAt' : IDL.Opt(Time),
     'startDate' : IDL.Opt(Time),
+  });
+  const SubscriptionWithVehicleCount = IDL.Record({
+    'vehicleCount' : IDL.Nat,
+    'record' : SubscriptionRecord,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const CompanyUserInfo = IDL.Record({
@@ -817,7 +857,11 @@ export const idlFactory = ({ IDL }) => {
     'approveCompany' : IDL.Func([IDL.Text], [], []),
     'approveCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'bulkCreateVehicles' : IDL.Func([IDL.Vec(Vehicle)], [IDL.Vec(IDL.Nat)], []),
+    'bulkCreateVehicles' : IDL.Func(
+        [IDL.Vec(Vehicle)],
+        [IDL.Variant({ 'ok' : IDL.Vec(IDL.Nat), 'err' : IDL.Text })],
+        [],
+      ),
     'cancelSubscription' : IDL.Func([IDL.Text], [], []),
     'completeWorkOrder' : IDL.Func([IDL.Nat], [IDL.Nat], []),
     'createDiscountCode' : IDL.Func([DiscountCode], [IDL.Nat], []),
@@ -840,7 +884,11 @@ export const idlFactory = ({ IDL }) => {
     'createNotification' : IDL.Func([Notification], [IDL.Nat], []),
     'createPart' : IDL.Func([PartFull], [IDL.Nat], []),
     'createServiceSchedule' : IDL.Func([ServiceSchedule], [IDL.Nat], []),
-    'createVehicle' : IDL.Func([Vehicle], [IDL.Nat], []),
+    'createVehicle' : IDL.Func(
+        [Vehicle],
+        [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+        [],
+      ),
     'createVendor' : IDL.Func([Vendor], [IDL.Nat], []),
     'createWarranty' : IDL.Func([Warranty], [IDL.Nat], []),
     'createWorkOrder' : IDL.Func([WorkOrder], [IDL.Nat], []),
@@ -899,7 +947,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getAllSubscriptionsWithKey' : IDL.Func(
         [IDL.Text],
-        [IDL.Vec(SubscriptionRecord)],
+        [IDL.Vec(SubscriptionWithVehicleCount)],
         ['query'],
       ),
     'getAllVehicles' : IDL.Func([], [IDL.Vec(Vehicle)], ['query']),
@@ -1006,6 +1054,16 @@ export const idlFactory = ({ IDL }) => {
     'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
     'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
+    'setCompanyTierWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, SubscriptionTier],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'setMySubscriptionTier' : IDL.Func(
+        [SubscriptionTier],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
     'setUserFleetRole' : IDL.Func([IDL.Principal, FleetRole], [], []),
     'setUserFleetRoleWithKey' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Principal, FleetRole],

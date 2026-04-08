@@ -78,8 +78,12 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import type { CompanySettings, CompanyUserInfo } from "../backend.d";
-import { FleetRole } from "../backend.d";
+import type {
+  CompanySettings,
+  CompanyUserInfo,
+  SubscriptionWithVehicleCount,
+} from "../backend.d";
+import { FleetRole, SubscriptionTier } from "../backend.d";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
@@ -92,6 +96,7 @@ import {
   useCreateDiscountCodeWithKey,
   useDeleteDiscountCodeWithKey,
   useRejectCompanyWithKey,
+  useSetCompanyTier,
   useStartTrialWithKey,
   useUpdateSubscriptionStatusWithKey,
 } from "../hooks/useQueries";
@@ -194,10 +199,12 @@ export default function DevPortalPage() {
   const deleteCode = useDeleteDiscountCodeWithKey();
   const updateSubscription = useUpdateSubscriptionStatusWithKey();
   const startTrial = useStartTrialWithKey();
+  const setCompanyTier = useSetCompanyTier();
 
   const companies: CompanySettings[] = companiesQuery.data || [];
   const approvals: Array<[string, string]> = approvalsQuery.data || [];
-  const subscriptions = subscriptionsQuery.data || [];
+  const subscriptions: SubscriptionWithVehicleCount[] =
+    subscriptionsQuery.data || [];
   const discountCodes: DiscountCodeRecord[] = discountCodesQuery.data || [];
 
   const pendingCount = approvals.filter(([, s]) => s === "pending").length;
@@ -715,6 +722,15 @@ export default function DevPortalPage() {
                       },
                     )
                   }
+                  onChangeTier={(companyId, tier) =>
+                    setCompanyTier.mutate(
+                      { devKey, companyId, tier },
+                      {
+                        onSuccess: () => toast.success("Plan updated"),
+                        onError: (e) => toast.error(`Failed: ${e.message}`),
+                      },
+                    )
+                  }
                 />
               )}
               {activeSection === "promo-codes" && (
@@ -769,16 +785,25 @@ function OverviewSection({
 }: {
   companies: CompanySettings[];
   approvals: Array<[string, string]>;
-  subscriptions: any[];
+  subscriptions: SubscriptionWithVehicleCount[];
   isLoading: boolean;
   darkMode: boolean;
 }) {
+  const TIER_PRICES: Record<string, number> = {
+    [SubscriptionTier.starter]: 99,
+    [SubscriptionTier.growth]: 225,
+    [SubscriptionTier.enterprise]: 499,
+  };
   const total = companies.length;
   const active = subscriptions.filter(
-    (s) => s.status === "active" || s.status === "trial",
+    (s) => s.record.status === "active" || s.record.status === "trial",
   ).length;
-  const trials = subscriptions.filter((s) => s.status === "trial").length;
-  const mrr = subscriptions.filter((s) => s.status === "active").length * 499;
+  const trials = subscriptions.filter(
+    (s) => s.record.status === "trial",
+  ).length;
+  const mrr = subscriptions
+    .filter((s) => s.record.status === "active")
+    .reduce((sum, s) => sum + (TIER_PRICES[s.record.tier] ?? 99), 0);
 
   const statusMap: Record<string, number> = {};
   for (const [, status] of approvals) {
@@ -791,7 +816,7 @@ function OverviewSection({
 
   const subStatusMap: Record<string, number> = {};
   for (const s of subscriptions) {
-    subStatusMap[s.status] = (subStatusMap[s.status] || 0) + 1;
+    subStatusMap[s.record.status] = (subStatusMap[s.record.status] || 0) + 1;
   }
   const barData = Object.entries(subStatusMap).map(([name, count]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -1941,19 +1966,28 @@ function SubscriptionsSection({
   darkMode,
   onCancel,
   onStartTrial,
+  onChangeTier,
 }: {
-  subscriptions: any[];
+  subscriptions: SubscriptionWithVehicleCount[];
   isLoading: boolean;
   darkMode: boolean;
   onCancel: (name: string) => void;
   onStartTrial: (name: string) => void;
+  onChangeTier: (companyId: string, tier: SubscriptionTier) => void;
 }) {
+  const TIER_PRICES: Record<string, number> = {
+    [SubscriptionTier.starter]: 99,
+    [SubscriptionTier.growth]: 225,
+    [SubscriptionTier.enterprise]: 499,
+  };
   const cardStyle = {
     background: darkMode ? "oklch(0.18 0.05 255)" : "white",
     border: `1px solid ${darkMode ? "oklch(0.26 0.06 255)" : "oklch(0.90 0.01 255)"}`,
   };
 
-  const mrr = subscriptions.filter((s) => s.status === "active").length * 499;
+  const mrr = subscriptions
+    .filter((s) => s.record.status === "active")
+    .reduce((sum, s) => sum + (TIER_PRICES[s.record.tier] ?? 99), 0);
 
   return (
     <div className="space-y-5" data-ocid="subscriptions.section">
@@ -2012,7 +2046,8 @@ function SubscriptionsSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
-                <TableHead>Plan</TableHead>
+                <TableHead>Plan / Tier</TableHead>
+                <TableHead>Vehicles</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Trial Ends</TableHead>
                 <TableHead>Started</TableHead>
@@ -2020,8 +2055,12 @@ function SubscriptionsSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subscriptions.map((s, i) => {
+              {subscriptions.map((sw, i) => {
+                const s = sw.record;
                 const days = trialDaysLeft(s.trialEndsAt);
+                const vehicleLimit = Number(s.vehicleLimit);
+                const vehicleCount = Number(sw.vehicleCount);
+                const tierPrice = TIER_PRICES[s.tier] ?? 99;
                 return (
                   <TableRow
                     key={s.companyName}
@@ -2030,8 +2069,50 @@ function SubscriptionsSection({
                     <TableCell className="font-medium text-sm">
                       {s.companyName}
                     </TableCell>
-                    <TableCell className="text-sm capitalize">
-                      {s.plan}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={s.tier}
+                          onValueChange={(v) =>
+                            onChangeTier(s.companyName, v as SubscriptionTier)
+                          }
+                        >
+                          <SelectTrigger
+                            className="h-7 w-32 text-xs"
+                            data-ocid={`subscriptions.tier.select.${i + 1}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SubscriptionTier.starter}>
+                              Starter ($99)
+                            </SelectItem>
+                            <SelectItem value={SubscriptionTier.growth}>
+                              Growth ($225)
+                            </SelectItem>
+                            <SelectItem value={SubscriptionTier.enterprise}>
+                              Enterprise ($499)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <span className="text-xs text-muted-foreground">
+                          ${tierPrice}/mo
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <span
+                        className={
+                          vehicleCount >= vehicleLimit && vehicleLimit < 9999
+                            ? "text-destructive font-semibold"
+                            : ""
+                        }
+                      >
+                        {vehicleCount}
+                      </span>
+                      <span className="text-muted-foreground">
+                        /{vehicleLimit >= 9999 ? "∞" : vehicleLimit}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={s.status} />

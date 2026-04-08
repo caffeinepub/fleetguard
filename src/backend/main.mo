@@ -8,11 +8,13 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 
 import AccessControl "mo:caffeineai-authorization/access-control";
+import Migration "migration";
 import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 
 
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -75,9 +77,14 @@ actor {
     companyName : Text; industry : Text; fleetSize : Text;
     contactPhone : Text; logoUrl : Text; adminPrincipal : Text; createdAt : Time.Time;
   };
+  public type SubscriptionTier = { #starter; #growth; #enterprise };
   public type SubscriptionRecord = {
     companyName : Text; status : Text; startDate : ?Time.Time;
     trialEndsAt : ?Time.Time; plan : Text; updatedAt : Time.Time;
+    tier : SubscriptionTier; vehicleLimit : Nat;
+  };
+  public type SubscriptionWithVehicleCount = {
+    record : SubscriptionRecord; vehicleCount : Nat;
   };
   public type DiscountCode = {
     id : Nat; code : Text; discountType : Text; value : Nat;
@@ -238,6 +245,23 @@ actor {
       nextServiceDate = r.nextServiceDate; partsUsed = parts;
       partQuantities = qtys; laborHours = lh; laborCost = lc;
       workOrderId = wol; createdAt = r.createdAt };
+  };
+
+  // ─── Subscription tier helpers ──────────────────────────────────────────────
+  func getVehicleLimit(tier : SubscriptionTier) : Nat {
+    switch (tier) { case (#starter) 10; case (#growth) 25; case (#enterprise) 999999 };
+  };
+
+  func tierName(tier : SubscriptionTier) : Text {
+    switch (tier) { case (#starter) "Starter"; case (#growth) "Growth"; case (#enterprise) "Enterprise" };
+  };
+
+  func getCompanyVehicleCount(cid : Text) : Nat {
+    switch (cVehicles.get(cid)) { case (null) 0; case (?m) m.size() };
+  };
+
+  func getCompanyTier(cid : Text) : SubscriptionTier {
+    switch (subscriptionRecords.get(cid)) { case (?r) r.tier; case null #starter };
   };
 
   // ─── Migration: postupgrade moves legacy single-tenant data into per-company stores ───
@@ -499,6 +523,13 @@ actor {
     let alreadyExists = not allCompanyRegistrations
       .filter(func(s : CompanySettings) : Bool { s.companyName == cid }).isEmpty();
     if (not alreadyExists) { allCompanyRegistrations.add(settings); if (companyApprovalStore.get(cid) == null) { companyApprovalStore.add(cid, "pending") } };
+    // Initialize subscription record with starter tier if none exists
+    if (subscriptionRecords.get(cid) == null) {
+      let tier = #starter;
+      subscriptionRecords.add(cid, { companyName = cid; status = "pending"; startDate = null;
+        trialEndsAt = null; plan = tierName(tier); updatedAt = Time.now();
+        tier; vehicleLimit = getVehicleLimit(tier) });
+    };
   };
 
   public query ({ caller }) func getCompanySettings() : async ?CompanySettings {
@@ -550,15 +581,20 @@ actor {
   };
 
   // ─── Vehicles ────────────────────────────────────────────────────────────────
-  public shared ({ caller }) func createVehicle(vehicle : Vehicle) : async Nat {
+  public shared ({ caller }) func createVehicle(vehicle : Vehicle) : async { #ok : Nat; #err : Text } {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
     let cid = requireCompanyId(caller);
+    let limit = getVehicleLimit(getCompanyTier(cid));
+    let currentCount = getCompanyVehicleCount(cid);
+    if (currentCount >= limit) {
+      return #err("Vehicle limit reached. Upgrade your plan to add more vehicles.");
+    };
     let id = nextId(cVehCounters, cid);
     getOrCreate(cVehicles, cid).add(id, { vehicle with id; createdAt = Time.now() });
-    id;
+    #ok(id);
   };
 
-  public shared ({ caller }) func bulkCreateVehicles(vehicleList : [Vehicle]) : async [Nat] {
+  public shared ({ caller }) func bulkCreateVehicles(vehicleList : [Vehicle]) : async { #ok : [Nat]; #err : Text } {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) Runtime.trap("Unauthorized");
     let cid = requireCompanyId(caller);
     // Verify caller is Admin or FleetManager
@@ -568,13 +604,19 @@ actor {
       case (?#FleetManager) {};
       case (_) { Runtime.trap("Unauthorized: Only admins and fleet managers can bulk create vehicles") };
     };
+    let limit = getVehicleLimit(getCompanyTier(cid));
+    let currentCount = getCompanyVehicleCount(cid);
+    let newCount = vehicleList.size();
+    if (currentCount + newCount > limit) {
+      return #err("Adding " # newCount.toText() # " vehicles would exceed your plan limit of " # limit.toText() # ". Currently have " # currentCount.toText() # ". Upgrade your plan to add more vehicles.");
+    };
     let ids = List.empty<Nat>();
     for (v in vehicleList.vals()) {
       let id = nextId(cVehCounters, cid);
       getOrCreate(cVehicles, cid).add(id, { v with id; createdAt = Time.now() });
       ids.add(id);
     };
-    ids.toArray();
+    #ok(ids.toArray());
   };
 
   public shared ({ caller }) func updateVehicle(id : Nat, vehicle : Vehicle) : async () {
@@ -1007,14 +1049,20 @@ actor {
 
   public shared func updateSubscriptionStatusWithKey(devKey : Text, companyName : Text, status : Text, startDate : ?Time.Time) : async () {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
-    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null; plan = "standard"; updatedAt = Time.now() });
+    let existing = subscriptionRecords.get(companyName);
+    let tier = switch (existing) { case (?r) r.tier; case null #starter };
+    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null;
+      plan = tierName(tier); updatedAt = Time.now(); tier; vehicleLimit = getVehicleLimit(tier) });
   };
 
   public shared ({ caller }) func updateSubscriptionStatus(companyName : Text, status : Text, startDate : ?Time.Time) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Admin access required");
     };
-    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null; plan = "standard"; updatedAt = Time.now() });
+    let existing = subscriptionRecords.get(companyName);
+    let tier = switch (existing) { case (?r) r.tier; case null #starter };
+    subscriptionRecords.add(companyName, { companyName; status; startDate; trialEndsAt = null;
+      plan = tierName(tier); updatedAt = Time.now(); tier; vehicleLimit = getVehicleLimit(tier) });
   };
 
   public query ({ caller }) func getSubscriptionStatus(companyName : Text) : async ?SubscriptionRecord {
@@ -1029,9 +1077,11 @@ actor {
     subscriptionRecords.values().toArray();
   };
 
-  public query func getAllSubscriptionsWithKey(devKey : Text) : async [SubscriptionRecord] {
+  public query func getAllSubscriptionsWithKey(devKey : Text) : async [SubscriptionWithVehicleCount] {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
-    subscriptionRecords.values().toArray();
+    subscriptionRecords.values().toArray().map(func(r : SubscriptionRecord) : SubscriptionWithVehicleCount {
+      { record = r; vehicleCount = getCompanyVehicleCount(r.companyName) };
+    });
   };
 
   public shared func approveCompanyWithKey(devKey : Text, companyName : Text) : async () {
@@ -1057,8 +1107,11 @@ actor {
   public shared func startTrialWithKey(devKey : Text, companyName : Text, trialDays : Nat) : async () {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     let now = Time.now();
+    let existing = subscriptionRecords.get(companyName);
+    let tier = switch (existing) { case (?r) r.tier; case null #starter };
     subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
-      trialEndsAt = ?(now + (trialDays * 24 * 60 * 60 * 1000000000)); plan = "standard"; updatedAt = now });
+      trialEndsAt = ?(now + (trialDays * 24 * 60 * 60 * 1000000000));
+      plan = tierName(tier); updatedAt = now; tier; vehicleLimit = getVehicleLimit(tier) });
   };
 
   public shared ({ caller }) func startTrial(companyName : Text) : async () {
@@ -1066,8 +1119,33 @@ actor {
       Runtime.trap("Unauthorized: Admin access required");
     };
     let now = Time.now();
+    let existing = subscriptionRecords.get(companyName);
+    let tier = switch (existing) { case (?r) r.tier; case null #starter };
     subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
-      trialEndsAt = ?(now + (7 * 24 * 60 * 60 * 1000000000)); plan = "standard"; updatedAt = now });
+      trialEndsAt = ?(now + (7 * 24 * 60 * 60 * 1000000000));
+      plan = tierName(tier); updatedAt = now; tier; vehicleLimit = getVehicleLimit(tier) });
+  };
+
+  // Allows a newly onboarded user to set their own subscription tier right after startTrial.
+  // Only works when the caller has an admin role and is mapped to a company.
+  public shared ({ caller }) func setMySubscriptionTier(tier : SubscriptionTier) : async { #ok; #err : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      return #err("Unauthorized: Admin access required");
+    };
+    let companyId = switch (userCompanyMap.get(caller)) {
+      case (null) { return #err("No company found for caller") };
+      case (?cid) cid;
+    };
+    let limit = getVehicleLimit(tier);
+    let updated = switch (subscriptionRecords.get(companyId)) {
+      case (null) {
+        { companyName = companyId; status = "trial"; startDate = null; trialEndsAt = null;
+          plan = tierName(tier); updatedAt = Time.now(); tier; vehicleLimit = limit }
+      };
+      case (?r) { { r with tier; vehicleLimit = limit; plan = tierName(tier); updatedAt = Time.now() } };
+    };
+    subscriptionRecords.add(companyId, updated);
+    #ok;
   };
 
   public shared ({ caller }) func cancelSubscription(companyName : Text) : async () {
@@ -1079,6 +1157,20 @@ actor {
       case (?s) s;
     };
     subscriptionRecords.add(companyName, { existing with status = "cancelled"; updatedAt = Time.now() });
+  };
+
+  public shared func setCompanyTierWithKey(devKey : Text, companyId : Text, tier : SubscriptionTier) : async { #ok; #err : Text } {
+    if (devKey != DEV_KEY) return #err("Unauthorized: Invalid developer key");
+    let limit = getVehicleLimit(tier);
+    let updated = switch (subscriptionRecords.get(companyId)) {
+      case (null) {
+        { companyName = companyId; status = "active"; startDate = null; trialEndsAt = null;
+          plan = tierName(tier); updatedAt = Time.now(); tier; vehicleLimit = limit }
+      };
+      case (?r) { { r with tier; vehicleLimit = limit; plan = tierName(tier); updatedAt = Time.now() } };
+    };
+    subscriptionRecords.add(companyId, updated);
+    #ok;
   };
 
   // ─── Discount Codes ──────────────────────────────────────────────────────────

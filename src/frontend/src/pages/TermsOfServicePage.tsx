@@ -59,18 +59,63 @@ export function TermsOfServicePage({ onNavigate }: Props) {
             <h2 className="text-base font-semibold text-amber-600 dark:text-amber-400 mb-2">
               ⚠ Important: Minimum Contract Term
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
               By subscribing to FleetGuard, you agree to a{" "}
               <strong className="text-foreground">
                 minimum contract term of twelve (12) months
               </strong>
-              . The monthly subscription fee is{" "}
-              <strong className="text-foreground">
-                $499.00 USD plus applicable taxes
-              </strong>{" "}
-              per month. Early termination before the 12-month minimum term will
-              result in the remaining balance being due in full.
+              . Subscription fees are based on your selected plan. Early
+              termination before the 12-month minimum term will result in the
+              remaining balance being due in full.
             </p>
+            <div className="overflow-hidden rounded-lg border border-amber-500/20">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-amber-500/10">
+                    <th className="text-left px-4 py-2 font-semibold text-foreground">
+                      Plan
+                    </th>
+                    <th className="text-left px-4 py-2 font-semibold text-foreground">
+                      Asset Limit
+                    </th>
+                    <th className="text-right px-4 py-2 font-semibold text-foreground">
+                      Monthly Fee (USD + tax)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-500/10">
+                  <tr>
+                    <td className="px-4 py-2 text-muted-foreground">Starter</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      1–10 vehicles
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold text-foreground">
+                      $99.00
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 text-muted-foreground">Growth</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      11–25 vehicles
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold text-foreground">
+                      $225.00
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      Enterprise
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      Unlimited vehicles
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold text-foreground">
+                      $499.00
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Section 1 */}
@@ -142,13 +187,65 @@ export function TermsOfServicePage({ onNavigate }: Props) {
             <div className="bg-muted/40 rounded-xl px-5 py-4 space-y-3">
               <h3 className="font-semibold text-base">3.1 Subscription Fees</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                The FleetGuard subscription is priced at{" "}
-                <strong className="text-foreground">
-                  $499.00 USD per month
-                </strong>
-                , plus any applicable federal, state, provincial, or local
-                taxes. Taxes are calculated based on your billing address and
-                are charged in addition to the base subscription fee. Pricing is
+                FleetGuard subscriptions are priced according to the following
+                tiered schedule, plus any applicable federal, state, provincial,
+                or local taxes:
+              </p>
+              <div className="overflow-hidden rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/60">
+                      <th className="text-left px-4 py-2.5 font-semibold">
+                        Plan
+                      </th>
+                      <th className="text-left px-4 py-2.5 font-semibold">
+                        Asset Limit
+                      </th>
+                      <th className="text-right px-4 py-2.5 font-semibold">
+                        Monthly (USD + tax)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    <tr>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        Starter
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        1–10 vehicles
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold">
+                        $99.00
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        Growth
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        11–25 vehicles
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold">
+                        $225.00
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        Enterprise
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        Unlimited vehicles
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold">
+                        $499.00
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Taxes are calculated based on your billing address and are
+                charged in addition to the base subscription fee. Pricing is
                 subject to change with 30 days&apos; written notice.
               </p>
             </div>
@@ -176,9 +273,10 @@ export function TermsOfServicePage({ onNavigate }: Props) {
                 <strong className="text-foreground">7-day free trial</strong>{" "}
                 upon completing registration and providing valid payment
                 information. No charge will be made during the trial period. On
-                Day 8, the first monthly billing cycle begins and $499.00 +
-                applicable taxes will be charged to your payment method. The
-                12-month minimum term commences on Day 8 (the Commitment Date).
+                Day 8, the first monthly billing cycle begins and your selected
+                plan rate ($99.00 / $225.00 / $499.00 + applicable taxes) will
+                be charged to your payment method. The 12-month minimum term
+                commences on Day 8 (the Commitment Date).
               </p>
             </div>
 
@@ -472,7 +570,9 @@ export function TermsOfServicePage({ onNavigate }: Props) {
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <div className="space-y-1">
                 <p className="text-muted-foreground">Monthly Fee</p>
-                <p className="font-semibold">$499.00 + applicable taxes</p>
+                <p className="font-semibold">
+                  From $99.00 + applicable taxes (plan-dependent)
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-muted-foreground">Free Trial</p>

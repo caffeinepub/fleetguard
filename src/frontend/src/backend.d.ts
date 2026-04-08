@@ -16,8 +16,10 @@ export type Time = bigint;
 export interface SubscriptionRecord {
     status: string;
     plan: string;
+    tier: SubscriptionTier;
     updatedAt: Time;
     companyName: string;
+    vehicleLimit: bigint;
     trialEndsAt?: Time;
     startDate?: Time;
 }
@@ -103,6 +105,10 @@ export interface MaintenanceRecordFull {
     laborCost?: number;
     vehicleId: bigint;
 }
+export interface SubscriptionWithVehicleCount {
+    vehicleCount: bigint;
+    record: SubscriptionRecord;
+}
 export interface WorkOrder {
     id: bigint;
     completedDate?: Time;
@@ -180,6 +186,10 @@ export interface ChecklistItem {
     notes: string;
     category: string;
 }
+export interface PartQuantity {
+    quantity: bigint;
+    partId: bigint;
+}
 export interface VehicleImportRow {
     model: string;
     vehicleType: string;
@@ -192,10 +202,6 @@ export interface VehicleImportRow {
 }
 export interface UserProfile {
     name: string;
-}
-export interface PartQuantity {
-    quantity: bigint;
-    partId: bigint;
 }
 export enum ChecklistItemStatus {
     NA = "NA",
@@ -222,6 +228,11 @@ export enum NotificationSeverity {
     Info = "Info",
     Critical = "Critical",
     Warning = "Warning"
+}
+export enum SubscriptionTier {
+    growth = "growth",
+    enterprise = "enterprise",
+    starter = "starter"
 }
 export enum UserRole {
     admin = "admin",
@@ -257,7 +268,13 @@ export interface backendInterface {
     approveCompany(companyName: string): Promise<void>;
     approveCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    bulkCreateVehicles(vehicleList: Array<Vehicle>): Promise<Array<bigint>>;
+    bulkCreateVehicles(vehicleList: Array<Vehicle>): Promise<{
+        __kind__: "ok";
+        ok: Array<bigint>;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     cancelSubscription(companyName: string): Promise<void>;
     completeWorkOrder(id: bigint): Promise<bigint>;
     createDiscountCode(discount: DiscountCode): Promise<bigint>;
@@ -268,7 +285,13 @@ export interface backendInterface {
     createNotification(notif: Notification): Promise<bigint>;
     createPart(part: PartFull): Promise<bigint>;
     createServiceSchedule(schedule: ServiceSchedule): Promise<bigint>;
-    createVehicle(vehicle: Vehicle): Promise<bigint>;
+    createVehicle(vehicle: Vehicle): Promise<{
+        __kind__: "ok";
+        ok: bigint;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     createVendor(vendor: Vendor): Promise<bigint>;
     createWarranty(warranty: Warranty): Promise<bigint>;
     createWorkOrder(wo: WorkOrder): Promise<bigint>;
@@ -293,7 +316,7 @@ export interface backendInterface {
     getAllParts(): Promise<Array<PartFull>>;
     getAllServiceSchedules(): Promise<Array<ServiceSchedule>>;
     getAllSubscriptions(): Promise<Array<SubscriptionRecord>>;
-    getAllSubscriptionsWithKey(devKey: string): Promise<Array<SubscriptionRecord>>;
+    getAllSubscriptionsWithKey(devKey: string): Promise<Array<SubscriptionWithVehicleCount>>;
     getAllVehicles(): Promise<Array<Vehicle>>;
     getAllVendors(): Promise<Array<Vendor>>;
     getAllWarranties(): Promise<Array<Warranty>>;
@@ -342,6 +365,20 @@ export interface backendInterface {
     saveCompanySettings(settings: CompanySettings): Promise<void>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
+    setCompanyTierWithKey(devKey: string, companyId: string, tier: SubscriptionTier): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
+    setMySubscriptionTier(tier: SubscriptionTier): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     setUserFleetRole(user: Principal, role: FleetRole): Promise<void>;
     setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     startTrial(companyName: string): Promise<void>;

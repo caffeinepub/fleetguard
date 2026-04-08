@@ -123,14 +123,27 @@ type TaxSettings =
    taxLabel: text;
    taxRate: float64;
  };
+type SubscriptionWithVehicleCount = 
+ record {
+   "record": SubscriptionRecord;
+   vehicleCount: nat;
+ };
+type SubscriptionTier = 
+ variant {
+   enterprise;
+   growth;
+   starter;
+ };
 type SubscriptionRecord = 
  record {
    companyName: text;
    plan: text;
    startDate: opt Time;
    status: text;
+   tier: SubscriptionTier;
    trialEndsAt: opt Time;
    updatedAt: Time;
+   vehicleLimit: nat;
  };
 type ServiceSchedule = 
  record {
@@ -299,7 +312,11 @@ service : {
   approveCompany: (companyName: text) -> ();
   approveCompanyWithKey: (devKey: text, companyName: text) -> ();
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
-  bulkCreateVehicles: (vehicleList: vec Vehicle) -> (vec nat);
+  bulkCreateVehicles: (vehicleList: vec Vehicle) ->
+   (variant {
+      err: text;
+      ok: vec nat;
+    });
   cancelSubscription: (companyName: text) -> ();
   completeWorkOrder: (id: nat) -> (nat);
   createDiscountCode: (discount: DiscountCode) -> (nat);
@@ -310,7 +327,10 @@ service : {
   createNotification: (notif: Notification) -> (nat);
   createPart: (part: PartFull) -> (nat);
   createServiceSchedule: (schedule: ServiceSchedule) -> (nat);
-  createVehicle: (vehicle: Vehicle) -> (nat);
+  createVehicle: (vehicle: Vehicle) -> (variant {
+                                          err: text;
+                                          ok: nat;
+                                        });
   createVendor: (vendor: Vendor) -> (nat);
   createWarranty: (warranty: Warranty) -> (nat);
   createWorkOrder: (wo: WorkOrder) -> (nat);
@@ -341,7 +361,7 @@ service : {
   getAllServiceSchedules: () -> (vec ServiceSchedule) query;
   getAllSubscriptions: () -> (vec SubscriptionRecord) query;
   getAllSubscriptionsWithKey: (devKey: text) ->
-   (vec SubscriptionRecord) query;
+   (vec SubscriptionWithVehicleCount) query;
   getAllVehicles: () -> (vec Vehicle) query;
   getAllVendors: () -> (vec Vendor) query;
   getAllWarranties: () -> (vec Warranty) query;
@@ -396,6 +416,16 @@ service : {
   saveCompanySettings: (settings: CompanySettings) -> ();
   saveDefaultCurrency: (currency: text) -> ();
   saveTaxSettings: (settings: TaxSettings) -> ();
+  setCompanyTierWithKey: (devKey: text, companyId: text, tier:
+   SubscriptionTier) -> (variant {
+                           err: text;
+                           ok;
+                         });
+  setMySubscriptionTier: (tier: SubscriptionTier) ->
+   (variant {
+      err: text;
+      ok;
+    });
   setUserFleetRole: (user: principal, role: FleetRole) -> ();
   setUserFleetRoleWithKey: (devKey: text, companyId: text, user: principal,
    role: FleetRole) -> ();

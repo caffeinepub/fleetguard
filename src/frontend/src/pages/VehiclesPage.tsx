@@ -29,6 +29,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertTriangle,
+  ArrowUpRight,
   Check,
   Download,
   Eye,
@@ -57,6 +58,8 @@ import {
   useBulkCreateVehicles,
   useCallerFleetRole,
   useDeleteVehicle,
+  useGetCompanySettings,
+  useGetSubscriptionStatus,
   useIsAdmin,
   useValidateBulkVehicleImport,
 } from "../hooks/useQueries";
@@ -293,8 +296,28 @@ export function VehiclesPage({ onNavigate }: Props) {
   const { data: vehicles, isLoading } = useAllVehicles();
   const { data: isAdmin } = useIsAdmin();
   const { data: fleetRole } = useCallerFleetRole();
+  const { data: companySettings } = useGetCompanySettings();
+  const { data: subscription } = useGetSubscriptionStatus(
+    companySettings?.companyName,
+  );
   const canCreate = isAdmin || fleetRole === FleetRole.FleetManager;
   const canEdit = isAdmin || fleetRole === FleetRole.FleetManager;
+
+  // Compute limit info from subscription
+  const vehicleLimit = subscription?.vehicleLimit
+    ? Number(subscription.vehicleLimit)
+    : Number.POSITIVE_INFINITY;
+  const vehicleCount = vehicles?.length ?? 0;
+  const isUnlimited =
+    vehicleLimit >= 9999 || vehicleLimit === Number.POSITIVE_INFINITY;
+  const atLimit = !isUnlimited && vehicleCount >= vehicleLimit;
+  const tierName = subscription?.tier
+    ? subscription.tier === "enterprise"
+      ? "Enterprise"
+      : subscription.tier === "growth"
+        ? "Growth"
+        : "Starter"
+    : "Starter";
   const deleteVehicle = useDeleteVehicle();
   const bulkCreate = useBulkCreateVehicles();
   const validateImport = useValidateBulkVehicleImport();
@@ -489,7 +512,14 @@ export function VehiclesPage({ onNavigate }: Props) {
         <div>
           <h1 className="text-2xl font-bold">Fleet Management</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {vehicles?.length ?? 0} vehicles in your fleet
+            {vehicleCount} vehicle{vehicleCount !== 1 ? "s" : ""} in your fleet
+            {!isUnlimited && (
+              <span
+                className={`ml-2 text-xs font-medium ${atLimit ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                ({vehicleCount}/{vehicleLimit} on {tierName} plan)
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -515,7 +545,15 @@ export function VehiclesPage({ onNavigate }: Props) {
                 variant="outline"
                 className="gap-2"
                 data-ocid="vehicles.dropzone"
-                onClick={() => csvInputRef.current?.click()}
+                onClick={() => {
+                  if (atLimit) {
+                    toast.error(
+                      `Vehicle limit reached. Upgrade from ${tierName} plan to add more.`,
+                    );
+                    return;
+                  }
+                  csvInputRef.current?.click();
+                }}
                 disabled={bulkCreate.isPending || validateImport.isPending}
               >
                 <Upload size={15} /> Import CSV
@@ -525,14 +563,52 @@ export function VehiclesPage({ onNavigate }: Props) {
           {canCreate && (
             <Button
               data-ocid="vehicles.primary_button"
-              onClick={openAdd}
+              onClick={() => {
+                if (atLimit) {
+                  toast.error(
+                    "Vehicle limit reached. Upgrade your plan to add more vehicles.",
+                  );
+                  return;
+                }
+                openAdd();
+              }}
               className="gap-2"
+              disabled={atLimit}
             >
               <Plus size={16} /> Add Vehicle
             </Button>
           )}
         </div>
       </div>
+
+      {/* Limit banner */}
+      {atLimit && canCreate && (
+        <div
+          className="flex items-center gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/20"
+          data-ocid="vehicles.limit.banner"
+        >
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-destructive">
+              Vehicle limit reached
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              You have reached the {vehicleLimit}-vehicle limit on the{" "}
+              <strong>{tierName}</strong> plan. Contact your administrator to
+              upgrade.
+            </p>
+          </div>
+          <a href="mailto:support@fleetguard.app">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 shrink-0 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              <ArrowUpRight size={13} /> Upgrade
+            </Button>
+          </a>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

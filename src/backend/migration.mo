@@ -1,43 +1,36 @@
 import Map "mo:core/Map";
-import Principal "mo:core/Principal";
-import Text "mo:core/Text";
 import Time "mo:core/Time";
 
 module {
-  type OldInviteToken = {
-    token : Text;
-    role : { #Admin; #FleetManager; #Mechanic };
-    email : Text;
-    createdAt : Time.Time;
-    usedBy : ?Principal;
+  // ── Old types (from previous deployed version) ──────────────────────────────
+  type OldSubscriptionRecord = {
+    companyName : Text; status : Text; startDate : ?Time.Time;
+    trialEndsAt : ?Time.Time; plan : Text; updatedAt : Time.Time;
   };
 
+  // ── New types ─────────────────────────────────────────────────────────────────
+  type SubscriptionTier = { #starter; #growth; #enterprise };
+  type NewSubscriptionRecord = {
+    companyName : Text; status : Text; startDate : ?Time.Time;
+    trialEndsAt : ?Time.Time; plan : Text; updatedAt : Time.Time;
+    tier : SubscriptionTier; vehicleLimit : Nat;
+  };
+
+  // ── State record shapes ───────────────────────────────────────────────────────
   type OldActor = {
-    inviteTokens : Map.Map<Text, OldInviteToken>;
-  };
-
-  type NewInviteToken = {
-    token : Text;
-    role : { #Admin; #FleetManager; #Mechanic };
-    email : Text;
-    companyId : Text;
-    createdAt : Time.Time;
-    usedBy : ?Principal;
+    subscriptionRecords : Map.Map<Text, OldSubscriptionRecord>;
   };
 
   type NewActor = {
-    inviteTokens : Map.Map<Text, NewInviteToken>;
+    subscriptionRecords : Map.Map<Text, NewSubscriptionRecord>;
   };
 
   public func run(old : OldActor) : NewActor {
-    let newInviteTokens = old.inviteTokens.map<Text, OldInviteToken, NewInviteToken>(
-      func(_token, oldToken) {
-        {
-          oldToken with
-          companyId = "";
-        };
+    let subscriptionRecords = old.subscriptionRecords.map<Text, OldSubscriptionRecord, NewSubscriptionRecord>(
+      func(_key, r) {
+        { r with tier = #starter; vehicleLimit = 10 }
       }
     );
-    { inviteTokens = newInviteTokens };
+    { subscriptionRecords };
   };
 };

@@ -136,10 +136,19 @@ export interface ServiceSchedule {
 export interface SubscriptionRecord {
   'status' : string,
   'plan' : string,
+  'tier' : SubscriptionTier,
   'updatedAt' : Time,
   'companyName' : string,
+  'vehicleLimit' : bigint,
   'trialEndsAt' : [] | [Time],
   'startDate' : [] | [Time],
+}
+export type SubscriptionTier = { 'growth' : null } |
+  { 'enterprise' : null } |
+  { 'starter' : null };
+export interface SubscriptionWithVehicleCount {
+  'vehicleCount' : bigint,
+  'record' : SubscriptionRecord,
 }
 export interface TaxSettings {
   'taxEnabled' : boolean,
@@ -270,7 +279,11 @@ export interface _SERVICE {
   'approveCompany' : ActorMethod<[string], undefined>,
   'approveCompanyWithKey' : ActorMethod<[string, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'bulkCreateVehicles' : ActorMethod<[Array<Vehicle>], Array<bigint>>,
+  'bulkCreateVehicles' : ActorMethod<
+    [Array<Vehicle>],
+    { 'ok' : Array<bigint> } |
+      { 'err' : string }
+  >,
   'cancelSubscription' : ActorMethod<[string], undefined>,
   'completeWorkOrder' : ActorMethod<[bigint], bigint>,
   'createDiscountCode' : ActorMethod<[DiscountCode], bigint>,
@@ -281,7 +294,11 @@ export interface _SERVICE {
   'createNotification' : ActorMethod<[Notification], bigint>,
   'createPart' : ActorMethod<[PartFull], bigint>,
   'createServiceSchedule' : ActorMethod<[ServiceSchedule], bigint>,
-  'createVehicle' : ActorMethod<[Vehicle], bigint>,
+  'createVehicle' : ActorMethod<
+    [Vehicle],
+    { 'ok' : bigint } |
+      { 'err' : string }
+  >,
   'createVendor' : ActorMethod<[Vendor], bigint>,
   'createWarranty' : ActorMethod<[Warranty], bigint>,
   'createWorkOrder' : ActorMethod<[WorkOrder], bigint>,
@@ -314,7 +331,7 @@ export interface _SERVICE {
   'getAllSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
   'getAllSubscriptionsWithKey' : ActorMethod<
     [string],
-    Array<SubscriptionRecord>
+    Array<SubscriptionWithVehicleCount>
   >,
   'getAllVehicles' : ActorMethod<[], Array<Vehicle>>,
   'getAllVendors' : ActorMethod<[], Array<Vendor>>,
@@ -376,6 +393,16 @@ export interface _SERVICE {
   'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'saveTaxSettings' : ActorMethod<[TaxSettings], undefined>,
+  'setCompanyTierWithKey' : ActorMethod<
+    [string, string, SubscriptionTier],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'setMySubscriptionTier' : ActorMethod<
+    [SubscriptionTier],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
   'setUserFleetRole' : ActorMethod<[Principal, FleetRole], undefined>,
   'setUserFleetRoleWithKey' : ActorMethod<
     [string, string, Principal, FleetRole],

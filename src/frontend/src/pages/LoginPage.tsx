@@ -232,7 +232,48 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
     setSignupStep(2);
   };
 
+  const FREE_EMAIL_DOMAINS = new Set([
+    "gmail.com",
+    "yahoo.com",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "icloud.com",
+    "me.com",
+    "mac.com",
+    "aol.com",
+    "protonmail.com",
+    "proton.me",
+    "yandex.com",
+    "mail.com",
+    "gmx.com",
+    "zoho.com",
+    "inbox.com",
+    "fastmail.com",
+    "tutanota.com",
+    "hey.com",
+    "msn.com",
+    "windowslive.com",
+  ]);
+
   const handleStep2Next = () => {
+    // Corporate email is required
+    if (!signUpEmail.trim()) {
+      toast.error("Please enter your corporate email address");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(signUpEmail.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    const domain = signUpEmail.trim().toLowerCase().split("@")[1] ?? "";
+    if (FREE_EMAIL_DOMAINS.has(domain)) {
+      toast.error(
+        "Please use your corporate email address. Free email providers (Gmail, Yahoo, Outlook, etc.) are not accepted.",
+      );
+      return;
+    }
     setSignupStep(3);
   };
 
@@ -671,7 +712,29 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                         Contact Details
                       </h2>
                       <p className="text-muted-foreground text-sm mt-1">
-                        How can we reach you?
+                        A corporate email address is required — free providers
+                        (Gmail, Yahoo, Outlook) are not accepted.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="signup-email">
+                        Corporate Email Address{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="signup-email"
+                        data-ocid="login.input"
+                        value={signUpEmail}
+                        onChange={(e) => setSignUpEmail(e.target.value)}
+                        placeholder="admin@yourcompany.com"
+                        className="h-11"
+                        type="email"
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Used for billing notifications and account recovery.
+                        Must be a company domain.
                       </p>
                     </div>
 
@@ -690,25 +753,6 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                         placeholder="e.g. +1 555 000 1234"
                         className="h-11"
                         type="tel"
-                        autoFocus
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="signup-email">
-                        Email Address{" "}
-                        <span className="text-xs text-muted-foreground font-normal">
-                          (optional)
-                        </span>
-                      </Label>
-                      <Input
-                        id="signup-email"
-                        data-ocid="login.input"
-                        value={signUpEmail}
-                        onChange={(e) => setSignUpEmail(e.target.value)}
-                        placeholder="e.g. admin@company.com"
-                        className="h-11"
-                        type="email"
                       />
                     </div>
 
@@ -716,13 +760,10 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                       data-ocid="login.primary_button"
                       className="w-full h-11 font-semibold"
                       onClick={handleStep2Next}
+                      disabled={!signUpEmail.trim()}
                     >
                       Next: Billing
                     </Button>
-                    <p className="text-center text-xs text-muted-foreground">
-                      Contact details are optional — you can add them later in
-                      Settings.
-                    </p>
                   </div>
                 )}
 
@@ -742,15 +783,16 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                     </div>
 
                     {/* Trial badge */}
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center gap-3">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                       <div className="text-xs">
                         <span className="font-semibold text-emerald-700">
                           7 days free
                         </span>
                         <span className="text-emerald-600">
                           {" "}
-                          — then $499/month. Cancel anytime before trial ends.
+                          — then billed at your selected plan rate. Plans from{" "}
+                          <strong>$99/month</strong>. Minimum 12-month contract.
                         </span>
                       </div>
                     </div>
