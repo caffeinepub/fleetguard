@@ -24,6 +24,7 @@ export interface CompanySettings {
   'adminPrincipal' : string,
   'createdAt' : Time,
   'logoUrl' : string,
+  'contactEmail' : string,
   'companyName' : string,
   'fleetSize' : string,
   'industry' : string,
@@ -390,7 +391,11 @@ export interface _SERVICE {
     undefined
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'saveCompanySettings' : ActorMethod<[CompanySettings], undefined>,
+  'saveCompanySettings' : ActorMethod<
+    [CompanySettings],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'saveTaxSettings' : ActorMethod<[TaxSettings], undefined>,
   'setCompanyTierWithKey' : ActorMethod<

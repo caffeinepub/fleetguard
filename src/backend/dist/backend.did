@@ -275,6 +275,7 @@ type CompanySettings =
  record {
    adminPrincipal: text;
    companyName: text;
+   contactEmail: text;
    contactPhone: text;
    createdAt: Time;
    fleetSize: text;
@@ -413,7 +414,11 @@ service : {
   removeUserFromCompanyWithKey: (devKey: text, companyId: text, user:
    principal) -> ();
   saveCallerUserProfile: (profile: UserProfile) -> ();
-  saveCompanySettings: (settings: CompanySettings) -> ();
+  saveCompanySettings: (settings: CompanySettings) ->
+   (variant {
+      err: text;
+      ok;
+    });
   saveDefaultCurrency: (currency: text) -> ();
   saveTaxSettings: (settings: TaxSettings) -> ();
   setCompanyTierWithKey: (devKey: text, companyId: text, tier:

@@ -72,6 +72,7 @@ export interface CompanySettings {
     adminPrincipal: string;
     createdAt: Time;
     logoUrl: string;
+    contactEmail: string;
     companyName: string;
     fleetSize: string;
     industry: string;
@@ -362,7 +363,13 @@ export interface backendInterface {
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    saveCompanySettings(settings: CompanySettings): Promise<void>;
+    saveCompanySettings(settings: CompanySettings): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
     setCompanyTierWithKey(devKey: string, companyId: string, tier: SubscriptionTier): Promise<{

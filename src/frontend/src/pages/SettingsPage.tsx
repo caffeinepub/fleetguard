@@ -176,6 +176,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
   const [industry, setIndustry] = useState("");
   const [fleetSize, setFleetSize] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -200,6 +201,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
       setIndustry(companySettings.industry ?? "");
       setFleetSize(companySettings.fleetSize ?? "");
       setContactPhone(companySettings.contactPhone ?? "");
+      setContactEmail(companySettings.contactEmail ?? "");
     }
   }, [companySettings]);
 
@@ -250,6 +252,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
     industry: industry || companySettings?.industry || "",
     fleetSize: fleetSize || companySettings?.fleetSize || "",
     contactPhone: contactPhone || companySettings?.contactPhone || "",
+    contactEmail: contactEmail || companySettings?.contactEmail || "",
     logoUrl: companySettings?.logoUrl ?? "",
     adminPrincipal: companySettings?.adminPrincipal ?? principalId,
     createdAt: companySettings?.createdAt ?? BigInt(Date.now()) * 1_000_000n,
@@ -303,10 +306,48 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
     };
   };
 
+  const FREE_EMAIL_DOMAINS = new Set([
+    "gmail.com",
+    "yahoo.com",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "icloud.com",
+    "me.com",
+    "mac.com",
+    "aol.com",
+    "protonmail.com",
+    "proton.me",
+    "yandex.com",
+    "mail.com",
+    "gmx.com",
+    "zoho.com",
+    "inbox.com",
+    "fastmail.com",
+    "tutanota.com",
+    "hey.com",
+    "msn.com",
+    "windowslive.com",
+  ]);
+
   const handleSaveCompanyInfo = async () => {
     if (!companyName.trim()) {
       toast.error("Company name cannot be empty");
       return;
+    }
+    if (contactEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(contactEmail.trim())) {
+        toast.error("Please enter a valid email address");
+        return;
+      }
+      const domain = contactEmail.trim().toLowerCase().split("@")[1] ?? "";
+      if (FREE_EMAIL_DOMAINS.has(domain)) {
+        toast.error(
+          "Please use a corporate email address. Free email providers are not accepted.",
+        );
+        return;
+      }
     }
     try {
       await saveSettings.mutateAsync(
@@ -315,12 +356,17 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
           industry,
           fleetSize,
           contactPhone,
+          contactEmail: contactEmail.trim(),
         }),
       );
       toast.success("Company information saved");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save company information");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to save company information",
+      );
     }
   };
 
@@ -557,6 +603,24 @@ export function SettingsPage({ onNavigate }: SettingsPageProps = {}) {
                 onChange={(e) => setContactPhone(e.target.value)}
                 className="h-11"
               />
+            </div>
+
+            {/* Corporate Email */}
+            <div className="space-y-1.5">
+              <Label htmlFor="contact-email">Corporate Email</Label>
+              <Input
+                id="contact-email"
+                data-ocid="settings.input"
+                type="email"
+                placeholder="admin@yourcompany.com"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used for identification and contact purposes only. Free email
+                providers are not accepted.
+              </p>
             </div>
 
             <Button

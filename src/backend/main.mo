@@ -75,7 +75,7 @@ actor {
   };
   public type CompanySettings = {
     companyName : Text; industry : Text; fleetSize : Text;
-    contactPhone : Text; logoUrl : Text; adminPrincipal : Text; createdAt : Time.Time;
+    contactPhone : Text; contactEmail : Text; logoUrl : Text; adminPrincipal : Text; createdAt : Time.Time;
   };
   public type SubscriptionTier = { #starter; #growth; #enterprise };
   public type SubscriptionRecord = {
@@ -509,9 +509,41 @@ actor {
     userProfiles.add(caller, profile);
   };
 
+  // ─── Email validation helpers ────────────────────────────────────────────────
+  let BLOCKED_EMAIL_DOMAINS : [Text] = [
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+    "icloud.com", "protonmail.com", "aol.com", "mail.com", "yandex.com",
+    "zoho.com", "gmx.com", "proton.me", "me.com", "msn.com",
+    "yahoo.co.uk", "yahoo.ca", "yahoo.com.au", "hotmail.co.uk",
+  ];
+
+  func isValidCorporateEmail(email : Text) : { #ok; #err : Text } {
+    // Basic format check: must contain exactly one '@' with non-empty local and domain parts
+    let parts = email.split(#char '@').toArray();
+    if (parts.size() != 2) { return #err("Invalid email format: must contain exactly one '@'") };
+    let local = parts[0];
+    let domain = parts[1];
+    if (local.size() == 0) { return #err("Invalid email format: missing local part") };
+    if (domain.size() == 0) { return #err("Invalid email format: missing domain") };
+    // Domain must contain at least one dot
+    if (not domain.contains(#char '.')) { return #err("Invalid email format: domain must contain a dot") };
+    // Block free/personal email domains
+    let domainLower = domain.toLower();
+    let blocked = BLOCKED_EMAIL_DOMAINS.any(func(d : Text) : Bool { d == domainLower });
+    if (blocked) {
+      return #err("Please use a corporate email address. Free email providers (Gmail, Yahoo, Hotmail, etc.) are not accepted.");
+    };
+    #ok;
+  };
+
   // ─── Company Settings ────────────────────────────────────────────────────────
-  public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async () {
-    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
+  public shared ({ caller }) func saveCompanySettings(settings : CompanySettings) : async { #ok; #err : Text } {
+    if (caller.isAnonymous()) return #err("Unauthorized: Authentication required");
+    // Validate corporate email
+    switch (isValidCorporateEmail(settings.contactEmail)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok) {};
+    };
     let cid = settings.companyName;
     if (accessControlState.userRoles.get(caller) == null) {
       accessControlState.userRoles.add(caller, #admin);
@@ -530,6 +562,7 @@ actor {
         trialEndsAt = null; plan = tierName(tier); updatedAt = Time.now();
         tier; vehicleLimit = getVehicleLimit(tier) });
     };
+    #ok;
   };
 
   public query ({ caller }) func getCompanySettings() : async ?CompanySettings {

@@ -205,6 +205,7 @@ export const CompanySettings = IDL.Record({
   'adminPrincipal' : IDL.Text,
   'createdAt' : Time,
   'logoUrl' : IDL.Text,
+  'contactEmail' : IDL.Text,
   'companyName' : IDL.Text,
   'fleetSize' : IDL.Text,
   'industry' : IDL.Text,
@@ -496,7 +497,11 @@ export const idlService = IDL.Service({
       [],
     ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+  'saveCompanySettings' : IDL.Func(
+      [CompanySettings],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
   'setCompanyTierWithKey' : IDL.Func(
@@ -752,6 +757,7 @@ export const idlFactory = ({ IDL }) => {
     'adminPrincipal' : IDL.Text,
     'createdAt' : Time,
     'logoUrl' : IDL.Text,
+    'contactEmail' : IDL.Text,
     'companyName' : IDL.Text,
     'fleetSize' : IDL.Text,
     'industry' : IDL.Text,
@@ -1051,7 +1057,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'saveCompanySettings' : IDL.Func([CompanySettings], [], []),
+    'saveCompanySettings' : IDL.Func(
+        [CompanySettings],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
     'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
     'setCompanyTierWithKey' : IDL.Func(

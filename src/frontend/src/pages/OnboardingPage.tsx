@@ -261,13 +261,16 @@ export function OnboardingPage() {
         industry: industry || "Other",
         fleetSize: fleetSize || "1\u201310",
         contactPhone: phone.trim(),
+        contactEmail: email.trim(),
         logoUrl: "",
         adminPrincipal: identity?.getPrincipal().toString() ?? "",
         createdAt: BigInt(Date.now()) * 1_000_000n,
       });
       setStep(2);
-    } catch {
-      toast.error("Failed to save company settings");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save company settings",
+      );
     } finally {
       setSaving(false);
     }

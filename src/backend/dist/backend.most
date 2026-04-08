@@ -20,6 +20,7 @@ type CompanySettings__115513322 =
   {
     adminPrincipal : Text;
     companyName : Text;
+    contactEmail : Text;
     contactPhone : Text;
     createdAt : Time__900049286;
     fleetSize : Text;
@@ -64,6 +65,13 @@ type InviteToken__32156228 =
     usedBy : ?Principal
   };
 type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type List__415060402<T> = List__790383201<T>;
+type List__790383201<T> =
+  {
+    var blockIndex : Nat__490723111;
+    var blocks : [var [var ?T]];
+    var elementIndex : Nat__490723111
+  };
 type MaintCore__261799166 =
   {
     cost : Float;
@@ -109,14 +117,26 @@ type Notification__879889657 =
     severity : NotificationSeverity__127052655;
     title : Text
   };
+type OldCompanySettings__703403330 =
+  {
+    adminPrincipal : Text;
+    companyName : Text;
+    contactPhone : Text;
+    createdAt : Time__900049286;
+    fleetSize : Text;
+    industry : Text;
+    logoUrl : Text
+  };
 type OldSubscriptionRecord__907098827 =
   {
     companyName : Text;
     plan : Text;
     startDate : ?Time__900049286;
     status : Text;
+    tier : SubscriptionTier__422880838;
     trialEndsAt : ?Time__900049286;
-    updatedAt : Time__900049286
+    updatedAt : Time__900049286;
+    vehicleLimit : Nat
   };
 type PartCore__620802191 =
   {
@@ -152,6 +172,7 @@ type SubscriptionRecord__132754268 =
     updatedAt : Time__900049286;
     vehicleLimit : Nat
   };
+type SubscriptionTier__422880838 = {#enterprise; #growth; #starter};
 type SubscriptionTier__653931667 = {#enterprise; #growth; #starter};
 type TaxSettings__259117869 =
   {taxEnabled : Bool; taxLabel : Text; taxRate : Float};
@@ -217,6 +238,7 @@ type WorkOrder__288220227 =
     vehicleId : Nat
   };
 actor ({
+  stable BLOCKED_EMAIL_DOMAINS : [Text];
   stable DEV_KEY : Text;
   stable DEV_PRINCIPAL : Principal;
   stable accessControlState :
@@ -224,12 +246,7 @@ actor ({
       var adminAssigned : Bool;
       userRoles : Map__605269027<Principal, UserRole__1054455867>
     };
-  stable var allCompanyRegistrations :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?CompanySettings__115513322]];
-      var elementIndex : Nat__490723111
-    };
+  in allCompanyRegistrations : List__415060402<OldCompanySettings__703403330>;
   stable var cCategories :
     {
       var root : Node__46230540<Text, Map__605269027<Nat, Text>>;
@@ -310,11 +327,7 @@ actor ({
         Node__46230540<Text, Map__605269027<Nat, ServiceSchedule__444523700>>;
       var size : Nat__490723111
     };
-  stable var cSettings :
-    {
-      var root : Node__46230540<Text, CompanySettings__115513322>;
-      var size : Nat__490723111
-    };
+  in cSettings : Map__605269027<Text, OldCompanySettings__703403330>;
   stable var cTax :
     {
       var root : Node__46230540<Text, TaxSettings__259117869>;
@@ -363,7 +376,7 @@ actor ({
     };
   stable var companyApprovalStore :
     {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
-  stable var companySettings : ?CompanySettings__115513322;
+  in companySettings : ?OldCompanySettings__703403330;
   stable var defaultCurrency : Text;
   stable var discountCodeMap :
     {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
@@ -464,6 +477,7 @@ actor ({
       var size : Nat__490723111
     }
 }, {
+  stable BLOCKED_EMAIL_DOMAINS : [Text];
   stable DEV_KEY : Text;
   stable DEV_PRINCIPAL : Principal;
   stable accessControlState :

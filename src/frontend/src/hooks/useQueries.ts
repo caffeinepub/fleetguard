@@ -494,9 +494,11 @@ export function useSaveCompanySettings() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (settings: CompanySettings) => {
+    mutationFn: async (settings: CompanySettings) => {
       if (!actor) throw new Error("Not connected");
-      return actor.saveCompanySettings(settings);
+      const result = await actor.saveCompanySettings(settings);
+      if (result.__kind__ === "err") throw new Error(result.err);
+      return result.ok;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["companySettings"] }),
   });

@@ -158,6 +158,7 @@ export interface CompanySettings {
     adminPrincipal: string;
     createdAt: Time;
     logoUrl: string;
+    contactEmail: string;
     companyName: string;
     fleetSize: string;
     industry: string;
@@ -462,7 +463,13 @@ export interface backendInterface {
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
     removeUserFromCompanyWithKey(devKey: string, companyId: string, user: Principal): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    saveCompanySettings(settings: CompanySettings): Promise<void>;
+    saveCompanySettings(settings: CompanySettings): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
     setCompanyTierWithKey(devKey: string, companyId: string, tier: SubscriptionTier): Promise<{
@@ -1827,18 +1834,24 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCompanySettings(arg0: CompanySettings): Promise<void> {
+    async saveCompanySettings(arg0: CompanySettings): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }> {
         if (this.processError) {
             try {
                 const result = await this.actor.saveCompanySettings(arg0);
-                return result;
+                return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.saveCompanySettings(arg0);
-            return result;
+            return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
         }
     }
     async saveDefaultCurrency(arg0: string): Promise<void> {
@@ -1878,15 +1891,15 @@ export class Backend implements backendInterface {
     }> {
         if (this.processError) {
             try {
-                const result = await this.actor.setCompanyTierWithKey(arg0, arg1, to_candid_SubscriptionTier_n111(this._uploadFile, this._downloadFile, arg2));
-                return from_candid_variant_n113(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor.setCompanyTierWithKey(arg0, arg1, to_candid_SubscriptionTier_n112(this._uploadFile, this._downloadFile, arg2));
+                return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.setCompanyTierWithKey(arg0, arg1, to_candid_SubscriptionTier_n111(this._uploadFile, this._downloadFile, arg2));
-            return from_candid_variant_n113(this._uploadFile, this._downloadFile, result);
+            const result = await this.actor.setCompanyTierWithKey(arg0, arg1, to_candid_SubscriptionTier_n112(this._uploadFile, this._downloadFile, arg2));
+            return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
         }
     }
     async setMySubscriptionTier(arg0: SubscriptionTier): Promise<{
@@ -1898,15 +1911,15 @@ export class Backend implements backendInterface {
     }> {
         if (this.processError) {
             try {
-                const result = await this.actor.setMySubscriptionTier(to_candid_SubscriptionTier_n111(this._uploadFile, this._downloadFile, arg0));
-                return from_candid_variant_n113(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor.setMySubscriptionTier(to_candid_SubscriptionTier_n112(this._uploadFile, this._downloadFile, arg0));
+                return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.setMySubscriptionTier(to_candid_SubscriptionTier_n111(this._uploadFile, this._downloadFile, arg0));
-            return from_candid_variant_n113(this._uploadFile, this._downloadFile, result);
+            const result = await this.actor.setMySubscriptionTier(to_candid_SubscriptionTier_n112(this._uploadFile, this._downloadFile, arg0));
+            return from_candid_variant_n111(this._uploadFile, this._downloadFile, result);
         }
     }
     async setUserFleetRole(arg0: Principal, arg1: FleetRole): Promise<void> {
@@ -2641,7 +2654,7 @@ function from_candid_variant_n100(_uploadFile: (file: ExternalBlob) => Promise<U
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n113(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n111(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ok: null;
 } | {
     err: string;
@@ -2866,8 +2879,8 @@ function to_candid_PartFull_n35(_uploadFile: (file: ExternalBlob) => Promise<Uin
 function to_candid_ServiceSchedule_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ServiceSchedule): _ServiceSchedule {
     return to_candid_record_n38(_uploadFile, _downloadFile, value);
 }
-function to_candid_SubscriptionTier_n111(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubscriptionTier): _SubscriptionTier {
-    return to_candid_variant_n112(_uploadFile, _downloadFile, value);
+function to_candid_SubscriptionTier_n112(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubscriptionTier): _SubscriptionTier {
+    return to_candid_variant_n113(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n11(_uploadFile, _downloadFile, value);
@@ -3196,7 +3209,7 @@ function to_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint
         guest: null
     } : value;
 }
-function to_candid_variant_n112(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubscriptionTier): {
+function to_candid_variant_n113(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SubscriptionTier): {
     growth: null;
 } | {
     enterprise: null;
