@@ -34,7 +34,6 @@ import {
   Building2,
   Check,
   ChevronDown,
-  ChevronRight,
   Copy,
   CreditCard,
   DollarSign,
@@ -42,6 +41,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Heart,
   Key,
   LayoutDashboard,
   Loader2,
@@ -52,6 +52,7 @@ import {
   Plus,
   RefreshCw,
   Send,
+  Server,
   Shield,
   ShieldOff,
   Sun,
@@ -95,17 +96,30 @@ import {
   useApproveCompanyWithKey,
   useCreateDiscountCodeWithKey,
   useDeleteDiscountCodeWithKey,
+  useDevLastLogin,
+  useRecordDevLogin,
   useRejectCompanyWithKey,
   useSetCompanyTier,
   useStartTrialWithKey,
+  useToggleDiscountCodeActive,
   useUpdateSubscriptionStatusWithKey,
 } from "../hooks/useQueries";
+import {
+  AuditLogSection,
+  CustomerHealthSection,
+  RevenueAnalyticsSection,
+  SystemHealthSection,
+} from "./DevPortalSections";
 
 type NavSection =
   | "overview"
+  | "revenue"
   | "companies"
+  | "crm"
   | "subscriptions"
   | "promo-codes"
+  | "audit"
+  | "syshealth"
   | "stripe"
   | "email";
 
@@ -115,9 +129,13 @@ const NAV_ITEMS: Array<{
   icon: React.ElementType;
 }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "revenue", label: "Revenue Analytics", icon: TrendingUp },
   { id: "companies", label: "Companies", icon: Building2 },
+  { id: "crm", label: "Customer Health", icon: Heart },
   { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
   { id: "promo-codes", label: "Promo Codes", icon: Tag },
+  { id: "audit", label: "Audit Log", icon: Shield },
+  { id: "syshealth", label: "System Health", icon: Server },
   { id: "stripe", label: "Stripe Settings", icon: Key },
   { id: "email", label: "Email Tool", icon: Mail },
 ];
@@ -191,6 +209,7 @@ export default function DevPortalPage() {
   const approvalsQuery = useAllCompanyApprovalsWithKey(devKey);
   const subscriptionsQuery = useAllSubscriptionsWithKey(devKey);
   const discountCodesQuery = useAllDiscountCodesWithKey(devKey);
+  const devLastLoginQuery = useDevLastLogin(devKey);
 
   // Mutations
   const approveCompany = useApproveCompanyWithKey();
@@ -200,6 +219,21 @@ export default function DevPortalPage() {
   const updateSubscription = useUpdateSubscriptionStatusWithKey();
   const startTrial = useStartTrialWithKey();
   const setCompanyTier = useSetCompanyTier();
+  const toggleCodeActive = useToggleDiscountCodeActive();
+  const recordDevLogin = useRecordDevLogin();
+
+  // Record dev login on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — run once when actor is ready
+  useEffect(() => {
+    if (
+      isLoggedIn &&
+      identity?.getPrincipal().toString() === ALLOWED_PRINCIPAL &&
+      devKey &&
+      actor
+    ) {
+      recordDevLogin.mutate({ devKey });
+    }
+  }, [isLoggedIn, actor, devKey]);
 
   const companies: CompanySettings[] = companiesQuery.data || [];
   const approvals: Array<[string, string]> = approvalsQuery.data || [];
@@ -219,6 +253,7 @@ export default function DevPortalPage() {
     approvalsQuery.refetch();
     subscriptionsQuery.refetch();
     discountCodesQuery.refetch();
+    devLastLoginQuery.refetch();
   };
 
   // Theme
@@ -645,9 +680,18 @@ export default function DevPortalPage() {
                   companies={companies}
                   approvals={approvals}
                   subscriptions={subscriptions}
+                  devLastLogin={devLastLoginQuery.data ?? null}
+                  identity={identity}
                   isLoading={
                     companiesQuery.isLoading || subscriptionsQuery.isLoading
                   }
+                  darkMode={darkMode}
+                />
+              )}
+              {activeSection === "revenue" && (
+                <RevenueAnalyticsSection
+                  subscriptions={subscriptions}
+                  isLoading={subscriptionsQuery.isLoading}
                   darkMode={darkMode}
                 />
               )}
@@ -694,6 +738,14 @@ export default function DevPortalPage() {
                   }}
                   isApproving={approveCompany.isPending}
                   isRejecting={rejectCompany.isPending}
+                />
+              )}
+              {activeSection === "crm" && (
+                <CustomerHealthSection
+                  companies={companies}
+                  devKey={devKey}
+                  isLoading={companiesQuery.isLoading}
+                  darkMode={darkMode}
                 />
               )}
               {activeSection === "subscriptions" && (
@@ -758,8 +810,23 @@ export default function DevPortalPage() {
                       },
                     )
                   }
+                  onToggle={(id) =>
+                    toggleCodeActive.mutate(
+                      { devKey, id },
+                      {
+                        onSuccess: () => toast.success("Code status updated"),
+                        onError: () => toast.error("Failed to toggle code"),
+                      },
+                    )
+                  }
                   isCreating={createCode.isPending}
                 />
+              )}
+              {activeSection === "audit" && (
+                <AuditLogSection devKey={devKey} darkMode={darkMode} />
+              )}
+              {activeSection === "syshealth" && (
+                <SystemHealthSection devKey={devKey} darkMode={darkMode} />
               )}
               {activeSection === "stripe" && (
                 <StripeSettingsSection darkMode={darkMode} />
@@ -780,12 +847,16 @@ function OverviewSection({
   companies,
   approvals,
   subscriptions,
+  devLastLogin,
+  identity,
   isLoading,
   darkMode,
 }: {
   companies: CompanySettings[];
   approvals: Array<[string, string]>;
   subscriptions: SubscriptionWithVehicleCount[];
+  devLastLogin: bigint | null | undefined;
+  identity: ReturnType<typeof useInternetIdentity>["identity"];
   isLoading: boolean;
   darkMode: boolean;
 }) {
@@ -1137,11 +1208,122 @@ function OverviewSection({
           </div>
         )}
       </div>
+
+      {/* Security & Session Card */}
+      <div
+        className="rounded-2xl p-5"
+        style={{
+          background: darkMode ? "oklch(0.18 0.05 255)" : "white",
+          border: `1px solid ${darkMode ? "oklch(0.26 0.06 255)" : "oklch(0.90 0.01 255)"}`,
+        }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Shield
+            className="w-4 h-4"
+            style={{ color: "oklch(0.65 0.2 150)" }}
+          />
+          <h3
+            className="font-semibold text-sm"
+            style={{ color: darkMode ? "white" : "oklch(0.18 0.08 255)" }}
+          >
+            Security & Session
+          </h3>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-4 text-sm">
+          <div>
+            <div
+              className="text-xs mb-1"
+              style={{
+                color: darkMode
+                  ? "oklch(0.55 0.03 255)"
+                  : "oklch(0.55 0.03 255)",
+              }}
+            >
+              Principal ID
+            </div>
+            <div className="flex items-center gap-2">
+              <code
+                className="text-xs px-2 py-0.5 rounded font-mono"
+                style={{
+                  background: darkMode
+                    ? "oklch(0.22 0.06 255)"
+                    : "oklch(0.94 0.01 255)",
+                  color: "oklch(0.65 0.2 150)",
+                }}
+              >
+                {identity?.getPrincipal().toString().slice(0, 18)}…
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    identity?.getPrincipal().toString() ?? "",
+                  );
+                  toast.success("Principal ID copied");
+                }}
+                className="opacity-50 hover:opacity-100"
+                aria-label="Copy principal ID"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          <div>
+            <div
+              className="text-xs mb-1"
+              style={{
+                color: darkMode
+                  ? "oklch(0.55 0.03 255)"
+                  : "oklch(0.55 0.03 255)",
+              }}
+            >
+              Last Dev Login
+            </div>
+            <div style={{ color: darkMode ? "white" : "oklch(0.18 0.08 255)" }}>
+              {devLastLogin
+                ? new Date(Number(devLastLogin) / 1_000_000).toLocaleString()
+                : "No record"}
+            </div>
+          </div>
+          <div>
+            <div
+              className="text-xs mb-1"
+              style={{
+                color: darkMode
+                  ? "oklch(0.55 0.03 255)"
+                  : "oklch(0.55 0.03 255)",
+              }}
+            >
+              API Keys
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                style={{
+                  color: darkMode
+                    ? "oklch(0.55 0.03 255)"
+                    : "oklch(0.6 0.03 255)",
+                }}
+              >
+                No API keys configured
+              </span>
+              <button
+                type="button"
+                onClick={() => toast.info("API key management coming soon")}
+                className="text-xs px-2 py-0.5 rounded border opacity-60 hover:opacity-100 transition-opacity"
+                style={{
+                  color: "oklch(0.65 0.2 150)",
+                  borderColor: "oklch(0.65 0.2 150 / 0.3)",
+                }}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
-// ─── Companies Section ───────────────────────────────────────────────────────
 function CompaniesSection({
   companies,
   getStatus,
@@ -2195,6 +2377,7 @@ function PromoCodesSection({
   darkMode,
   onCreate,
   onDelete,
+  onToggle,
   isCreating,
 }: {
   codes: DiscountCodeRecord[];
@@ -2204,6 +2387,7 @@ function PromoCodesSection({
     d: Omit<DiscountCodeRecord, "id" | "createdAt" | "usedCount">,
   ) => void;
   onDelete: (id: bigint) => void;
+  onToggle: (id: bigint) => void;
   isCreating: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -2227,6 +2411,7 @@ function PromoCodesSection({
       discountType: form.discountType,
       value: BigInt(Math.round(Number.parseFloat(form.value))),
       description: form.description,
+      isActive: true,
     });
     setForm({ code: "", discountType: "percent", value: "", description: "" });
     setDialogOpen(false);
@@ -2406,88 +2591,133 @@ function PromoCodesSection({
             <TableHeader>
               <TableRow>
                 <TableHead>Code</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Value</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Used</TableHead>
+                <TableHead>Usage</TableHead>
+                <TableHead>Expires</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {codes.map((c, i) => (
-                <TableRow
-                  key={String(c.id)}
-                  data-ocid={`promo_codes.table.row.${i + 1}`}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <code
-                        className="text-xs font-mono px-2 py-1 rounded-lg"
-                        style={{
-                          background: darkMode
-                            ? "oklch(0.22 0.06 255)"
-                            : "oklch(0.94 0.01 255)",
-                          color: "oklch(0.65 0.2 150)",
-                        }}
-                      >
-                        {c.code}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(c.code);
-                          toast.success("Copied!");
-                        }}
-                        className="opacity-50 hover:opacity-100"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm capitalize">
-                    {c.discountType === "months_free"
-                      ? "Months Free"
-                      : c.discountType === "percent"
-                        ? "Percent Off"
-                        : "Fixed Amount"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {c.discountType === "percent"
-                      ? `${c.value}%`
-                      : c.discountType === "fixed"
-                        ? `$${c.value}`
-                        : `${c.value} months`}
-                  </TableCell>
-                  <TableCell
-                    className="text-sm"
-                    style={{
-                      color: darkMode
-                        ? "oklch(0.6 0.03 255)"
-                        : "oklch(0.5 0.03 255)",
-                    }}
+              {codes.map((c, i) => {
+                const isActive = c.isActive !== false;
+                const isExpired =
+                  c.expiresAt && c.expiresAt < BigInt(Date.now() * 1_000_000);
+                const isExhausted =
+                  c.maxUsageCount && c.usedCount >= c.maxUsageCount;
+                const statusLabel = !isActive
+                  ? "Disabled"
+                  : isExpired
+                    ? "Expired"
+                    : isExhausted
+                      ? "Exhausted"
+                      : "Active";
+                const statusColor =
+                  statusLabel === "Active"
+                    ? "oklch(0.65 0.2 150)"
+                    : statusLabel === "Disabled"
+                      ? "oklch(0.55 0.04 255)"
+                      : "oklch(0.58 0.18 22)";
+                const statusBg =
+                  statusLabel === "Active"
+                    ? "oklch(0.65 0.2 150 / 0.1)"
+                    : "oklch(0.55 0.04 255 / 0.1)";
+                return (
+                  <TableRow
+                    key={String(c.id)}
+                    data-ocid={`promo_codes.table.row.${i + 1}`}
+                    style={{ opacity: isActive ? 1 : 0.6 }}
                   >
-                    {c.description || "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {String(c.usedCount)}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {formatDate(c.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-destructive"
-                      data-ocid={`promo_codes.delete_button.${i + 1}`}
-                      onClick={() => setConfirmDelete(c.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <code
+                          className="text-xs font-mono px-2 py-1 rounded-lg"
+                          style={{
+                            background: darkMode
+                              ? "oklch(0.22 0.06 255)"
+                              : "oklch(0.94 0.01 255)",
+                            color: "oklch(0.65 0.2 150)",
+                          }}
+                        >
+                          {c.code}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.code);
+                            toast.success("Copied!");
+                          }}
+                          className="opacity-50 hover:opacity-100"
+                          aria-label="Copy code"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: statusBg, color: statusColor }}
+                      >
+                        {statusLabel}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">
+                      {c.discountType === "months_free"
+                        ? "Months Free"
+                        : c.discountType === "percent"
+                          ? "Percent Off"
+                          : "Fixed Amount"}
+                    </TableCell>
+                    <TableCell className="text-sm tabular-nums">
+                      {c.discountType === "percent"
+                        ? `${c.value}%`
+                        : c.discountType === "fixed"
+                          ? `$${c.value}`
+                          : `${c.value} months`}
+                    </TableCell>
+                    <TableCell className="text-sm tabular-nums">
+                      {String(c.usedCount)}
+                      {c.maxUsageCount ? `/${String(c.maxUsageCount)}` : ""}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {c.expiresAt ? formatDate(c.expiresAt) : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatDate(c.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          data-ocid={`promo_codes.toggle_button.${i + 1}`}
+                          onClick={() => onToggle(c.id)}
+                          style={{
+                            color: isActive
+                              ? "oklch(0.58 0.18 22)"
+                              : "oklch(0.65 0.2 150)",
+                          }}
+                        >
+                          {isActive ? "Disable" : "Enable"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-destructive"
+                          data-ocid={`promo_codes.delete_button.${i + 1}`}
+                          onClick={() => setConfirmDelete(c.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

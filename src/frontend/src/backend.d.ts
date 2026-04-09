@@ -12,6 +12,18 @@ export interface CompanyUserInfo {
     role: FleetRole;
     profile?: UserProfile;
 }
+export interface AuditLog {
+    id: bigint;
+    status: string;
+    action: string;
+    oldValue?: string;
+    newValue?: string;
+    entityId: string;
+    timestamp: bigint;
+    entityName: string;
+    actorPrincipal: string;
+    entityType: string;
+}
 export type Time = bigint;
 export interface SubscriptionRecord {
     status: string;
@@ -25,12 +37,16 @@ export interface SubscriptionRecord {
 }
 export interface DiscountCode {
     id: bigint;
+    expiresAt?: bigint;
     value: bigint;
     code: string;
+    maxUsageCount?: bigint;
     createdAt: Time;
     discountType: string;
     usedCount: bigint;
     description: string;
+    isActive: boolean;
+    applicableTiers: Array<string>;
 }
 export interface Vehicle {
     id: bigint;
@@ -66,6 +82,11 @@ export interface InviteToken {
     createdAt: Time;
     role: FleetRole;
     email: string;
+    companyId: string;
+}
+export interface DiscountCodeRedemption {
+    redeemedAt: bigint;
+    companyName: string;
     companyId: string;
 }
 export interface CompanySettings {
@@ -307,11 +328,21 @@ export interface backendInterface {
     deleteVendor(id: bigint): Promise<void>;
     deleteWarranty(id: bigint): Promise<void>;
     deleteWorkOrder(id: bigint): Promise<void>;
+    exportAuditLogsCSVWithKey(devKey: string): Promise<string>;
+    getAllCompaniesDashboardStatsWithKey(devKey: string): Promise<Array<[string, {
+            maintenanceCount: bigint;
+            workOrderCount: bigint;
+            vehicleCount: bigint;
+            partCount: bigint;
+            userCount: bigint;
+        }]>>;
     getAllCompanyApprovalsWithKey(devKey: string): Promise<Array<[string, string]>>;
     getAllCompanyRegistrations(): Promise<Array<CompanySettings>>;
     getAllCompanyRegistrationsWithKey(devKey: string): Promise<Array<CompanySettings>>;
+    getAllCompanyTagsWithKey(devKey: string): Promise<Array<[string, Array<string>]>>;
     getAllDiscountCodesWithKey(devKey: string): Promise<Array<DiscountCode>>;
     getAllInspectionChecklists(): Promise<Array<InspectionChecklist>>;
+    getAllLastLoginsWithKey(devKey: string): Promise<Array<[string, bigint]>>;
     getAllMaintenanceRecords(): Promise<Array<MaintenanceRecordFull>>;
     getAllNotifications(): Promise<Array<Notification>>;
     getAllParts(): Promise<Array<PartFull>>;
@@ -322,27 +353,53 @@ export interface backendInterface {
     getAllVendors(): Promise<Array<Vendor>>;
     getAllWarranties(): Promise<Array<Warranty>>;
     getAllWorkOrders(): Promise<Array<WorkOrder>>;
+    getAuditLogsByCompanyWithKey(devKey: string, companyId: string): Promise<Array<AuditLog>>;
+    getAuditLogsWithKey(devKey: string): Promise<Array<AuditLog>>;
     getCallerCompanyId(): Promise<string | null>;
     getCallerFleetRole(): Promise<FleetRole | null>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCompanyApprovalStatus(companyName: string): Promise<string>;
     getCompanyApprovalStatusWithKey(devKey: string, companyName: string): Promise<string>;
+    getCompanyDashboardStatsWithKey(devKey: string, companyId: string): Promise<{
+        maintenanceCount: bigint;
+        workOrderCount: bigint;
+        vehicleCount: bigint;
+        partCount: bigint;
+        userCount: bigint;
+        documentCount: bigint;
+    }>;
+    getCompanyNoteWithKey(devKey: string, companyId: string): Promise<string | null>;
     getCompanySettings(): Promise<CompanySettings | null>;
+    getCompanyTagsWithKey(devKey: string, companyId: string): Promise<Array<string>>;
     getCompanyUsers(): Promise<Array<CompanyUserInfo>>;
     getCompanyUsersWithKey(devKey: string, companyId: string): Promise<Array<CompanyUserInfo>>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultCurrency(): Promise<string>;
+    getDevLastLoginWithKey(devKey: string): Promise<bigint | null>;
+    getDiscountCodeRedemptionsWithKey(devKey: string, id: bigint): Promise<Array<DiscountCodeRedemption>>;
     getDiscountCodes(): Promise<Array<DiscountCode>>;
     getInspectionChecklist(id: bigint): Promise<InspectionChecklist>;
     getInspectionChecklistsByVehicle(vehicleId: bigint): Promise<Array<InspectionChecklist>>;
     getInviteTokens(): Promise<Array<InviteToken>>;
+    getLastLoginTimestampWithKey(devKey: string, companyId: string): Promise<bigint | null>;
     getLowStockParts(): Promise<Array<PartFull>>;
     getMaintenanceRecord(id: bigint): Promise<MaintenanceRecordFull>;
     getMaintenanceRecordsByVehicle(vehicleId: bigint): Promise<Array<MaintenanceRecordFull>>;
     getOverdueMaintenance(): Promise<Array<MaintenanceRecordFull>>;
     getPart(id: bigint): Promise<PartFull>;
     getSubscriptionStatus(companyName: string): Promise<SubscriptionRecord | null>;
+    getSystemStatsWithKey(devKey: string): Promise<{
+        totalAuditLogs: bigint;
+        totalVehicles: bigint;
+        backendVersion: string;
+        totalDiscountCodes: bigint;
+        totalMaintenanceRecords: bigint;
+        totalUsers: bigint;
+        totalParts: bigint;
+        totalCompanies: bigint;
+        totalWorkOrders: bigint;
+    }>;
     getTaxSettings(): Promise<TaxSettings | null>;
     getUnreadNotificationCount(): Promise<bigint>;
     getUpcomingMaintenance(): Promise<Array<MaintenanceRecordFull>>;
@@ -358,6 +415,9 @@ export interface backendInterface {
     markAllNotificationsRead(): Promise<void>;
     markNotificationRead(id: bigint): Promise<void>;
     markScheduleComplete(id: bigint): Promise<void>;
+    pingWithKey(devKey: string): Promise<string>;
+    recordDevLoginWithKey(devKey: string): Promise<void>;
+    recordLastLogin(): Promise<void>;
     redeemInviteToken(token: string): Promise<FleetRole>;
     rejectCompany(companyName: string): Promise<void>;
     rejectCompanyWithKey(devKey: string, companyName: string): Promise<void>;
@@ -372,6 +432,8 @@ export interface backendInterface {
     }>;
     saveDefaultCurrency(currency: string): Promise<void>;
     saveTaxSettings(settings: TaxSettings): Promise<void>;
+    setCompanyNoteWithKey(devKey: string, companyId: string, note: string): Promise<void>;
+    setCompanyTagsWithKey(devKey: string, companyId: string, tags: Array<string>): Promise<void>;
     setCompanyTierWithKey(devKey: string, companyId: string, tier: SubscriptionTier): Promise<{
         __kind__: "ok";
         ok: null;
@@ -390,6 +452,13 @@ export interface backendInterface {
     setUserFleetRoleWithKey(devKey: string, companyId: string, user: Principal, role: FleetRole): Promise<void>;
     startTrial(companyName: string): Promise<void>;
     startTrialWithKey(devKey: string, companyName: string, trialDays: bigint): Promise<void>;
+    toggleDiscountCodeActiveWithKey(devKey: string, id: bigint): Promise<{
+        __kind__: "ok";
+        ok: null;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     updateInspectionChecklist(id: bigint, checklist: InspectionChecklist): Promise<void>;
     updateMaintenanceRecord(id: bigint, record: MaintenanceRecordFull): Promise<void>;
     updatePart(id: bigint, part: PartFull): Promise<void>;

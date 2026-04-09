@@ -717,6 +717,9 @@ export interface DiscountCodeRecord {
   description: string;
   createdAt: bigint;
   usedCount: bigint;
+  isActive: boolean;
+  expiresAt?: bigint;
+  maxUsageCount?: bigint;
 }
 
 export function useAllDiscountCodesWithKey(devKey: string) {
@@ -984,6 +987,7 @@ export function useDeleteInspectionChecklist() {
 // ─── Bulk Vehicle Import Validation ───────────────────────────────────────
 
 import type {
+  AuditLog,
   VehicleImportRow,
   VehicleImportValidationResult,
 } from "../backend";
@@ -999,5 +1003,236 @@ export function useValidateBulkVehicleImport() {
       if (!actor) throw new Error("Not connected");
       return actor.validateBulkVehicleImport(rows);
     },
+  });
+}
+
+// ─── Dev Portal — Advanced Hooks ──────────────────────────────────────────
+
+export type { AuditLog } from "../backend";
+
+export function useAuditLogs(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<AuditLog[]>({
+    queryKey: ["auditLogs", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return actor.getAuditLogsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useExportAuditLogsCSV() {
+  const { actor } = useActor();
+  return useMutation<string, Error, { devKey: string }>({
+    mutationFn: ({ devKey }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.exportAuditLogsCSVWithKey(devKey);
+    },
+    onSuccess: (csvData) => {
+      const blob = new Blob([csvData], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+}
+
+export function useCompanyNote(devKey: string, companyId: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<string | null>({
+    queryKey: ["companyNote", devKey, companyId],
+    queryFn: async () => {
+      if (!actor || !devKey || !companyId) return null;
+      return actor.getCompanyNoteWithKey(devKey, companyId);
+    },
+    enabled: !!actor && !isFetching && !!devKey && !!companyId,
+  });
+}
+
+export function useSetCompanyNote() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { devKey: string; companyId: string; note: string }
+  >({
+    mutationFn: ({ devKey, companyId, note }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setCompanyNoteWithKey(devKey, companyId, note);
+    },
+    onSuccess: (
+      _: unknown,
+      {
+        devKey,
+        companyId,
+      }: { devKey: string; companyId: string; note: string },
+    ) => {
+      qc.invalidateQueries({ queryKey: ["companyNote", devKey, companyId] });
+    },
+  });
+}
+
+export function useCompanyTags(devKey: string, companyId: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<string[]>({
+    queryKey: ["companyTags", devKey, companyId],
+    queryFn: async () => {
+      if (!actor || !devKey || !companyId) return [];
+      return actor.getCompanyTagsWithKey(devKey, companyId);
+    },
+    enabled: !!actor && !isFetching && !!devKey && !!companyId,
+  });
+}
+
+export function useSetCompanyTags() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    unknown,
+    Error,
+    { devKey: string; companyId: string; tags: string[] }
+  >({
+    mutationFn: ({ devKey, companyId, tags }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.setCompanyTagsWithKey(devKey, companyId, tags);
+    },
+    onSuccess: (
+      _: unknown,
+      {
+        devKey,
+        companyId,
+      }: { devKey: string; companyId: string; tags: string[] },
+    ) => {
+      qc.invalidateQueries({ queryKey: ["companyTags", devKey, companyId] });
+      qc.invalidateQueries({ queryKey: ["allCompanyTags", devKey] });
+    },
+  });
+}
+
+export function useAllCompanyTags(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Array<[string, string[]]>>({
+    queryKey: ["allCompanyTags", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return actor.getAllCompanyTagsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function useAllLastLogins(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Array<[string, bigint]>>({
+    queryKey: ["allLastLogins", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return actor.getAllLastLoginsWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export interface CompanyDashboardStats {
+  vehicleCount: bigint;
+  maintenanceCount: bigint;
+  workOrderCount: bigint;
+  partCount: bigint;
+  userCount: bigint;
+}
+
+export function useAllCompaniesDashboardStats(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Array<[string, CompanyDashboardStats]>>({
+    queryKey: ["allCompaniesDashboardStats", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return [];
+      return actor.getAllCompaniesDashboardStatsWithKey(devKey) as Promise<
+        Array<[string, CompanyDashboardStats]>
+      >;
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export interface SystemStats {
+  totalCompanies: bigint;
+  totalUsers: bigint;
+  totalVehicles: bigint;
+  totalMaintenanceRecords: bigint;
+  totalWorkOrders: bigint;
+  totalParts: bigint;
+  totalDiscountCodes: bigint;
+  totalAuditLogs: bigint;
+  backendVersion: string;
+}
+
+export function useSystemStats(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<SystemStats | null>({
+    queryKey: ["systemStats", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return null;
+      return actor.getSystemStatsWithKey(devKey) as Promise<SystemStats>;
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+  });
+}
+
+export function usePingBackend(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<string>({
+    queryKey: ["pingBackend", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return "unknown";
+      return actor.pingWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useToggleDiscountCodeActive() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation<
+    { __kind__: "ok"; ok: null } | { __kind__: "err"; err: string },
+    Error,
+    { devKey: string; id: bigint }
+  >({
+    mutationFn: ({ devKey, id }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.toggleDiscountCodeActiveWithKey(devKey, id);
+    },
+    onSuccess: (_: unknown, { devKey }: { devKey: string; id: bigint }) => {
+      qc.invalidateQueries({ queryKey: ["discountCodes", devKey] });
+    },
+  });
+}
+
+export function useRecordDevLogin() {
+  const { actor } = useActor();
+  return useMutation<void, Error, { devKey: string }>({
+    mutationFn: ({ devKey }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.recordDevLoginWithKey(devKey);
+    },
+  });
+}
+
+export function useDevLastLogin(devKey: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<bigint | null>({
+    queryKey: ["devLastLogin", devKey],
+    queryFn: async () => {
+      if (!actor || !devKey) return null;
+      return actor.getDevLastLoginWithKey(devKey);
+    },
+    enabled: !!actor && !isFetching && !!devKey,
   });
 }

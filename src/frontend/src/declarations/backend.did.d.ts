@@ -10,6 +10,18 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AuditLog {
+  'id' : bigint,
+  'status' : string,
+  'action' : string,
+  'oldValue' : [] | [string],
+  'newValue' : [] | [string],
+  'entityId' : string,
+  'timestamp' : bigint,
+  'entityName' : string,
+  'actorPrincipal' : string,
+  'entityType' : string,
+}
 export interface ChecklistItem {
   'id' : bigint,
   'status' : ChecklistItemStatus,
@@ -44,12 +56,21 @@ export interface DashboardStats {
 }
 export interface DiscountCode {
   'id' : bigint,
+  'expiresAt' : [] | [bigint],
   'value' : bigint,
   'code' : string,
+  'maxUsageCount' : [] | [bigint],
   'createdAt' : Time,
   'discountType' : string,
   'usedCount' : bigint,
   'description' : string,
+  'isActive' : boolean,
+  'applicableTiers' : Array<string>,
+}
+export interface DiscountCodeRedemption {
+  'redeemedAt' : bigint,
+  'companyName' : string,
+  'companyId' : string,
 }
 export type FleetRole = { 'FleetManager' : null } |
   { 'Mechanic' : null } |
@@ -314,6 +335,22 @@ export interface _SERVICE {
   'deleteVendor' : ActorMethod<[bigint], undefined>,
   'deleteWarranty' : ActorMethod<[bigint], undefined>,
   'deleteWorkOrder' : ActorMethod<[bigint], undefined>,
+  'exportAuditLogsCSVWithKey' : ActorMethod<[string], string>,
+  'getAllCompaniesDashboardStatsWithKey' : ActorMethod<
+    [string],
+    Array<
+      [
+        string,
+        {
+          'maintenanceCount' : bigint,
+          'workOrderCount' : bigint,
+          'vehicleCount' : bigint,
+          'partCount' : bigint,
+          'userCount' : bigint,
+        },
+      ]
+    >
+  >,
   'getAllCompanyApprovalsWithKey' : ActorMethod<
     [string],
     Array<[string, string]>
@@ -323,8 +360,13 @@ export interface _SERVICE {
     [string],
     Array<CompanySettings>
   >,
+  'getAllCompanyTagsWithKey' : ActorMethod<
+    [string],
+    Array<[string, Array<string>]>
+  >,
   'getAllDiscountCodesWithKey' : ActorMethod<[string], Array<DiscountCode>>,
   'getAllInspectionChecklists' : ActorMethod<[], Array<InspectionChecklist>>,
+  'getAllLastLoginsWithKey' : ActorMethod<[string], Array<[string, bigint]>>,
   'getAllMaintenanceRecords' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getAllNotifications' : ActorMethod<[], Array<Notification>>,
   'getAllParts' : ActorMethod<[], Array<PartFull>>,
@@ -338,13 +380,31 @@ export interface _SERVICE {
   'getAllVendors' : ActorMethod<[], Array<Vendor>>,
   'getAllWarranties' : ActorMethod<[], Array<Warranty>>,
   'getAllWorkOrders' : ActorMethod<[], Array<WorkOrder>>,
+  'getAuditLogsByCompanyWithKey' : ActorMethod<
+    [string, string],
+    Array<AuditLog>
+  >,
+  'getAuditLogsWithKey' : ActorMethod<[string], Array<AuditLog>>,
   'getCallerCompanyId' : ActorMethod<[], [] | [string]>,
   'getCallerFleetRole' : ActorMethod<[], [] | [FleetRole]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompanyApprovalStatus' : ActorMethod<[string], string>,
   'getCompanyApprovalStatusWithKey' : ActorMethod<[string, string], string>,
+  'getCompanyDashboardStatsWithKey' : ActorMethod<
+    [string, string],
+    {
+      'maintenanceCount' : bigint,
+      'workOrderCount' : bigint,
+      'vehicleCount' : bigint,
+      'partCount' : bigint,
+      'userCount' : bigint,
+      'documentCount' : bigint,
+    }
+  >,
+  'getCompanyNoteWithKey' : ActorMethod<[string, string], [] | [string]>,
   'getCompanySettings' : ActorMethod<[], [] | [CompanySettings]>,
+  'getCompanyTagsWithKey' : ActorMethod<[string, string], Array<string>>,
   'getCompanyUsers' : ActorMethod<[], Array<CompanyUserInfo>>,
   'getCompanyUsersWithKey' : ActorMethod<
     [string, string],
@@ -352,6 +412,11 @@ export interface _SERVICE {
   >,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
   'getDefaultCurrency' : ActorMethod<[], string>,
+  'getDevLastLoginWithKey' : ActorMethod<[string], [] | [bigint]>,
+  'getDiscountCodeRedemptionsWithKey' : ActorMethod<
+    [string, bigint],
+    Array<DiscountCodeRedemption>
+  >,
   'getDiscountCodes' : ActorMethod<[], Array<DiscountCode>>,
   'getInspectionChecklist' : ActorMethod<[bigint], InspectionChecklist>,
   'getInspectionChecklistsByVehicle' : ActorMethod<
@@ -359,6 +424,7 @@ export interface _SERVICE {
     Array<InspectionChecklist>
   >,
   'getInviteTokens' : ActorMethod<[], Array<InviteToken>>,
+  'getLastLoginTimestampWithKey' : ActorMethod<[string, string], [] | [bigint]>,
   'getLowStockParts' : ActorMethod<[], Array<PartFull>>,
   'getMaintenanceRecord' : ActorMethod<[bigint], MaintenanceRecordFull>,
   'getMaintenanceRecordsByVehicle' : ActorMethod<
@@ -368,6 +434,20 @@ export interface _SERVICE {
   'getOverdueMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
   'getPart' : ActorMethod<[bigint], PartFull>,
   'getSubscriptionStatus' : ActorMethod<[string], [] | [SubscriptionRecord]>,
+  'getSystemStatsWithKey' : ActorMethod<
+    [string],
+    {
+      'totalAuditLogs' : bigint,
+      'totalVehicles' : bigint,
+      'backendVersion' : string,
+      'totalDiscountCodes' : bigint,
+      'totalMaintenanceRecords' : bigint,
+      'totalUsers' : bigint,
+      'totalParts' : bigint,
+      'totalCompanies' : bigint,
+      'totalWorkOrders' : bigint,
+    }
+  >,
   'getTaxSettings' : ActorMethod<[], [] | [TaxSettings]>,
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUpcomingMaintenance' : ActorMethod<[], Array<MaintenanceRecordFull>>,
@@ -383,6 +463,9 @@ export interface _SERVICE {
   'markAllNotificationsRead' : ActorMethod<[], undefined>,
   'markNotificationRead' : ActorMethod<[bigint], undefined>,
   'markScheduleComplete' : ActorMethod<[bigint], undefined>,
+  'pingWithKey' : ActorMethod<[string], string>,
+  'recordDevLoginWithKey' : ActorMethod<[string], undefined>,
+  'recordLastLogin' : ActorMethod<[], undefined>,
   'redeemInviteToken' : ActorMethod<[string], FleetRole>,
   'rejectCompany' : ActorMethod<[string], undefined>,
   'rejectCompanyWithKey' : ActorMethod<[string, string], undefined>,
@@ -398,6 +481,11 @@ export interface _SERVICE {
   >,
   'saveDefaultCurrency' : ActorMethod<[string], undefined>,
   'saveTaxSettings' : ActorMethod<[TaxSettings], undefined>,
+  'setCompanyNoteWithKey' : ActorMethod<[string, string, string], undefined>,
+  'setCompanyTagsWithKey' : ActorMethod<
+    [string, string, Array<string>],
+    undefined
+  >,
   'setCompanyTierWithKey' : ActorMethod<
     [string, string, SubscriptionTier],
     { 'ok' : null } |
@@ -415,6 +503,11 @@ export interface _SERVICE {
   >,
   'startTrial' : ActorMethod<[string], undefined>,
   'startTrialWithKey' : ActorMethod<[string, string, bigint], undefined>,
+  'toggleDiscountCodeActiveWithKey' : ActorMethod<
+    [string, bigint],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
   'updateInspectionChecklist' : ActorMethod<
     [bigint, InspectionChecklist],
     undefined

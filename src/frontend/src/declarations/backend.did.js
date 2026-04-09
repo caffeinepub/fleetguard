@@ -55,12 +55,16 @@ export const Vehicle = IDL.Record({
 });
 export const DiscountCode = IDL.Record({
   'id' : IDL.Nat,
+  'expiresAt' : IDL.Opt(IDL.Int),
   'value' : IDL.Nat,
   'code' : IDL.Text,
+  'maxUsageCount' : IDL.Opt(IDL.Nat),
   'createdAt' : Time,
   'discountType' : IDL.Text,
   'usedCount' : IDL.Nat,
   'description' : IDL.Text,
+  'isActive' : IDL.Bool,
+  'applicableTiers' : IDL.Vec(IDL.Text),
 });
 export const ChecklistItemStatus = IDL.Variant({
   'NA' : IDL.Null,
@@ -230,6 +234,18 @@ export const SubscriptionWithVehicleCount = IDL.Record({
   'vehicleCount' : IDL.Nat,
   'record' : SubscriptionRecord,
 });
+export const AuditLog = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : IDL.Text,
+  'action' : IDL.Text,
+  'oldValue' : IDL.Opt(IDL.Text),
+  'newValue' : IDL.Opt(IDL.Text),
+  'entityId' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'entityName' : IDL.Text,
+  'actorPrincipal' : IDL.Text,
+  'entityType' : IDL.Text,
+});
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const CompanyUserInfo = IDL.Record({
   'principal' : IDL.Principal,
@@ -242,6 +258,11 @@ export const DashboardStats = IDL.Record({
   'upcomingMaintenanceCount' : IDL.Nat,
   'overdueCount' : IDL.Nat,
   'lowStockPartsCount' : IDL.Nat,
+});
+export const DiscountCodeRedemption = IDL.Record({
+  'redeemedAt' : IDL.Int,
+  'companyName' : IDL.Text,
+  'companyId' : IDL.Text,
 });
 export const InviteToken = IDL.Record({
   'token' : IDL.Text,
@@ -349,6 +370,25 @@ export const idlService = IDL.Service({
   'deleteVendor' : IDL.Func([IDL.Nat], [], []),
   'deleteWarranty' : IDL.Func([IDL.Nat], [], []),
   'deleteWorkOrder' : IDL.Func([IDL.Nat], [], []),
+  'exportAuditLogsCSVWithKey' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
+  'getAllCompaniesDashboardStatsWithKey' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Vec(
+          IDL.Tuple(
+            IDL.Text,
+            IDL.Record({
+              'maintenanceCount' : IDL.Nat,
+              'workOrderCount' : IDL.Nat,
+              'vehicleCount' : IDL.Nat,
+              'partCount' : IDL.Nat,
+              'userCount' : IDL.Nat,
+            }),
+          )
+        ),
+      ],
+      ['query'],
+    ),
   'getAllCompanyApprovalsWithKey' : IDL.Func(
       [IDL.Text],
       [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
@@ -364,6 +404,11 @@ export const idlService = IDL.Service({
       [IDL.Vec(CompanySettings)],
       ['query'],
     ),
+  'getAllCompanyTagsWithKey' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Text)))],
+      ['query'],
+    ),
   'getAllDiscountCodesWithKey' : IDL.Func(
       [IDL.Text],
       [IDL.Vec(DiscountCode)],
@@ -372,6 +417,11 @@ export const idlService = IDL.Service({
   'getAllInspectionChecklists' : IDL.Func(
       [],
       [IDL.Vec(InspectionChecklist)],
+      ['query'],
+    ),
+  'getAllLastLoginsWithKey' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int))],
       ['query'],
     ),
   'getAllMaintenanceRecords' : IDL.Func(
@@ -400,6 +450,12 @@ export const idlService = IDL.Service({
   'getAllVendors' : IDL.Func([], [IDL.Vec(Vendor)], ['query']),
   'getAllWarranties' : IDL.Func([], [IDL.Vec(Warranty)], ['query']),
   'getAllWorkOrders' : IDL.Func([], [IDL.Vec(WorkOrder)], ['query']),
+  'getAuditLogsByCompanyWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(AuditLog)],
+      ['query'],
+    ),
+  'getAuditLogsWithKey' : IDL.Func([IDL.Text], [IDL.Vec(AuditLog)], ['query']),
   'getCallerCompanyId' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
   'getCallerFleetRole' : IDL.Func([], [IDL.Opt(FleetRole)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
@@ -410,7 +466,31 @@ export const idlService = IDL.Service({
       [IDL.Text],
       ['query'],
     ),
+  'getCompanyDashboardStatsWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [
+        IDL.Record({
+          'maintenanceCount' : IDL.Nat,
+          'workOrderCount' : IDL.Nat,
+          'vehicleCount' : IDL.Nat,
+          'partCount' : IDL.Nat,
+          'userCount' : IDL.Nat,
+          'documentCount' : IDL.Nat,
+        }),
+      ],
+      ['query'],
+    ),
+  'getCompanyNoteWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Opt(IDL.Text)],
+      ['query'],
+    ),
   'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
+  'getCompanyTagsWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Vec(IDL.Text)],
+      ['query'],
+    ),
   'getCompanyUsers' : IDL.Func([], [IDL.Vec(CompanyUserInfo)], ['query']),
   'getCompanyUsersWithKey' : IDL.Func(
       [IDL.Text, IDL.Text],
@@ -419,6 +499,16 @@ export const idlService = IDL.Service({
     ),
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
   'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
+  'getDevLastLoginWithKey' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(IDL.Int)],
+      ['query'],
+    ),
+  'getDiscountCodeRedemptionsWithKey' : IDL.Func(
+      [IDL.Text, IDL.Nat],
+      [IDL.Vec(DiscountCodeRedemption)],
+      ['query'],
+    ),
   'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
   'getInspectionChecklist' : IDL.Func(
       [IDL.Nat],
@@ -431,6 +521,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
+  'getLastLoginTimestampWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [IDL.Opt(IDL.Int)],
+      ['query'],
+    ),
   'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
   'getMaintenanceRecord' : IDL.Func(
       [IDL.Nat],
@@ -451,6 +546,23 @@ export const idlService = IDL.Service({
   'getSubscriptionStatus' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(SubscriptionRecord)],
+      ['query'],
+    ),
+  'getSystemStatsWithKey' : IDL.Func(
+      [IDL.Text],
+      [
+        IDL.Record({
+          'totalAuditLogs' : IDL.Nat,
+          'totalVehicles' : IDL.Nat,
+          'backendVersion' : IDL.Text,
+          'totalDiscountCodes' : IDL.Nat,
+          'totalMaintenanceRecords' : IDL.Nat,
+          'totalUsers' : IDL.Nat,
+          'totalParts' : IDL.Nat,
+          'totalCompanies' : IDL.Nat,
+          'totalWorkOrders' : IDL.Nat,
+        }),
+      ],
       ['query'],
     ),
   'getTaxSettings' : IDL.Func([], [IDL.Opt(TaxSettings)], ['query']),
@@ -488,6 +600,9 @@ export const idlService = IDL.Service({
   'markAllNotificationsRead' : IDL.Func([], [], []),
   'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
   'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
+  'pingWithKey' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
+  'recordDevLoginWithKey' : IDL.Func([IDL.Text], [], []),
+  'recordLastLogin' : IDL.Func([], [], []),
   'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
   'rejectCompany' : IDL.Func([IDL.Text], [], []),
   'rejectCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -504,6 +619,12 @@ export const idlService = IDL.Service({
     ),
   'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
   'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
+  'setCompanyNoteWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+  'setCompanyTagsWithKey' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
+      [],
+      [],
+    ),
   'setCompanyTierWithKey' : IDL.Func(
       [IDL.Text, IDL.Text, SubscriptionTier],
       [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -522,6 +643,11 @@ export const idlService = IDL.Service({
     ),
   'startTrial' : IDL.Func([IDL.Text], [], []),
   'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+  'toggleDiscountCodeActiveWithKey' : IDL.Func(
+      [IDL.Text, IDL.Nat],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
   'updateInspectionChecklist' : IDL.Func(
       [IDL.Nat, InspectionChecklist],
       [],
@@ -610,12 +736,16 @@ export const idlFactory = ({ IDL }) => {
   });
   const DiscountCode = IDL.Record({
     'id' : IDL.Nat,
+    'expiresAt' : IDL.Opt(IDL.Int),
     'value' : IDL.Nat,
     'code' : IDL.Text,
+    'maxUsageCount' : IDL.Opt(IDL.Nat),
     'createdAt' : Time,
     'discountType' : IDL.Text,
     'usedCount' : IDL.Nat,
     'description' : IDL.Text,
+    'isActive' : IDL.Bool,
+    'applicableTiers' : IDL.Vec(IDL.Text),
   });
   const ChecklistItemStatus = IDL.Variant({
     'NA' : IDL.Null,
@@ -782,6 +912,18 @@ export const idlFactory = ({ IDL }) => {
     'vehicleCount' : IDL.Nat,
     'record' : SubscriptionRecord,
   });
+  const AuditLog = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : IDL.Text,
+    'action' : IDL.Text,
+    'oldValue' : IDL.Opt(IDL.Text),
+    'newValue' : IDL.Opt(IDL.Text),
+    'entityId' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'entityName' : IDL.Text,
+    'actorPrincipal' : IDL.Text,
+    'entityType' : IDL.Text,
+  });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const CompanyUserInfo = IDL.Record({
     'principal' : IDL.Principal,
@@ -794,6 +936,11 @@ export const idlFactory = ({ IDL }) => {
     'upcomingMaintenanceCount' : IDL.Nat,
     'overdueCount' : IDL.Nat,
     'lowStockPartsCount' : IDL.Nat,
+  });
+  const DiscountCodeRedemption = IDL.Record({
+    'redeemedAt' : IDL.Int,
+    'companyName' : IDL.Text,
+    'companyId' : IDL.Text,
   });
   const InviteToken = IDL.Record({
     'token' : IDL.Text,
@@ -909,6 +1056,25 @@ export const idlFactory = ({ IDL }) => {
     'deleteVendor' : IDL.Func([IDL.Nat], [], []),
     'deleteWarranty' : IDL.Func([IDL.Nat], [], []),
     'deleteWorkOrder' : IDL.Func([IDL.Nat], [], []),
+    'exportAuditLogsCSVWithKey' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
+    'getAllCompaniesDashboardStatsWithKey' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Vec(
+            IDL.Tuple(
+              IDL.Text,
+              IDL.Record({
+                'maintenanceCount' : IDL.Nat,
+                'workOrderCount' : IDL.Nat,
+                'vehicleCount' : IDL.Nat,
+                'partCount' : IDL.Nat,
+                'userCount' : IDL.Nat,
+              }),
+            )
+          ),
+        ],
+        ['query'],
+      ),
     'getAllCompanyApprovalsWithKey' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
@@ -924,6 +1090,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(CompanySettings)],
         ['query'],
       ),
+    'getAllCompanyTagsWithKey' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Text)))],
+        ['query'],
+      ),
     'getAllDiscountCodesWithKey' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(DiscountCode)],
@@ -932,6 +1103,11 @@ export const idlFactory = ({ IDL }) => {
     'getAllInspectionChecklists' : IDL.Func(
         [],
         [IDL.Vec(InspectionChecklist)],
+        ['query'],
+      ),
+    'getAllLastLoginsWithKey' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int))],
         ['query'],
       ),
     'getAllMaintenanceRecords' : IDL.Func(
@@ -960,6 +1136,16 @@ export const idlFactory = ({ IDL }) => {
     'getAllVendors' : IDL.Func([], [IDL.Vec(Vendor)], ['query']),
     'getAllWarranties' : IDL.Func([], [IDL.Vec(Warranty)], ['query']),
     'getAllWorkOrders' : IDL.Func([], [IDL.Vec(WorkOrder)], ['query']),
+    'getAuditLogsByCompanyWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(AuditLog)],
+        ['query'],
+      ),
+    'getAuditLogsWithKey' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(AuditLog)],
+        ['query'],
+      ),
     'getCallerCompanyId' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
     'getCallerFleetRole' : IDL.Func([], [IDL.Opt(FleetRole)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
@@ -970,7 +1156,31 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         ['query'],
       ),
+    'getCompanyDashboardStatsWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [
+          IDL.Record({
+            'maintenanceCount' : IDL.Nat,
+            'workOrderCount' : IDL.Nat,
+            'vehicleCount' : IDL.Nat,
+            'partCount' : IDL.Nat,
+            'userCount' : IDL.Nat,
+            'documentCount' : IDL.Nat,
+          }),
+        ],
+        ['query'],
+      ),
+    'getCompanyNoteWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
     'getCompanySettings' : IDL.Func([], [IDL.Opt(CompanySettings)], ['query']),
+    'getCompanyTagsWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Vec(IDL.Text)],
+        ['query'],
+      ),
     'getCompanyUsers' : IDL.Func([], [IDL.Vec(CompanyUserInfo)], ['query']),
     'getCompanyUsersWithKey' : IDL.Func(
         [IDL.Text, IDL.Text],
@@ -979,6 +1189,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
     'getDefaultCurrency' : IDL.Func([], [IDL.Text], ['query']),
+    'getDevLastLoginWithKey' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(IDL.Int)],
+        ['query'],
+      ),
+    'getDiscountCodeRedemptionsWithKey' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [IDL.Vec(DiscountCodeRedemption)],
+        ['query'],
+      ),
     'getDiscountCodes' : IDL.Func([], [IDL.Vec(DiscountCode)], ['query']),
     'getInspectionChecklist' : IDL.Func(
         [IDL.Nat],
@@ -991,6 +1211,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getInviteTokens' : IDL.Func([], [IDL.Vec(InviteToken)], ['query']),
+    'getLastLoginTimestampWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Opt(IDL.Int)],
+        ['query'],
+      ),
     'getLowStockParts' : IDL.Func([], [IDL.Vec(PartFull)], ['query']),
     'getMaintenanceRecord' : IDL.Func(
         [IDL.Nat],
@@ -1011,6 +1236,23 @@ export const idlFactory = ({ IDL }) => {
     'getSubscriptionStatus' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(SubscriptionRecord)],
+        ['query'],
+      ),
+    'getSystemStatsWithKey' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Record({
+            'totalAuditLogs' : IDL.Nat,
+            'totalVehicles' : IDL.Nat,
+            'backendVersion' : IDL.Text,
+            'totalDiscountCodes' : IDL.Nat,
+            'totalMaintenanceRecords' : IDL.Nat,
+            'totalUsers' : IDL.Nat,
+            'totalParts' : IDL.Nat,
+            'totalCompanies' : IDL.Nat,
+            'totalWorkOrders' : IDL.Nat,
+          }),
+        ],
         ['query'],
       ),
     'getTaxSettings' : IDL.Func([], [IDL.Opt(TaxSettings)], ['query']),
@@ -1048,6 +1290,9 @@ export const idlFactory = ({ IDL }) => {
     'markAllNotificationsRead' : IDL.Func([], [], []),
     'markNotificationRead' : IDL.Func([IDL.Nat], [], []),
     'markScheduleComplete' : IDL.Func([IDL.Nat], [], []),
+    'pingWithKey' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
+    'recordDevLoginWithKey' : IDL.Func([IDL.Text], [], []),
+    'recordLastLogin' : IDL.Func([], [], []),
     'redeemInviteToken' : IDL.Func([IDL.Text], [FleetRole], []),
     'rejectCompany' : IDL.Func([IDL.Text], [], []),
     'rejectCompanyWithKey' : IDL.Func([IDL.Text, IDL.Text], [], []),
@@ -1064,6 +1309,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'saveDefaultCurrency' : IDL.Func([IDL.Text], [], []),
     'saveTaxSettings' : IDL.Func([TaxSettings], [], []),
+    'setCompanyNoteWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+    'setCompanyTagsWithKey' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
+        [],
+        [],
+      ),
     'setCompanyTierWithKey' : IDL.Func(
         [IDL.Text, IDL.Text, SubscriptionTier],
         [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
@@ -1082,6 +1333,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'startTrial' : IDL.Func([IDL.Text], [], []),
     'startTrialWithKey' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
+    'toggleDiscountCodeActiveWithKey' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
     'updateInspectionChecklist' : IDL.Func(
         [IDL.Nat, InspectionChecklist],
         [],

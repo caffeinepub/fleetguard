@@ -247,13 +247,23 @@ type FleetRole =
    FleetManager;
    Mechanic;
  };
+type DiscountCodeRedemption = 
+ record {
+   companyId: text;
+   companyName: text;
+   redeemedAt: int;
+ };
 type DiscountCode = 
  record {
+   applicableTiers: vec text;
    code: text;
    createdAt: Time;
    description: text;
    discountType: text;
+   expiresAt: opt int;
    id: nat;
+   isActive: bool;
+   maxUsageCount: opt nat;
    usedCount: nat;
    value: nat;
  };
@@ -295,6 +305,19 @@ type ChecklistItem =
    itemLabel: text;
    notes: text;
    status: ChecklistItemStatus;
+ };
+type AuditLog = 
+ record {
+   action: text;
+   actorPrincipal: text;
+   entityId: text;
+   entityName: text;
+   entityType: text;
+   id: nat;
+   newValue: opt text;
+   oldValue: opt text;
+   status: text;
+   timestamp: int;
  };
 service : {
   _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
@@ -346,6 +369,19 @@ service : {
   deleteVendor: (id: nat) -> ();
   deleteWarranty: (id: nat) -> ();
   deleteWorkOrder: (id: nat) -> ();
+  exportAuditLogsCSVWithKey: (devKey: text) -> (text) query;
+  getAllCompaniesDashboardStatsWithKey: (devKey: text) ->
+   (vec
+     record {
+       text;
+       record {
+         maintenanceCount: nat;
+         partCount: nat;
+         userCount: nat;
+         vehicleCount: nat;
+         workOrderCount: nat;
+       };
+     }) query;
   getAllCompanyApprovalsWithKey: (devKey: text) ->
    (vec record {
           text;
@@ -354,8 +390,17 @@ service : {
   getAllCompanyRegistrations: () -> (vec CompanySettings) query;
   getAllCompanyRegistrationsWithKey: (devKey: text) ->
    (vec CompanySettings) query;
+  getAllCompanyTagsWithKey: (devKey: text) ->
+   (vec record {
+          text;
+          vec text;
+        }) query;
   getAllDiscountCodesWithKey: (devKey: text) -> (vec DiscountCode) query;
   getAllInspectionChecklists: () -> (vec InspectionChecklist) query;
+  getAllLastLoginsWithKey: (devKey: text) -> (vec record {
+                                                    text;
+                                                    int;
+                                                  }) query;
   getAllMaintenanceRecords: () -> (vec MaintenanceRecordFull) query;
   getAllNotifications: () -> (vec Notification) query;
   getAllParts: () -> (vec PartFull) query;
@@ -367,6 +412,9 @@ service : {
   getAllVendors: () -> (vec Vendor) query;
   getAllWarranties: () -> (vec Warranty) query;
   getAllWorkOrders: () -> (vec WorkOrder) query;
+  getAuditLogsByCompanyWithKey: (devKey: text, companyId: text) ->
+   (vec AuditLog) query;
+  getAuditLogsWithKey: (devKey: text) -> (vec AuditLog) query;
   getCallerCompanyId: () -> (opt text) query;
   getCallerFleetRole: () -> (opt FleetRole) query;
   getCallerUserProfile: () -> (opt UserProfile) query;
@@ -374,17 +422,33 @@ service : {
   getCompanyApprovalStatus: (companyName: text) -> (text) query;
   getCompanyApprovalStatusWithKey: (devKey: text, companyName: text) ->
    (text) query;
+  getCompanyDashboardStatsWithKey: (devKey: text, companyId: text) ->
+   (record {
+      documentCount: nat;
+      maintenanceCount: nat;
+      partCount: nat;
+      userCount: nat;
+      vehicleCount: nat;
+      workOrderCount: nat;
+    }) query;
+  getCompanyNoteWithKey: (devKey: text, companyId: text) -> (opt text) query;
   getCompanySettings: () -> (opt CompanySettings) query;
+  getCompanyTagsWithKey: (devKey: text, companyId: text) -> (vec text) query;
   getCompanyUsers: () -> (vec CompanyUserInfo) query;
   getCompanyUsersWithKey: (devKey: text, companyId: text) ->
    (vec CompanyUserInfo) query;
   getDashboardStats: () -> (DashboardStats) query;
   getDefaultCurrency: () -> (text) query;
+  getDevLastLoginWithKey: (devKey: text) -> (opt int) query;
+  getDiscountCodeRedemptionsWithKey: (devKey: text, id: nat) ->
+   (vec DiscountCodeRedemption) query;
   getDiscountCodes: () -> (vec DiscountCode) query;
   getInspectionChecklist: (id: nat) -> (InspectionChecklist) query;
   getInspectionChecklistsByVehicle: (vehicleId: nat) ->
    (vec InspectionChecklist) query;
   getInviteTokens: () -> (vec InviteToken) query;
+  getLastLoginTimestampWithKey: (devKey: text, companyId: text) ->
+   (opt int) query;
   getLowStockParts: () -> (vec PartFull) query;
   getMaintenanceRecord: (id: nat) -> (MaintenanceRecordFull) query;
   getMaintenanceRecordsByVehicle: (vehicleId: nat) ->
@@ -393,6 +457,18 @@ service : {
   getPart: (id: nat) -> (PartFull) query;
   getSubscriptionStatus: (companyName: text) ->
    (opt SubscriptionRecord) query;
+  getSystemStatsWithKey: (devKey: text) ->
+   (record {
+      backendVersion: text;
+      totalAuditLogs: nat;
+      totalCompanies: nat;
+      totalDiscountCodes: nat;
+      totalMaintenanceRecords: nat;
+      totalParts: nat;
+      totalUsers: nat;
+      totalVehicles: nat;
+      totalWorkOrders: nat;
+    }) query;
   getTaxSettings: () -> (opt TaxSettings) query;
   getUnreadNotificationCount: () -> (nat) query;
   getUpcomingMaintenance: () -> (vec MaintenanceRecordFull) query;
@@ -408,6 +484,9 @@ service : {
   markAllNotificationsRead: () -> ();
   markNotificationRead: (id: nat) -> ();
   markScheduleComplete: (id: nat) -> ();
+  pingWithKey: (devKey: text) -> (text) query;
+  recordDevLoginWithKey: (devKey: text) -> ();
+  recordLastLogin: () -> ();
   redeemInviteToken: (token: text) -> (FleetRole);
   rejectCompany: (companyName: text) -> ();
   rejectCompanyWithKey: (devKey: text, companyName: text) -> ();
@@ -421,6 +500,9 @@ service : {
     });
   saveDefaultCurrency: (currency: text) -> ();
   saveTaxSettings: (settings: TaxSettings) -> ();
+  setCompanyNoteWithKey: (devKey: text, companyId: text, note: text) -> ();
+  setCompanyTagsWithKey: (devKey: text, companyId: text, tags: vec text) ->
+   ();
   setCompanyTierWithKey: (devKey: text, companyId: text, tier:
    SubscriptionTier) -> (variant {
                            err: text;
@@ -436,6 +518,11 @@ service : {
    role: FleetRole) -> ();
   startTrial: (companyName: text) -> ();
   startTrialWithKey: (devKey: text, companyName: text, trialDays: nat) -> ();
+  toggleDiscountCodeActiveWithKey: (devKey: text, id: nat) ->
+   (variant {
+      err: text;
+      ok;
+    });
   updateInspectionChecklist: (id: nat, checklist: InspectionChecklist) -> ();
   updateMaintenanceRecord: (id: nat, "record": MaintenanceRecordFull) -> ();
   updatePart: (id: nat, part: PartFull) -> ();

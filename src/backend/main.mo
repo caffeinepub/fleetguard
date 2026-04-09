@@ -8,10 +8,11 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 
 import AccessControl "mo:caffeineai-authorization/access-control";
-import Migration "migration";
+
 import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 
+import Migration "migration";
 
 
 (with migration = Migration.run)
@@ -89,6 +90,15 @@ actor {
   public type DiscountCode = {
     id : Nat; code : Text; discountType : Text; value : Nat;
     description : Text; createdAt : Time.Time; usedCount : Nat;
+    expiresAt : ?Int; maxUsageCount : ?Nat; applicableTiers : [Text]; isActive : Bool;
+  };
+  public type DiscountCodeRedemption = {
+    companyId : Text; companyName : Text; redeemedAt : Int;
+  };
+  public type AuditLog = {
+    id : Nat; timestamp : Int; actorPrincipal : Text; action : Text;
+    entityType : Text; entityId : Text; entityName : Text;
+    oldValue : ?Text; newValue : ?Text; status : Text;
   };
   public type DashboardStats = {
     totalVehicles : Nat; activeVehicles : Nat; upcomingMaintenanceCount : Nat;
@@ -199,6 +209,23 @@ actor {
   var nextDiscountCodeId = 1;
   // (discountCodeMap is the legacy var reused as the global code->id lookup)
 
+  // ─── Audit Log ───────────────────────────────────────────────────────────────
+  var auditLogStore = Map.empty<Nat, AuditLog>();
+  var auditLogCounter : Nat = 0;
+
+  // ─── Company Notes & Tags ────────────────────────────────────────────────────
+  var companyNotes = Map.empty<Text, Text>();
+  var companyTags = Map.empty<Text, [Text]>();
+
+  // ─── Last Login Tracking ─────────────────────────────────────────────────────
+  var lastLoginStore = Map.empty<Text, Int>();
+
+  // ─── Discount Code Redemptions ───────────────────────────────────────────────
+  var redemptionStore = Map.empty<Nat, List.List<DiscountCodeRedemption>>();
+
+  // ─── Developer Session Tracking ──────────────────────────────────────────────
+  var devLastLoginStore = Map.empty<Text, Int>();
+
   var userProfiles = Map.empty<Principal, UserProfile>();
   var inviteTokens = Map.empty<Text, InviteToken>();
   var nextInviteTokenId = 1;
@@ -262,6 +289,19 @@ actor {
 
   func getCompanyTier(cid : Text) : SubscriptionTier {
     switch (subscriptionRecords.get(cid)) { case (?r) r.tier; case null #starter };
+  };
+
+  // ─── Audit Log helper ────────────────────────────────────────────────────────
+  func logAuditEvent(
+    actor_ : Text, action : Text, entityType : Text, entityId : Text,
+    entityName : Text, oldValue : ?Text, newValue : ?Text, status : Text
+  ) {
+    auditLogCounter += 1;
+    auditLogStore.add(auditLogCounter, {
+      id = auditLogCounter; timestamp = Time.now();
+      actorPrincipal = actor_; action; entityType; entityId; entityName;
+      oldValue; newValue; status;
+    });
   };
 
   // ─── Migration: postupgrade moves legacy single-tenant data into per-company stores ───
@@ -1120,11 +1160,13 @@ actor {
   public shared func approveCompanyWithKey(devKey : Text, companyName : Text) : async () {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     companyApprovalStore.add(companyName, "approved");
+    logAuditEvent("developer", "company_approved", "company", companyName, companyName, ?"pending", ?"approved", "success");
   };
 
   public shared func rejectCompanyWithKey(devKey : Text, companyName : Text) : async () {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
     companyApprovalStore.add(companyName, "rejected");
+    logAuditEvent("developer", "company_rejected", "company", companyName, companyName, ?"pending", ?"rejected", "success");
   };
 
   public query func getCompanyApprovalStatusWithKey(devKey : Text, companyName : Text) : async Text {
@@ -1145,6 +1187,7 @@ actor {
     subscriptionRecords.add(companyName, { companyName; status = "trial"; startDate = ?now;
       trialEndsAt = ?(now + (trialDays * 24 * 60 * 60 * 1000000000));
       plan = tierName(tier); updatedAt = now; tier; vehicleLimit = getVehicleLimit(tier) });
+    logAuditEvent("developer", "trial_started", "company", companyName, companyName, null, ?(trialDays.toText() # " days"), "success");
   };
 
   public shared ({ caller }) func startTrial(companyName : Text) : async () {
@@ -1194,6 +1237,7 @@ actor {
 
   public shared func setCompanyTierWithKey(devKey : Text, companyId : Text, tier : SubscriptionTier) : async { #ok; #err : Text } {
     if (devKey != DEV_KEY) return #err("Unauthorized: Invalid developer key");
+    let oldTier = switch (subscriptionRecords.get(companyId)) { case (?r) tierName(r.tier); case null "none" };
     let limit = getVehicleLimit(tier);
     let updated = switch (subscriptionRecords.get(companyId)) {
       case (null) {
@@ -1203,6 +1247,7 @@ actor {
       case (?r) { { r with tier; vehicleLimit = limit; plan = tierName(tier); updatedAt = Time.now() } };
     };
     subscriptionRecords.add(companyId, updated);
+    logAuditEvent("developer", "tier_changed", "company", companyId, companyId, ?oldTier, ?tierName(tier), "success");
     #ok;
   };
 
@@ -1214,7 +1259,9 @@ actor {
     let id = nextDiscountCodeId;
     nextDiscountCodeId += 1;
     discountCodes.add(id, { id; code = discount.code; discountType = discount.discountType;
-      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0 });
+      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0;
+      expiresAt = discount.expiresAt; maxUsageCount = discount.maxUsageCount;
+      applicableTiers = discount.applicableTiers; isActive = true });
     discountCodeMap.add(discount.code, id);
     id;
   };
@@ -1224,8 +1271,11 @@ actor {
     let id = nextDiscountCodeId;
     nextDiscountCodeId += 1;
     discountCodes.add(id, { id; code = discount.code; discountType = discount.discountType;
-      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0 });
+      value = discount.value; description = discount.description; createdAt = Time.now(); usedCount = 0;
+      expiresAt = discount.expiresAt; maxUsageCount = discount.maxUsageCount;
+      applicableTiers = discount.applicableTiers; isActive = true });
     discountCodeMap.add(discount.code, id);
+    logAuditEvent("developer", "discount_created", "discount_code", id.toText(), discount.code, null, ?discount.code, "success");
     id;
   };
 
@@ -1259,6 +1309,7 @@ actor {
     let d = switch (discountCodes.get(id)) { case (null) { Runtime.trap("Not found") }; case (?d) d };
     discountCodes.remove(id);
     discountCodeMap.remove(d.code);
+    logAuditEvent("developer", "discount_deleted", "discount_code", id.toText(), d.code, ?d.code, null, "success");
   };
 
   public query func validateDiscountCode(code : Text) : async ?DiscountCode {
@@ -1484,12 +1535,19 @@ actor {
     getOrCreateP(cFleetRoles, companyId).remove(user);
     userCompanyMap.remove(user);
     accessControlState.userRoles.remove(user);
+    logAuditEvent("developer", "user_removed", "user", user.toText(), user.toText(), ?companyId, null, "success");
   };
 
   // Change a user's fleet role in any company
   public shared func setUserFleetRoleWithKey(devKey : Text, companyId : Text, user : Principal, role : FleetRole) : async () {
     if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let oldRole = switch (getOrCreateP(cFleetRoles, companyId).get(user)) {
+      case (?r) { let t : Text = switch (r) { case (#Admin) "Admin"; case (#FleetManager) "FleetManager"; case (#Mechanic) "Mechanic" }; ?t };
+      case null { null };
+    };
+    let newRole : Text = switch (role) { case (#Admin) "Admin"; case (#FleetManager) "FleetManager"; case (#Mechanic) "Mechanic" };
     getOrCreateP(cFleetRoles, companyId).add(user, role);
+    logAuditEvent("developer", "role_changed", "user", user.toText(), user.toText(), oldRole, ?newRole, "success");
   };
 
   // Add a user directly to a company (dev-initiated enrollment)
@@ -1504,6 +1562,8 @@ actor {
     if (accessControlState.userRoles.get(user) == null) {
       accessControlState.userRoles.add(user, #user);
     };
+    let roleText : Text = switch (role) { case (#Admin) "Admin"; case (#FleetManager) "FleetManager"; case (#Mechanic) "Mechanic" };
+    logAuditEvent("developer", "user_added", "user", user.toText(), user.toText(), null, ?(companyId # ":" # roleText), "success");
   };
 
   // Fully delete a company and immediately revoke access for all its users
@@ -1544,6 +1604,191 @@ actor {
     cChecklists.remove(companyId);
     cChecklistCounters.remove(companyId);
     companyApprovalStore.add(companyId, "deleted");
+    companyNotes.remove(companyId);
+    companyTags.remove(companyId);
+    lastLoginStore.remove(companyId);
+    logAuditEvent("developer", "company_deleted", "company", companyId, companyId, ?"active", ?"deleted", "success");
+  };
+
+  // ─── Audit Logs ──────────────────────────────────────────────────────────────
+  public query func getAuditLogsWithKey(devKey : Text) : async [AuditLog] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let all = auditLogStore.values().toArray();
+    all.sort(func(a : AuditLog, b : AuditLog) : { #less; #equal; #greater } {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+  };
+
+  public query func getAuditLogsByCompanyWithKey(devKey : Text, companyId : Text) : async [AuditLog] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let filtered = auditLogStore.values().toArray()
+      .filter(func(l : AuditLog) : Bool { l.entityId == companyId or l.entityName == companyId });
+    filtered.sort(func(a : AuditLog, b : AuditLog) : { #less; #equal; #greater } {
+      Int.compare(b.timestamp, a.timestamp)
+    });
+  };
+
+  public query func exportAuditLogsCSVWithKey(devKey : Text) : async Text {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let header = "id,timestamp,actorPrincipal,action,entityType,entityId,entityName,oldValue,newValue,status";
+    let rows = auditLogStore.values().toArray()
+      .sort(func(a : AuditLog, b : AuditLog) : { #less; #equal; #greater } {
+        Int.compare(b.timestamp, a.timestamp)
+      })
+      .map(func(l : AuditLog) : Text {
+        let oldV = switch (l.oldValue) { case (?v) v; case null "" };
+        let newV = switch (l.newValue) { case (?v) v; case null "" };
+        l.id.toText() # "," # l.timestamp.toText() # "," # l.actorPrincipal # "," #
+        l.action # "," # l.entityType # "," # l.entityId # "," # l.entityName # "," #
+        oldV # "," # newV # "," # l.status
+      });
+    let body = rows.values().join("\n");
+    header # "\n" # body;
+  };
+
+  // ─── Company Notes & Tags ────────────────────────────────────────────────────
+  public shared func setCompanyNoteWithKey(devKey : Text, companyId : Text, note : Text) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    companyNotes.add(companyId, note);
+  };
+
+  public query func getCompanyNoteWithKey(devKey : Text, companyId : Text) : async ?Text {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    companyNotes.get(companyId);
+  };
+
+  public shared func setCompanyTagsWithKey(devKey : Text, companyId : Text, tags : [Text]) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    companyTags.add(companyId, tags);
+  };
+
+  public query func getCompanyTagsWithKey(devKey : Text, companyId : Text) : async [Text] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    switch (companyTags.get(companyId)) { case (?t) t; case null [] };
+  };
+
+  public query func getAllCompanyTagsWithKey(devKey : Text) : async [(Text, [Text])] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    companyTags.entries().toArray();
+  };
+
+  // ─── Last Login Tracking ─────────────────────────────────────────────────────
+  public shared ({ caller }) func recordLastLogin() : async () {
+    if (caller.isAnonymous()) Runtime.trap("Unauthorized: Authentication required");
+    switch (userCompanyMap.get(caller)) {
+      case (?cid) { lastLoginStore.add(cid, Time.now()) };
+      case null {};
+    };
+  };
+
+  public query func getLastLoginTimestampWithKey(devKey : Text, companyId : Text) : async ?Int {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    lastLoginStore.get(companyId);
+  };
+
+  public query func getAllLastLoginsWithKey(devKey : Text) : async [(Text, Int)] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    lastLoginStore.entries().toArray();
+  };
+
+  // ─── Enhanced Dashboard Stats ─────────────────────────────────────────────────
+  public query func getCompanyDashboardStatsWithKey(devKey : Text, companyId : Text) : async {
+    vehicleCount : Nat; maintenanceCount : Nat; workOrderCount : Nat;
+    partCount : Nat; documentCount : Nat; userCount : Nat;
+  } {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let vehicleCount = switch (cVehicles.get(companyId)) { case (null) 0; case (?m) m.size() };
+    let maintenanceCount = switch (cMaint.get(companyId)) { case (null) 0; case (?m) m.size() };
+    let workOrderCount = switch (cWO.get(companyId)) { case (null) 0; case (?m) m.size() };
+    let partCount = switch (cParts.get(companyId)) { case (null) 0; case (?m) m.size() };
+    let userCount = switch (cFleetRoles.get(companyId)) { case (null) 0; case (?m) m.size() };
+    { vehicleCount; maintenanceCount; workOrderCount; partCount; documentCount = 0; userCount };
+  };
+
+  public query func getAllCompaniesDashboardStatsWithKey(devKey : Text) : async [(Text, {
+    vehicleCount : Nat; maintenanceCount : Nat; workOrderCount : Nat;
+    partCount : Nat; userCount : Nat;
+  })] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    let result = List.empty<(Text, { vehicleCount : Nat; maintenanceCount : Nat; workOrderCount : Nat; partCount : Nat; userCount : Nat })>();
+    for (s in allCompanyRegistrations.values()) {
+      let cid = s.companyName;
+      let vehicleCount = switch (cVehicles.get(cid)) { case (null) 0; case (?m) m.size() };
+      let maintenanceCount = switch (cMaint.get(cid)) { case (null) 0; case (?m) m.size() };
+      let workOrderCount = switch (cWO.get(cid)) { case (null) 0; case (?m) m.size() };
+      let partCount = switch (cParts.get(cid)) { case (null) 0; case (?m) m.size() };
+      let userCount = switch (cFleetRoles.get(cid)) { case (null) 0; case (?m) m.size() };
+      result.add((cid, { vehicleCount; maintenanceCount; workOrderCount; partCount; userCount }));
+    };
+    result.toArray();
+  };
+
+  // ─── Enhanced Promo Codes ─────────────────────────────────────────────────────
+  public shared func toggleDiscountCodeActiveWithKey(devKey : Text, id : Nat) : async { #ok; #err : Text } {
+    if (devKey != DEV_KEY) return #err("Unauthorized: Invalid developer key");
+    switch (discountCodes.get(id)) {
+      case (null) { #err("Discount code not found") };
+      case (?d) {
+        discountCodes.add(id, { d with isActive = not d.isActive });
+        let action = if (not d.isActive) "discount_activated" else "discount_deactivated";
+        logAuditEvent("developer", action, "discount_code", id.toText(), d.code, null, null, "success");
+        #ok;
+      };
+    };
+  };
+
+  public query func getDiscountCodeRedemptionsWithKey(devKey : Text, id : Nat) : async [DiscountCodeRedemption] {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    switch (redemptionStore.get(id)) {
+      case (null) { [] };
+      case (?lst) { lst.toArray() };
+    };
+  };
+
+  // ─── System Health ────────────────────────────────────────────────────────────
+  public query func getSystemStatsWithKey(devKey : Text) : async {
+    totalCompanies : Nat; totalUsers : Nat; totalVehicles : Nat;
+    totalMaintenanceRecords : Nat; totalWorkOrders : Nat; totalParts : Nat;
+    totalDiscountCodes : Nat; totalAuditLogs : Nat; backendVersion : Text;
+  } {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    var totalUsers = 0;
+    var totalVehicles = 0;
+    var totalMaintenance = 0;
+    var totalWO = 0;
+    var totalParts = 0;
+    for ((_, m) in cFleetRoles.entries()) { totalUsers += m.size() };
+    for ((_, m) in cVehicles.entries()) { totalVehicles += m.size() };
+    for ((_, m) in cMaint.entries()) { totalMaintenance += m.size() };
+    for ((_, m) in cWO.entries()) { totalWO += m.size() };
+    for ((_, m) in cParts.entries()) { totalParts += m.size() };
+    {
+      totalCompanies = allCompanyRegistrations.size();
+      totalUsers;
+      totalVehicles;
+      totalMaintenanceRecords = totalMaintenance;
+      totalWorkOrders = totalWO;
+      totalParts;
+      totalDiscountCodes = discountCodes.size();
+      totalAuditLogs = auditLogStore.size();
+      backendVersion = "1.0.0";
+    };
+  };
+
+  public query func pingWithKey(devKey : Text) : async Text {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    "ok:" # Time.now().toText();
+  };
+
+  // ─── Developer Session Tracking ──────────────────────────────────────────────
+  public shared func recordDevLoginWithKey(devKey : Text) : async () {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    devLastLoginStore.add(devKey, Time.now());
+  };
+
+  public query func getDevLastLoginWithKey(devKey : Text) : async ?Int {
+    if (devKey != DEV_KEY) Runtime.trap("Unauthorized: Invalid developer key");
+    devLastLoginStore.get(devKey);
   };
 
 };
