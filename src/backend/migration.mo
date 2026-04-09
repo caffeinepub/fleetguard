@@ -3,14 +3,10 @@ import Time "mo:core/Time";
 
 module {
 
-  // ─── Old types (from previous deployment) ────────────────────────────────────
-  type OldDiscountCode = {
-    id : Nat; code : Text; discountType : Text; value : Nat;
-    description : Text; createdAt : Time.Time; usedCount : Nat;
-  };
-
-  // ─── New types (current version) ─────────────────────────────────────────────
-  type NewDiscountCode = {
+  // ─── Stored type (already upgraded in previous deployment) ───────────────────
+  // The previous migration already added expiresAt/maxUsageCount/applicableTiers/isActive.
+  // The stored snapshot already has this full shape — so OldActor must match it exactly.
+  type StoredDiscountCode = {
     id : Nat; code : Text; discountType : Text; value : Nat;
     description : Text; createdAt : Time.Time; usedCount : Nat;
     expiresAt : ?Int; maxUsageCount : ?Nat; applicableTiers : [Text]; isActive : Bool;
@@ -18,25 +14,15 @@ module {
 
   // ─── Migration input/output types ────────────────────────────────────────────
   type OldActor = {
-    discountCodes : Map.Map<Nat, OldDiscountCode>;
+    discountCodes : Map.Map<Nat, StoredDiscountCode>;
   };
 
   type NewActor = {
-    discountCodes : Map.Map<Nat, NewDiscountCode>;
+    discountCodes : Map.Map<Nat, StoredDiscountCode>;
   };
 
+  // Pass-through: stored shape already matches new shape, no transformation needed.
   public func run(old : OldActor) : NewActor {
-    let discountCodes = old.discountCodes.map<Nat, OldDiscountCode, NewDiscountCode>(
-      func(_id, dc) {
-        {
-          dc with
-          expiresAt = null : ?Int;
-          maxUsageCount = null : ?Nat;
-          applicableTiers = [] : [Text];
-          isActive = true;
-        }
-      }
-    );
-    { discountCodes };
+    { discountCodes = old.discountCodes };
   };
 };

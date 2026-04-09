@@ -136,16 +136,6 @@ type Notification__879889657 =
     severity : NotificationSeverity__127052655;
     title : Text
   };
-type OldDiscountCode__242233187 =
-  {
-    code : Text;
-    createdAt : Time__900049286;
-    description : Text;
-    discountType : Text;
-    id : Nat;
-    usedCount : Nat;
-    value : Nat
-  };
 type PartCore__620802191 =
   {
     createdAt : Time__900049286;
@@ -168,6 +158,20 @@ type ServiceSchedule__444523700 =
     serviceType : Text;
     status : Text;
     vehicleId : Nat
+  };
+type StoredDiscountCode__551432987 =
+  {
+    applicableTiers : [Text];
+    code : Text;
+    createdAt : Time__900049286;
+    description : Text;
+    discountType : Text;
+    expiresAt : ?Int;
+    id : Nat;
+    isActive : Bool;
+    maxUsageCount : ?Nat;
+    usedCount : Nat;
+    value : Nat
   };
 type SubscriptionRecord__132754268 =
   {
@@ -408,7 +412,7 @@ actor ({
     {var root : Node__46230540<Text, Int>; var size : Nat__490723111};
   stable var discountCodeMap :
     {var root : Node__46230540<Text, Nat>; var size : Nat__490723111};
-  in discountCodes : Map__605269027<Nat, OldDiscountCode__242233187>;
+  in discountCodes : Map__605269027<Nat, StoredDiscountCode__551432987>;
   stable var fleetRoles :
     {
       var root : Node__46230540<Principal, FleetRole__999979268>;

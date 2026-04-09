@@ -27,6 +27,121 @@ import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSaveCompanySettings, useSaveProfile } from "../hooks/useQueries";
 
+// ─── Tier definitions ──────────────────────────────────────────────────────────
+type TierKey = "starter" | "growth" | "enterprise";
+
+interface TierStyle {
+  color: string;
+  borderColor: string;
+  bgColor: string;
+  badgeClass: string;
+}
+
+const TIER_STYLES: Record<TierKey, TierStyle> = {
+  starter: {
+    color: "text-blue-600 dark:text-blue-400",
+    borderColor: "border-blue-300 dark:border-blue-600",
+    bgColor: "bg-blue-50 dark:bg-blue-950/30",
+    badgeClass:
+      "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700",
+  },
+  growth: {
+    color: "text-emerald-600 dark:text-emerald-400",
+    borderColor: "border-emerald-300 dark:border-emerald-600",
+    bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
+    badgeClass:
+      "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700",
+  },
+  enterprise: {
+    color: "text-purple-600 dark:text-purple-400",
+    borderColor: "border-purple-300 dark:border-purple-600",
+    bgColor: "bg-purple-50 dark:bg-purple-950/30",
+    badgeClass:
+      "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700",
+  },
+};
+
+const FLEET_TO_TIER: Record<string, TierKey> = {
+  "1\u201310": "starter",
+  "11\u201325": "growth",
+  "26+": "enterprise",
+};
+
+function getTierKey(tier: SubscriptionTier): TierKey {
+  if (tier === SubscriptionTier.growth) return "growth";
+  if (tier === SubscriptionTier.enterprise) return "enterprise";
+  return "starter";
+}
+
+interface PlanCardInfo {
+  name: string;
+  price: string;
+  limit: string;
+}
+
+const TIER_CARD_INFO: Record<TierKey, PlanCardInfo> = {
+  starter: { name: "Starter Plan", price: "$99", limit: "Up to 10 vehicles" },
+  growth: { name: "Growth Plan", price: "$225", limit: "Up to 25 vehicles" },
+  enterprise: {
+    name: "Enterprise Plan",
+    price: "$499",
+    limit: "Unlimited vehicles",
+  },
+};
+
+function PlanSummaryCard({
+  tierKey,
+  fleetSize,
+}: {
+  tierKey: TierKey;
+  fleetSize?: string;
+}) {
+  const styles = TIER_STYLES[tierKey];
+  const info = TIER_CARD_INFO[tierKey];
+  return (
+    <div
+      className={`rounded-xl border-2 ${styles.borderColor} ${styles.bgColor} p-4`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${styles.badgeClass} mb-2`}
+          >
+            {info.name}
+          </span>
+          <div
+            className={`text-3xl font-extrabold ${styles.color} leading-none mb-0.5`}
+          >
+            {info.price}
+            <span className="text-sm font-normal text-muted-foreground ml-1">
+              /mo + tax
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground font-medium mt-1">
+            {info.limit}
+          </p>
+          {fleetSize && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Your fleet size: {fleetSize} vehicles
+            </p>
+          )}
+        </div>
+        <div
+          className={`rounded-lg p-2 ${styles.bgColor} border ${styles.borderColor}`}
+        >
+          <CheckCircle2 className={`w-5 h-5 ${styles.color}`} />
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-current/10 flex items-center gap-1.5">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+          7-day free trial — no charge until trial ends
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Minimal Stripe type stubs (loaded dynamically from CDN at runtime) ───────
 type StripeInstance = {
   createToken: (
@@ -205,9 +320,16 @@ export function OnboardingPage() {
 
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(
-    SubscriptionTier.starter,
-  );
+
+  // Pre-select tier based on fleet size chosen in LoginPage step 1
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(() => {
+    const presignupTier = sessionStorage.getItem("fleetguard_presignup_tier");
+    const fleetSizeTierKey = FLEET_TO_TIER[fleetSize] ?? "starter";
+    const tierKey = (presignupTier as TierKey | null) ?? fleetSizeTierKey;
+    if (tierKey === "growth") return SubscriptionTier.growth;
+    if (tierKey === "enterprise") return SubscriptionTier.enterprise;
+    return SubscriptionTier.starter;
+  });
 
   // T&C checkbox state (step 1)
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -653,57 +775,75 @@ export function OnboardingPage() {
               </div>
 
               <div className="space-y-3 mb-6">
-                {TIER_OPTIONS.map((option) => (
-                  <button
-                    key={option.tier}
-                    type="button"
-                    data-ocid={`onboarding.tier.${option.tier}`}
-                    onClick={() => setSelectedTier(option.tier)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                      selectedTier === option.tier
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/40"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-base">
-                          {option.name}
-                        </span>
-                        {option.highlight && (
-                          <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">
-                            Popular
-                          </Badge>
-                        )}
-                        {selectedTier === option.tier && (
-                          <CheckCircle2 className="w-4 h-4 text-primary" />
-                        )}
+                {TIER_OPTIONS.map((option) => {
+                  const tierKey = getTierKey(option.tier);
+                  const recommendedTierKey =
+                    FLEET_TO_TIER[fleetSize] ?? "starter";
+                  const isRecommended =
+                    fleetSize && tierKey === recommendedTierKey;
+                  return (
+                    <button
+                      key={option.tier}
+                      type="button"
+                      data-ocid={`onboarding.tier.${option.tier}`}
+                      onClick={() => setSelectedTier(option.tier)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                        selectedTier === option.tier
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-base">
+                            {option.name}
+                          </span>
+                          {option.highlight && (
+                            <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">
+                              Popular
+                            </Badge>
+                          )}
+                          {isRecommended && (
+                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 text-xs">
+                              Recommended
+                            </Badge>
+                          )}
+                          {selectedTier === option.tier && (
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-lg">
+                            {option.price}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            /mo + tax
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="font-bold text-lg">
-                          {option.price}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          /mo + tax
-                        </span>
+                      <p className="text-xs text-muted-foreground mb-2 font-medium">
+                        {option.limit}
+                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {option.features.map((f) => (
+                          <span
+                            key={f}
+                            className="text-xs text-muted-foreground flex items-center gap-1"
+                          >
+                            <Check className="w-3 h-3 text-primary shrink-0" />
+                            {f}
+                          </span>
+                        ))}
                       </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2 font-medium">
-                      {option.limit}
-                    </p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      {option.features.map((f) => (
-                        <span
-                          key={f}
-                          className="text-xs text-muted-foreground flex items-center gap-1"
-                        >
-                          <Check className="w-3 h-3 text-primary shrink-0" />
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                ))}
+                      {isRecommended && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-2 pt-2 border-t border-border/50">
+                          Based on your fleet size of {fleetSize} vehicles, we
+                          recommend this plan
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <Button
@@ -781,18 +921,12 @@ export function OnboardingPage() {
                 </p>
               </div>
 
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex items-center gap-3 mb-5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                <div className="text-xs">
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    7 days free
-                  </span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    &mdash; then charged at your selected plan rate. Minimum
-                    12-month contract term applies.
-                  </span>
-                </div>
+              {/* Plan summary card showing exact price based on selected tier */}
+              <div className="mb-5">
+                <PlanSummaryCard
+                  tierKey={getTierKey(selectedTier)}
+                  fleetSize={fleetSize || undefined}
+                />
               </div>
 
               <div className="space-y-4">
@@ -972,6 +1106,18 @@ export function OnboardingPage() {
                     <span className="font-semibold">{fleetSize} vehicles</span>
                   </div>
                 )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Plan</span>
+                  <span className="font-semibold">
+                    {TIER_CARD_INFO[getTierKey(selectedTier)].name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Price</span>
+                  <span className="font-semibold">
+                    {TIER_CARD_INFO[getTierKey(selectedTier)].price}/mo + tax
+                  </span>
+                </div>
                 {discountApplied && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Discount</span>

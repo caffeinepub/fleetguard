@@ -34,7 +34,102 @@ const INDUSTRIES = [
   "Construction",
   "Other",
 ];
-const FLEET_SIZES = ["1\u201310", "11\u201350", "51\u2013200", "200+"];
+const FLEET_SIZES = ["1\u201310", "11\u201325", "26+"];
+
+type TierKey = "starter" | "growth" | "enterprise";
+
+interface TierInfo {
+  key: TierKey;
+  name: string;
+  price: string;
+  priceNum: number;
+  limit: string;
+  color: string;
+  borderColor: string;
+  bgColor: string;
+  badgeColor: string;
+}
+
+const TIER_MAP: Record<string, TierInfo> = {
+  "1\u201310": {
+    key: "starter",
+    name: "Starter Plan",
+    price: "$99",
+    priceNum: 99,
+    limit: "Up to 10 vehicles",
+    color: "text-blue-600 dark:text-blue-400",
+    borderColor: "border-blue-300 dark:border-blue-600",
+    bgColor: "bg-blue-50 dark:bg-blue-950/30",
+    badgeColor:
+      "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700",
+  },
+  "11\u201325": {
+    key: "growth",
+    name: "Growth Plan",
+    price: "$225",
+    priceNum: 225,
+    limit: "Up to 25 vehicles",
+    color: "text-emerald-600 dark:text-emerald-400",
+    borderColor: "border-emerald-300 dark:border-emerald-600",
+    bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
+    badgeColor:
+      "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700",
+  },
+  "26+": {
+    key: "enterprise",
+    name: "Enterprise Plan",
+    price: "$499",
+    priceNum: 499,
+    limit: "Unlimited vehicles",
+    color: "text-purple-600 dark:text-purple-400",
+    borderColor: "border-purple-300 dark:border-purple-600",
+    bgColor: "bg-purple-50 dark:bg-purple-950/30",
+    badgeColor:
+      "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700",
+  },
+};
+
+function PlanSummaryCard({ fleetSize }: { fleetSize: string }) {
+  const tier = TIER_MAP[fleetSize];
+  if (!tier) return null;
+  return (
+    <div
+      className={`rounded-xl border-2 ${tier.borderColor} ${tier.bgColor} p-4 mb-4`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${tier.badgeColor} mb-2`}
+          >
+            {tier.name}
+          </span>
+          <div
+            className={`text-3xl font-extrabold ${tier.color} leading-none mb-0.5`}
+          >
+            {tier.price}
+            <span className="text-sm font-normal text-muted-foreground ml-1">
+              /mo + tax
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground font-medium mt-1">
+            {tier.limit}
+          </p>
+        </div>
+        <div
+          className={`rounded-lg p-2 ${tier.bgColor} border ${tier.borderColor}`}
+        >
+          <CheckCircle2 className={`w-5 h-5 ${tier.color}`} />
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-current/10 flex items-center gap-1.5">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+          7-day free trial — no charge until trial ends
+        </span>
+      </div>
+    </div>
+  );
+}
 
 const HERO_STATS = [
   {
@@ -325,6 +420,9 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
     sessionStorage.setItem("fleetguard_presignup_fleetsize", signUpFleetSize);
     sessionStorage.setItem("fleetguard_presignup_phone", signUpPhone.trim());
     sessionStorage.setItem("fleetguard_presignup_email", signUpEmail.trim());
+    // Store the mapped tier key so OnboardingPage can pre-select it
+    const mappedTier = TIER_MAP[signUpFleetSize]?.key ?? "starter";
+    sessionStorage.setItem("fleetguard_presignup_tier", mappedTier);
     if (discountApplied) {
       sessionStorage.setItem("fleetguard_presignup_discount", discountApplied);
     }
@@ -782,20 +880,8 @@ export function LoginPage({ onSignUp: _onSignUp, onNavigate }: LoginPageProps) {
                       </p>
                     </div>
 
-                    {/* Trial badge */}
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start gap-3">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                      <div className="text-xs">
-                        <span className="font-semibold text-emerald-700">
-                          7 days free
-                        </span>
-                        <span className="text-emerald-600">
-                          {" "}
-                          — then billed at your selected plan rate. Plans from{" "}
-                          <strong>$99/month</strong>. Minimum 12-month contract.
-                        </span>
-                      </div>
-                    </div>
+                    {/* Plan summary card — derived from fleet size selected in step 1 */}
+                    <PlanSummaryCard fleetSize={signUpFleetSize} />
 
                     {/* Test mode banner (when no Stripe key configured) */}
                     {!STRIPE_PK && (
